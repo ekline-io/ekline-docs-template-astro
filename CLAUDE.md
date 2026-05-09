@@ -19,9 +19,11 @@ If a behavior or configuration is unclear, fetch the relevant page from the docs
 
 ## Working principles
 
-- **Prefer existing plugins over custom code.** Before writing a custom integration, component, or remark/rehype plugin, search the Starlight plugin showcase, Astro integrations directory, and the wider ecosystem (npm, GitHub) for a community-maintained option. Only build custom when nothing suitable exists or existing options have a clear blocker — and document that reason in the PR/commit.
-  - Starlight plugin showcase: https://starlight.astro.build/resources/plugins/
-  - Astro integrations: https://astro.build/integrations/
+- **Adding a new capability? Look for an existing plugin first.** Before writing any custom integration, component, or remark/rehype plugin, search these two showcases — they are the default answer for "how do I add X to my docs site":
+  - **Starlight plugin showcase:** https://starlight.astro.build/resources/plugins/
+  - **Astro integrations directory:** https://astro.build/integrations/
+
+  Also check npm and GitHub for community plugins not yet listed in the showcases. Only build custom when nothing suitable exists or existing options have a clear blocker — and document that reason in the PR/commit. This rule applies to every new capability (search, i18n, analytics, OG images, redirects, etc.), not just the ones already wired up.
 - **Stay close to Starlight conventions.** Use Starlight's built-in config surface (sidebar config, components override slots, content collections schema) before reaching for Astro-level customization. Downstream users will expect the template to look like a normal Starlight project.
 - **Keep it template-shaped.** Content, branding, and config should be obvious placeholders that a user can swap out. Avoid baking in EkLine-specific content, copy, or assets unless the user explicitly asks — this template is meant to be reused.
 
@@ -55,6 +57,3 @@ Component overrides (Starlight's "Overriding Components" mechanism) go in `src/c
 - **`@astrojs/sitemap`** — emits `sitemap-index.xml` + `sitemap-0.xml` on build. Requires `site` to be set.
 - **`starlight-llms-txt`** — emits `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt` on build for AI assistant consumption. Configure `projectName`, `description`, and optionally `customSets` / `promote` in `astro.config.mjs`. Docs: https://github.com/delucis/starlight-llms-txt
 
-## Deferred / known gaps
-
-- **Copy-as-Markdown / per-page `.md` routes**: the canonical plugin is [`starlight-contextual-menu`](https://github.com/HiDeoo/starlight-contextual-menu) (used in the EkLine production docs at `~/workspace/ekline-app/ekline-docs/`). It currently pins `astro@^5.0.0`, so it does not install on this Astro 6 template. Re-evaluate when the plugin publishes Astro 6 support; do **not** fork or build a custom replacement until then.
