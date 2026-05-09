@@ -2,6 +2,8 @@
 
 [![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
 
+**Live preview:** <https://ekline-docs-template-astro.vercel.app/>
+
 ```
 npm create astro@latest -- --template starlight
 ```
