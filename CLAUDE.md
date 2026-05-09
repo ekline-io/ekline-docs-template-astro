@@ -10,12 +10,12 @@ The project was scaffolded with the official Starlight starter (`npm create astr
 
 ## Authoritative references
 
-When building or modifying anything in this repo, consult these first — they are the source of truth and override general training knowledge:
+**Always consult the Starlight docs before making any change.** This is the rule, not the exception — these docs are the source of truth and override general training knowledge. Any time you're touching config, components, content schema, plugins, theming, routing, i18n, or anything else, fetch the relevant page first and follow the recommended approach there.
 
-- Starlight docs: https://starlight.astro.build/getting-started/
+- **Starlight docs (start here for every change):** https://starlight.astro.build/
 - Astro docs: https://docs.astro.build/en/getting-started/
 
-If a behavior or configuration is unclear, fetch the relevant page from the docs above before guessing or improvising.
+This applies to bug fixes too: if Starlight has changed how something is configured or named between versions, the docs reflect the current API — your training data may not.
 
 ## Working principles
 
