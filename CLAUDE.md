@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project intent
 
-This repository is an **open-source Starlight (Astro) documentation template** intended for others to fork/clone and use as the starting point for their own documentation sites. It is not a finished product site — it is a reference template, so decisions should optimize for clarity, reusability, and ease of adoption by downstream users, not for one-off polish.
+This repository is **EkLine's recommended Starlight (Astro) documentation template**, which EkLine ships to its customers when they want to stand up a docs site. It is not a finished product site — customers fork/clone it and replace the placeholders with their own content. Decisions should optimize for clarity, reusability, and ease of adoption by EkLine customers, not for one-off polish.
+
+Because EkLine is the maintainer, light EkLine attribution is appropriate (e.g. "Maintained by EkLine" in the footer, EkLine listed as the LICENSE copyright holder). Avoid baking in EkLine *product-specific* copy or assets — the customer is starting *their* docs site, not a clone of EkLine's.
 
 The project was scaffolded with the official Starlight starter (`npm create astro@latest -- --template starlight`). Astro `^6.2.2`, Starlight `^0.39.2`, Node 22.x verified.
 
@@ -25,7 +27,7 @@ This applies to bug fixes too: if Starlight has changed how something is configu
 
   Also check npm and GitHub for community plugins not yet listed in the showcases. Only build custom when nothing suitable exists or existing options have a clear blocker — and document that reason in the PR/commit. This rule applies to every new capability (search, i18n, analytics, OG images, redirects, etc.), not just the ones already wired up.
 - **Stay close to Starlight conventions.** Use Starlight's built-in config surface (sidebar config, components override slots, content collections schema) before reaching for Astro-level customization. Downstream users will expect the template to look like a normal Starlight project.
-- **Keep it template-shaped.** Content, branding, and config should be obvious placeholders that a user can swap out. Avoid baking in EkLine-specific content, copy, or assets unless the user explicitly asks — this template is meant to be reused.
+- **Keep it template-shaped.** Content, sidebar entries, and example pages should be obvious placeholders that a customer can swap out. EkLine attribution is fine in attribution-shaped places (footer credit, LICENSE) but avoid product-specific copy that wouldn't make sense on a customer's own docs site.
 
 ## Commands
 

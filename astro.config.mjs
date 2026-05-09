@@ -16,6 +16,9 @@ export default defineConfig({
 			title: 'My Docs',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
 			customCss: ['./src/styles/global.css'],
+			components: {
+				Footer: './src/components/CustomFooter.astro',
+			},
 			plugins: [
 				starlightLlmsTxt({
 					projectName: 'My Docs',
