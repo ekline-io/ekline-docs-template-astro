@@ -1,4 +1,4 @@
-# EkLine Docs Template
+# EkLine docs template
 
 A documentation site template built on [Astro](https://astro.build/) + [Starlight](https://starlight.astro.build/). Click **"Use this template"**, replace the placeholder content, and ship.
 
@@ -51,10 +51,10 @@ For anything else, check the [Starlight docs](https://starlight.astro.build/) �
 
 Astro builds to a static `dist/` folder, so you can host it almost anywhere. Common options:
 
-- **Vercel** (what the live preview uses — one-click import)
-- **Netlify**
-- **Cloudflare Pages**
-- **GitHub Pages**
+- **Vercel** — what the live preview uses, one-click import.
+- **Netlify**.
+- **Cloudflare Pages**.
+- **GitHub Pages**.
 
 See Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform.
 
@@ -62,7 +62,7 @@ See Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step
 
 ## Commands
 
-All commands are run from the project root in a terminal.
+Run all commands from the project root in a terminal.
 
 | Command | Action |
 | --- | --- |
@@ -70,13 +70,13 @@ All commands are run from the project root in a terminal.
 | `npm run dev` | Local dev server at `localhost:4321` |
 | `npm run build` | Production build to `./dist/` |
 | `npm run preview` | Preview the production build locally |
-| `npm run astro ...` | Run Astro CLI commands (e.g. `astro check`) |
+| `npm run astro ...` | Run Astro CLI commands (for example, `astro check`) |
 
 ## Learn more
 
-- [Starlight docs](https://starlight.astro.build/) — sidebar, components, content schema, theming
-- [Astro docs](https://docs.astro.build/) — routing, integrations, deployment
-- [Starlight plugin showcase](https://starlight.astro.build/resources/plugins/) — search, i18n, OG images, redirects, and more
+- [Starlight docs](https://starlight.astro.build/) — sidebar, components, content schema, theming.
+- [Astro docs](https://docs.astro.build/) — routing, integrations, deployment.
+- [Starlight plugin showcase](https://starlight.astro.build/resources/plugins/) — search, i18n, OG images, redirects, and more.
 
 ## License
 
