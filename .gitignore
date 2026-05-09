@@ -19,3 +19,6 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# Playwright MCP browser snapshots/logs
+.playwright-mcp/
