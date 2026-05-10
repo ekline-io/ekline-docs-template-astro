@@ -1,0 +1,58 @@
+---
+title: How it works
+description: The high-level mental model of the product — objects, lifecycle, and where things live.
+---
+
+import { Aside, FileTree } from '@astrojs/starlight/components';
+
+This page explains the **mental model** behind [your product]. Reading it once
+should make the rest of the docs easier to navigate.
+
+<Aside type="note">
+	An **explanation** page is the place for "why" and "how it fits together."
+	Save step-by-step instructions for **[Guides](/guides/example/)** and exhaustive
+	field lists for **[Reference](/reference/overview/)**.
+</Aside>
+
+## Core objects
+
+The product is organized around a small set of objects:
+
+- **Account** — the top-level container. Every other object belongs to one account.
+- **User** — a person who can sign in and act on behalf of an account.
+- **Widget** — the primary resource your customers create and manage. *(Rename to match your domain.)*
+- **Event** — an immutable record of something that happened. Powers webhooks and audit logs.
+
+Rename, remove, or add objects so they match your own domain. The point of
+this page is to give a new reader a one-screen overview.
+
+## Lifecycle
+
+A typical widget flows through these states:
+
+```
+draft → active → archived
+```
+
+Transitions happen either through the **API**, the **dashboard**, or
+**scheduled jobs** the platform runs on your behalf.
+
+## How a typical project is structured
+
+<FileTree>
+
+- your-app/
+  - .env
+  - src/
+    - **client.ts** initializes the SDK with your API key
+    - widgets/
+      - create.ts
+      - list.ts
+  - package.json
+
+</FileTree>
+
+## What's next
+
+- **[Glossary](/concepts/glossary/)** — definitions for the terms used across the docs.
+- **[Quickstart](/get-started/quickstart/)** — try it end-to-end.

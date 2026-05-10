@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import starlightLlmsTxt from 'starlight-llms-txt';
+import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
@@ -17,6 +18,7 @@ export default defineConfig({
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
 			customCss: ['./src/styles/global.css'],
 			components: {
+				Head: './src/components/CustomHead.astro',
 				Header: './src/components/CustomHeader.astro',
 				Hero: './src/components/CustomHero.astro',
 				Footer: './src/components/CustomFooter.astro',
@@ -27,18 +29,48 @@ export default defineConfig({
 					description:
 						'A documentation site built with Astro Starlight. Replace this description with a one-paragraph summary of your project.',
 				}),
+				// Generates reference pages under `/api/` from the OpenAPI spec.
+				// Replace `src/schemas/api.yaml` with your own spec (YAML or JSON).
+				starlightOpenAPI([
+					{
+						base: 'api',
+						label: 'API reference',
+						schema: './src/schemas/api.yaml',
+					},
+				]),
 			],
 			sidebar: [
 				{
+					label: 'Get started',
+					items: [
+						{ label: 'Introduction', slug: 'get-started/introduction' },
+						{ label: 'Quickstart', slug: 'get-started/quickstart' },
+						{ label: 'Authentication', slug: 'get-started/authentication' },
+					],
+				},
+				{
 					label: 'Guides',
 					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
+						{ label: 'Example guide', slug: 'guides/example' },
+						{ label: 'Send your first request', slug: 'guides/send-your-first-request' },
+					],
+				},
+				{
+					label: 'Concepts',
+					items: [
+						{ label: 'How it works', slug: 'concepts/how-it-works' },
+						{ label: 'Glossary', slug: 'concepts/glossary' },
 					],
 				},
 				{
 					label: 'Reference',
 					items: [{ autogenerate: { directory: 'reference' } }],
+				},
+				// API reference pages auto-generated from `src/schemas/api.yaml`.
+				...openAPISidebarGroups,
+				{
+					label: 'Changelog',
+					slug: 'changelog',
 				},
 			],
 		}),

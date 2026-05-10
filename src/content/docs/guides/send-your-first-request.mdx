@@ -1,0 +1,80 @@
+---
+title: Send your first request
+description: A task-oriented walkthrough showing how to create, read, and delete a widget.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+This guide demonstrates a complete create → read → delete loop against the
+example API. Follow it end-to-end, then swap the URLs and resource for whatever
+your own product exposes.
+
+<Aside>
+	A **how-to guide** assumes the reader already knows the basics. If you're
+	new, start with **[Quickstart](/get-started/quickstart/)** first.
+</Aside>
+
+## Steps
+
+<Steps>
+
+1. **Create a widget.**
+
+   <Tabs syncKey="lang">
+     <TabItem label="curl">
+       ```bash
+       curl https://api.example.com/v1/widgets \
+         -H "Authorization: Bearer $API_KEY" \
+         -H "Content-Type: application/json" \
+         -d '{"name": "Demo widget"}'
+       ```
+     </TabItem>
+     <TabItem label="JavaScript">
+       ```js
+       const widget = await fetch('https://api.example.com/v1/widgets', {
+         method: 'POST',
+         headers: {
+           Authorization: `Bearer ${process.env.API_KEY}`,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({ name: 'Demo widget' }),
+       }).then((r) => r.json());
+       ```
+     </TabItem>
+   </Tabs>
+
+   Save the returned `id` — you'll use it in the next step.
+
+2. **Read it back.**
+
+   <Tabs syncKey="lang">
+     <TabItem label="curl">
+       ```bash
+       curl https://api.example.com/v1/widgets/$WIDGET_ID \
+         -H "Authorization: Bearer $API_KEY"
+       ```
+     </TabItem>
+     <TabItem label="JavaScript">
+       ```js
+       const widget = await fetch(
+         `https://api.example.com/v1/widgets/${id}`,
+         { headers: { Authorization: `Bearer ${process.env.API_KEY}` } },
+       ).then((r) => r.json());
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Clean up.**
+
+   ```bash
+   curl -X DELETE https://api.example.com/v1/widgets/$WIDGET_ID \
+     -H "Authorization: Bearer $API_KEY"
+   ```
+
+</Steps>
+
+## Further reading
+
+- **[API reference](/api/)** — every endpoint and field.
+- **[Errors](/reference/errors/)** — what each error code means.
+- Read [about how-to guides](https://diataxis.fr/how-to-guides/) in the Diátaxis framework.

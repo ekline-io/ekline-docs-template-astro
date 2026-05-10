@@ -1,0 +1,42 @@
+---
+title: Authentication
+description: How to authenticate requests to the API, manage keys, and stay safe in production.
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+
+All API requests authenticate with a **bearer token**. Send your API key in the
+`Authorization` header on every request.
+
+```http
+Authorization: Bearer sk_live_replace_me
+```
+
+<Aside type="caution" title="Keep secrets out of source control">
+	Treat API keys like passwords. Never commit them — use environment variables,
+	a secrets manager, or your platform's built-in vault.
+</Aside>
+
+## Key types
+
+| Prefix      | Environment | Notes                                                   |
+| ----------- | ----------- | ------------------------------------------------------- |
+| `sk_live_`  | Production  | Acts on real data. Rotate immediately if leaked.        |
+| `sk_test_`  | Sandbox     | Safe for development. Data is isolated from production. |
+
+## Rotating a key
+
+1. Create a new key in **Settings → API keys**.
+2. Deploy the new key to your application.
+3. Revoke the old key once traffic has migrated.
+
+## Scoping
+
+Restrict what a key can do by assigning **scopes** at creation time —
+for example, `widgets:read` for a read-only integration. Requests using a key
+without the required scope receive a `403 Forbidden` response.
+
+<Aside type="tip">
+	Customize this page with your own auth model — OAuth, SSO, signed
+	webhooks, or per-user tokens — whatever your product supports.
+</Aside>

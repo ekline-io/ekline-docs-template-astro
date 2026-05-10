@@ -1,0 +1,21 @@
+---
+/**
+ * Starlight Head override.
+ *
+ * Renders the default Starlight head tags, then adds Astro's `<ClientRouter />`
+ * to enable cross-page view transitions. With it, navigating between docs
+ * pages performs a smooth fade/swap instead of a full reload — closer to the
+ * feel of a SPA, without giving up the static-site benefits.
+ *
+ * To opt out: remove this file and the `Head` entry in `astro.config.mjs`.
+ *
+ * Docs:
+ *   https://docs.astro.build/en/guides/view-transitions/
+ *   https://starlight.astro.build/guides/overriding-components/
+ */
+import Default from '@astrojs/starlight/components/Head.astro';
+import { ClientRouter } from 'astro:transitions';
+---
+
+<Default />
+<ClientRouter />

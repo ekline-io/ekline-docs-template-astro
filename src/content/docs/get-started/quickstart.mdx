@@ -1,0 +1,92 @@
+---
+title: Quickstart
+description: Send your first request and see a result in under five minutes.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+This quickstart walks you through creating an account, generating an API key,
+and making your first request. Replace the placeholder URLs and resource names
+with your own.
+
+<Aside type="note">
+	Prefer to read the API surface first? Jump to the **[API reference](/api/)**.
+</Aside>
+
+## Before you begin
+
+You need:
+
+- An account on **[your product]**. [Sign up](https://example.com/signup) if you don't have one.
+- A terminal with `curl`, or a project set up with the language SDK of your choice.
+
+## Steps
+
+<Steps>
+
+1. **Create an API key.**
+
+   Sign in, open **Settings → API keys**, and click **Create key**. Copy it
+   somewhere safe — you'll only see it once.
+
+2. **Export the key as an environment variable.**
+
+   ```bash
+   export API_KEY="sk_live_replace_me"
+   ```
+
+3. **Send your first request.**
+
+   <Tabs syncKey="lang">
+     <TabItem label="curl">
+       ```bash
+       curl https://api.example.com/v1/widgets \
+         -H "Authorization: Bearer $API_KEY" \
+         -H "Content-Type: application/json" \
+         -d '{"name": "My first widget"}'
+       ```
+     </TabItem>
+     <TabItem label="JavaScript">
+       ```js
+       const res = await fetch('https://api.example.com/v1/widgets', {
+         method: 'POST',
+         headers: {
+           Authorization: `Bearer ${process.env.API_KEY}`,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({ name: 'My first widget' }),
+       });
+       const widget = await res.json();
+       ```
+     </TabItem>
+     <TabItem label="Python">
+       ```python
+       import os, requests
+
+       res = requests.post(
+           "https://api.example.com/v1/widgets",
+           headers={"Authorization": f"Bearer {os.environ['API_KEY']}"},
+           json={"name": "My first widget"},
+       )
+       widget = res.json()
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Inspect the response.**
+
+   ```json title="Response"
+   {
+     "id": "wdg_01H8Z9XJ7M3K4P5Q6R7S8T9V0W",
+     "name": "My first widget",
+     "created_at": "2026-05-10T12:00:00Z"
+   }
+   ```
+
+</Steps>
+
+## What's next
+
+- Read **[How it works](/concepts/how-it-works/)** to understand the data model.
+- Browse the **[API reference](/api/)** for every endpoint.
+- See **[Authentication](/get-started/authentication/)** for key rotation and scoping.

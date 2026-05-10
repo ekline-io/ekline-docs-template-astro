@@ -127,3 +127,112 @@
 .card .icon {
 	color: var(--sl-color-text-accent);
 }
+
+/* ── Asides ────────────────────────────────────────────────────────────────
+ *
+ * Drop Starlight's tinted background and lean on a single colored left rule
+ * + colored icon (Stripe / Linear pattern). Calmer when a page has several
+ * asides stacked. The colored icon + label still carry the variant meaning.
+ *
+ * To restore the default tint: delete this block.
+ */
+.starlight-aside {
+	background-color: transparent;
+	border-inline-start-width: 3px;
+	padding-block: 0.875rem;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────
+ *
+ * Active-item indicator: replace the filled background pill with a thin
+ * accent left-border (Linear / Vercel pattern). Group labels get the small
+ * uppercase + tracked-out treatment so they read as section dividers, not
+ * headings.
+ */
+.sidebar-content :where(a[aria-current='page'], a[aria-current='page']:hover) {
+	background-color: transparent;
+	color: var(--sl-color-text-accent);
+	font-weight: 600;
+	box-shadow: inset 2px 0 0 var(--sl-color-text-accent);
+}
+
+.sidebar-content .group-label > .large,
+.sidebar-content summary > .large {
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--sl-color-gray-3);
+}
+
+/* ── In-content link decoration ────────────────────────────────────────────
+ *
+ * Finer typographic underline for body links: thinner stroke, more
+ * breathing room from the text baseline. Only applies inside the rendered
+ * markdown content, so navigation/card links are unaffected.
+ */
+.sl-markdown-content :where(a:not(:where(.card a, .sl-link-card *, .sl-anchor-link))) {
+	text-underline-offset: 0.2em;
+	text-decoration-thickness: 1px;
+	text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 50%, transparent);
+	transition: text-decoration-color 120ms ease;
+}
+
+.sl-markdown-content :where(a:not(:where(.card a, .sl-link-card *, .sl-anchor-link))):hover {
+	text-decoration-color: var(--sl-color-text-accent);
+}
+
+/* ── Heading anchor ────────────────────────────────────────────────────────
+ *
+ * Hide the permanent anchor icon next to each heading; reveal it on heading
+ * hover (GitHub pattern) and on keyboard focus. Reduces visual chrome on
+ * pages with many sub-headings without losing the affordance.
+ */
+.sl-anchor-link {
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+.sl-heading-wrapper:hover .sl-anchor-link,
+.sl-anchor-link:focus-visible {
+	opacity: 1;
+}
+
+/* ── OpenAPI method pills ──────────────────────────────────────────────────
+ *
+ * Harmonize the auto-generated `starlight-openapi` method badges with the
+ * site's typography: monospace, tracked-out, smaller. Keeps the verb-color
+ * cues (GET green-ish, POST accent, etc.) but desaturates them so they sit
+ * inside the design system instead of competing with it.
+ */
+.sl-openapi-operation-method-badge {
+	font-family: var(--sl-font-mono);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0.125rem 0.5rem;
+	border-radius: 0.25rem;
+}
+
+.sl-openapi-operation-method-badge.post {
+	background: color-mix(in srgb, var(--sl-color-text-accent) 14%, transparent);
+	color: var(--sl-color-text-accent);
+}
+
+/* ── LinkCard hover motion ────────────────────────────────────────────────
+ *
+ * Slide the arrow icon a few pixels right on hover and tint it with the
+ * accent color. Tiny detail, but it makes the cards feel alive without
+ * adding any new chrome.
+ */
+.sl-link-card .icon {
+	transition:
+		transform 160ms ease,
+		color 160ms ease;
+}
+
+.sl-link-card:hover .icon {
+	transform: translateX(3px);
+	color: var(--sl-color-text-accent);
+}
