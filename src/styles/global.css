@@ -100,9 +100,14 @@
  * Customers who want the rainbow cards back can delete this block.
  */
 .card {
+	border-radius: 0.75rem; /* 12px — matches the rounding used elsewhere on the site */
 	transition:
 		border-color 120ms ease,
 		transform 120ms ease;
+}
+
+.card .icon {
+	border-radius: 0.5rem; /* keep the icon chip slightly tighter than the card */
 }
 
 /* Force every card to a single neutral border, regardless of nth-child. */
