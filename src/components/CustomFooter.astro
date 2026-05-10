@@ -1,10 +1,16 @@
 ---
 import Default from '@astrojs/starlight/components/Footer.astro';
+import eklineMark from '../assets/ekline-mark.svg';
 ---
 
 <Default><slot /></Default>
 
 <p class="ekline-credit">
+	<span
+		class="ekline-mark"
+		style={`--ekline-mark-url: url(${eklineMark.src})`}
+		aria-hidden="true"
+	></span>
 	Maintained by <a href="https://ekline.io" target="_blank" rel="noopener noreferrer">EkLine</a>
 </p>
 
@@ -16,7 +22,23 @@ import Default from '@astrojs/starlight/components/Footer.astro';
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-4);
 		text-align: center;
-		opacity: 0.7;
+		opacity: 0.85;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+	}
+
+	/* Render the mark as a CSS mask so it inherits the credit's text color in
+	 * both light and dark modes. The SVG file itself only contributes shape;
+	 * its baked-in fill is ignored. */
+	.ekline-mark {
+		flex-shrink: 0;
+		width: 16px;
+		height: 16px;
+		background-color: currentColor;
+		mask: var(--ekline-mark-url) center / contain no-repeat;
+		-webkit-mask: var(--ekline-mark-url) center / contain no-repeat;
 	}
 
 	.ekline-credit a {

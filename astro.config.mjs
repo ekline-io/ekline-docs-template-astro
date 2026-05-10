@@ -17,6 +17,7 @@ export default defineConfig({
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
 			customCss: ['./src/styles/global.css'],
 			components: {
+				Hero: './src/components/CustomHero.astro',
 				Footer: './src/components/CustomFooter.astro',
 			},
 			plugins: [

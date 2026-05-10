@@ -16,46 +16,109 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/* Variable fonts: self-hosted via @fontsource so the site has no runtime
+ * dependency on Google Fonts. Inter for UI/content, JetBrains Mono for code. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
 @theme {
 	/* ── Fonts ─────────────────────────────────────────────────────────── */
 	--font-sans:
-		ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-		'Helvetica Neue', Arial, sans-serif;
+		'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+		Roboto, 'Helvetica Neue', Arial, sans-serif;
 	--font-mono:
-		ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas,
-		'Liberation Mono', 'Courier New', monospace;
+		'JetBrains Mono Variable', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+		Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
 	/* ── Accent palette (links, current item, primary buttons) ────────────
 	 *
-	 * Defaults to Tailwind's `indigo` scale. Generate a custom palette at
+	 * Defaults to Tailwind's `violet` scale — a slightly more distinctive,
+	 * modern hue than Starlight's stock indigo. Generate a custom palette at
 	 * https://starlight.astro.build/guides/css-and-tailwind/#theming-with-css-variables
-	 * and paste the values below.
+	 * and paste the values below to match your brand.
 	 */
-	--color-accent-50: var(--color-indigo-50);
-	--color-accent-100: var(--color-indigo-100);
-	--color-accent-200: var(--color-indigo-200);
-	--color-accent-300: var(--color-indigo-300);
-	--color-accent-400: var(--color-indigo-400);
-	--color-accent-500: var(--color-indigo-500);
-	--color-accent-600: var(--color-indigo-600);
-	--color-accent-700: var(--color-indigo-700);
-	--color-accent-800: var(--color-indigo-800);
-	--color-accent-900: var(--color-indigo-900);
-	--color-accent-950: var(--color-indigo-950);
+	--color-accent-50: var(--color-violet-50);
+	--color-accent-100: var(--color-violet-100);
+	--color-accent-200: var(--color-violet-200);
+	--color-accent-300: var(--color-violet-300);
+	--color-accent-400: var(--color-violet-400);
+	--color-accent-500: var(--color-violet-500);
+	--color-accent-600: var(--color-violet-600);
+	--color-accent-700: var(--color-violet-700);
+	--color-accent-800: var(--color-violet-800);
+	--color-accent-900: var(--color-violet-900);
+	--color-accent-950: var(--color-violet-950);
 
 	/* ── Gray palette (backgrounds, borders, body text) ───────────────────
 	 *
-	 * Defaults to Tailwind's `zinc` scale.
+	 * Defaults to Tailwind's `slate` scale — a very slightly cool/blue-tinted
+	 * neutral that gives dark mode a warmer, less harsh feel than pure
+	 * neutral grays. Swap to `zinc` (neutral) or `stone` (warm) to taste.
 	 */
-	--color-gray-50: var(--color-zinc-50);
-	--color-gray-100: var(--color-zinc-100);
-	--color-gray-200: var(--color-zinc-200);
-	--color-gray-300: var(--color-zinc-300);
-	--color-gray-400: var(--color-zinc-400);
-	--color-gray-500: var(--color-zinc-500);
-	--color-gray-600: var(--color-zinc-600);
-	--color-gray-700: var(--color-zinc-700);
-	--color-gray-800: var(--color-zinc-800);
-	--color-gray-900: var(--color-zinc-900);
-	--color-gray-950: var(--color-zinc-950);
+	--color-gray-50: var(--color-slate-50);
+	--color-gray-100: var(--color-slate-100);
+	--color-gray-200: var(--color-slate-200);
+	--color-gray-300: var(--color-slate-300);
+	--color-gray-400: var(--color-slate-400);
+	--color-gray-500: var(--color-slate-500);
+	--color-gray-600: var(--color-slate-600);
+	--color-gray-700: var(--color-slate-700);
+	--color-gray-800: var(--color-slate-800);
+	--color-gray-900: var(--color-slate-900);
+	--color-gray-950: var(--color-slate-950);
+}
+
+/* ── Typography refinements ────────────────────────────────────────────────
+ *
+ * Starlight's defaults are good; these tweaks push the site closer to the
+ * tighter, more deliberate type used by modern docs (Linear, Vercel, Stripe).
+ * Override Starlight's `--sl-*` props rather than restyling elements directly,
+ * so the changes propagate everywhere Starlight uses them. See:
+ *   https://github.com/withastro/starlight/blob/main/packages/starlight/style/props.css
+ */
+:root {
+	/* Slightly larger base reads better at modern monitor sizes. */
+	--sl-text-base: 1.0625rem; /* 17px */
+	/* Tighter heading line-height for a more confident hierarchy. */
+	--sl-line-height-headings: 1.15;
+}
+
+/* Tighten heading tracking. Letter-spacing isn't exposed as a Starlight prop,
+ * so we set it on heading elements directly. -0.02em is enough to feel
+ * intentional without looking compressed. */
+:where(h1, h2, h3, h4, h5, h6) {
+	letter-spacing: -0.02em;
+}
+
+/* ── Card styling ──────────────────────────────────────────────────────────
+ *
+ * Starlight's `<Card>` component cycles colored borders/icon backgrounds per
+ * card position (orange, purple, green, red, blue) which clashes with a
+ * minimalist palette. We neutralise that here and add a subtle accent hover
+ * state instead, so all cards in a CardGrid feel like one calm system.
+ *
+ * Customers who want the rainbow cards back can delete this block.
+ */
+.card {
+	transition:
+		border-color 120ms ease,
+		transform 120ms ease;
+}
+
+/* Force every card to a single neutral border, regardless of nth-child. */
+.card,
+.card:nth-child(4n + 1),
+.card:nth-child(4n + 3),
+.card:nth-child(4n + 4),
+.card:nth-child(4n + 5) {
+	--sl-card-border: var(--sl-color-gray-5);
+	--sl-card-bg: transparent;
+}
+
+.card:hover {
+	border-color: var(--sl-color-text-accent);
+}
+
+.card .icon {
+	color: var(--sl-color-text-accent);
 }
