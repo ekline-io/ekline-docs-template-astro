@@ -164,19 +164,16 @@
 	border-radius: 0.375rem;
 }
 
-/* Left accent bar — only inside nested groups (where the tree-line lives).
- * The -1rem offset aligns it with Starlight's default `ul ul` padding so
- * the bar visually replaces the tree-line at the active row. Top-level
- * direct links sit in the outer `ul` and get the pill alone. */
-.sidebar-content ul ul a[aria-current='page']::before {
-	content: '';
-	position: absolute;
-	top: 0.125rem;
-	bottom: 0.125rem;
-	left: -1rem;
-	width: 2px;
-	background: var(--sl-color-text-accent);
-	border-radius: 1px;
+/* Promote Starlight's gray hairline tree-line to the accent color at the
+ * active row. Each `<li>` carries its own `border-inline-start`, so changing
+ * the color on the active `<li>` literally turns the grey segment purple —
+ * one column, not two parallel bars. Scoped to nested groups; top-level
+ * direct links (e.g. Changelog) have no tree-line and get the pill alone. */
+.sidebar-content ul ul li:has(> a[aria-current='page']) {
+	border-inline-start-color: var(--sl-color-text-accent);
+	border-inline-start-width: 2px;
+	/* Compensate the extra 1px so the row's text doesn't shift right. */
+	margin-inline-start: calc(0.5rem - 1px);
 }
 
 .sidebar-content .group-label > .large,
@@ -231,9 +228,9 @@
 /* ── OpenAPI method pills ──────────────────────────────────────────────────
  *
  * Harmonize the auto-generated `starlight-openapi` method badges with the
- * site's typography: monospace, tracked-out, smaller. Keeps the verb-color
- * cues (GET green-ish, POST accent, etc.) but desaturates them so they sit
- * inside the design system instead of competing with it.
+ * site's typography: monospace, tracked-out, smaller. The plugin's default
+ * verb-color cues are kept (GET = blue, POST = green, DELETE = red, …) since
+ * those follow API-docs convention — only the typography is unified.
  */
 .sl-openapi-operation-method-badge {
 	font-family: var(--sl-font-mono);
@@ -243,11 +240,6 @@
 	text-transform: uppercase;
 	padding: 0.125rem 0.5rem;
 	border-radius: 0.25rem;
-}
-
-.sl-openapi-operation-method-badge.post {
-	background: color-mix(in srgb, var(--sl-color-text-accent) 14%, transparent);
-	color: var(--sl-color-text-accent);
 }
 
 /* ── LinkCard hover motion ────────────────────────────────────────────────
