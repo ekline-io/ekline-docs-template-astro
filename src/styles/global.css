@@ -90,6 +90,112 @@
 	letter-spacing: -0.02em;
 }
 
+/* ── Heading scale ──────────────────────────────────────────────────────────
+ *
+ * Calibrated for the Starlight default 45rem (720px, ≈ 70ch) reading column
+ * with a 16px body. Follows the Fern / Mintlify industry consensus on
+ * H2=24px (exactly 1.5× body, bold); H1 sits between Fern's editorial 36px
+ * and Mintlify's quieter 30px.
+ */
+:root {
+	--sl-text-h1: 2.125rem; /* 34px */
+	--sl-text-h2: 1.5rem; /* 24px */
+	--sl-text-h3: 1.25rem; /* 20px */
+	--sl-text-h4: var(--sl-text-base); /* tracks body size */
+	--sl-text-h5: 1rem;
+}
+
+/* The page-title H1 lives in `.sl-container` (outside `.sl-markdown-content`)
+ * so we scope to `.content-panel` which wraps both. */
+.content-panel :where(h1, h2) {
+	font-weight: 700;
+}
+
+.content-panel :where(h3, h4) {
+	font-weight: 600;
+}
+
+/* Asymmetric heading margins: more space above than below, so each heading
+ * visually *attaches* to the paragraph it introduces instead of floating
+ * equidistantly between two paragraphs. Values match the Fern/Mintlify
+ * convention (H2 top 48 / bottom 16). */
+.sl-markdown-content :where(h2) {
+	margin-block: 3rem 1rem;
+}
+
+.sl-markdown-content :where(h3) {
+	margin-block: 2rem 0.75rem;
+}
+
+.sl-markdown-content :where(h4) {
+	margin-block: 1.5rem 0.5rem;
+}
+
+/* ── Three-column responsive layout (Fern pattern) ─────────────────────────
+ *
+ * Goal: at every viewport width, the reading column stays at the viewport's
+ * horizontal centre. Sidebar and TOC panes grow outward from the content so
+ * their nav items remain clustered next to the reading column, and their
+ * background fills cover the rest of the viewport — no awkward dead zones
+ * appear on ultra-wide displays.
+ *
+ * Geometry (all tunable from the variables below):
+ *   --sl-content-width  reading column width — Starlight default 45rem (720px)
+ *   --ek-rail-min       pane min width on narrow viewports
+ *   --ek-toc-min        TOC pane min width
+ *   --ek-rail-items     fixed width of the items cluster inside the sidebar
+ *   --ek-rail-gap       gap on either side of content
+ *
+ * `--ek-rail-grow` evaluates the formula once for both rails to use, so the
+ * browser doesn't recompute it twice on every resize.
+ *
+ * `scrollbar-gutter: stable` on `<html>` keeps `100vw` from flickering when
+ * a scrollbar appears or disappears mid-resize.
+ */
+:root {
+	--ek-rail-min: 18.75rem; /* 300px */
+	--ek-toc-min: 17.5rem; /* 280px */
+	--ek-rail-items: 17rem; /* 272px */
+	--ek-rail-gap: 10rem; /* 160px */
+	--ek-rail-grow: calc((100vw - var(--sl-content-width)) / 2 - var(--ek-rail-gap));
+	--sl-sidebar-width: max(var(--ek-rail-min), var(--ek-rail-grow));
+}
+
+html {
+	scrollbar-gutter: stable;
+}
+
+.right-sidebar-container {
+	width: max(var(--ek-toc-min), var(--ek-rail-grow));
+	max-width: none;
+}
+
+/* Starlight sets `.main-pane` to a fixed width (capped near content-width).
+ * Override so it fills the available flex space — that's what lets the
+ * centred content sit at the viewport's horizontal centre once the
+ * surrounding panes have grown. */
+.main-pane {
+	flex: 1;
+	width: auto;
+}
+
+/* Right-align the sidebar nav items within the (now possibly-wider) pane so
+ * they stay clustered next to the content as the pane background expands
+ * leftward toward the viewport edge. A fixed width is required for the
+ * `auto` margin to have an effect — otherwise the content fills the pane. */
+.sidebar-content {
+	width: var(--ek-rail-items);
+	margin-inline-start: auto;
+}
+
+/* Centre content within main-pane. Starlight wraps `.sl-markdown-content`
+ * (and the H1 / footer / etc.) in `.sl-container`, which it right-aligns by
+ * default via `margin-inline-start: auto`. We need it centred so it lands
+ * at the viewport's horizontal centre once the sidebars have grown. */
+.content-panel .sl-container {
+	margin-inline: auto;
+}
+
 /* ── Card styling ──────────────────────────────────────────────────────────
  *
  * Starlight's `<Card>` component cycles colored borders/icon backgrounds per
