@@ -144,25 +144,55 @@
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────
  *
- * Active-item indicator: replace the filled background pill with a thin
- * accent left-border (Linear / Vercel pattern). Group labels get the small
- * uppercase + tracked-out treatment so they read as section dividers, not
- * headings.
+ * Active-item indicator: faint accent-tinted rounded pill + a 2px accent
+ * left-bar (Vercel pattern). The bar is positioned absolutely so it sits
+ * directly over Starlight's default tree-line in nested groups, replacing
+ * its gray segment at the active row instead of doubling up.
+ *
+ * Group labels keep the uppercase + tracked-out treatment so they read as
+ * section dividers; top-level direct links (e.g. Changelog) inherit the
+ * same typography so they don't render as a stand-alone heading.
  */
+.sidebar-content li {
+	position: relative;
+}
+
 .sidebar-content :where(a[aria-current='page'], a[aria-current='page']:hover) {
-	background-color: transparent;
+	background-color: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
 	color: var(--sl-color-text-accent);
 	font-weight: 600;
-	box-shadow: inset 2px 0 0 var(--sl-color-text-accent);
+	border-radius: 0.375rem;
+}
+
+/* Left accent bar — only inside nested groups (where the tree-line lives).
+ * The -1rem offset aligns it with Starlight's default `ul ul` padding so
+ * the bar visually replaces the tree-line at the active row. Top-level
+ * direct links sit in the outer `ul` and get the pill alone. */
+.sidebar-content ul ul a[aria-current='page']::before {
+	content: '';
+	position: absolute;
+	top: 0.125rem;
+	bottom: 0.125rem;
+	left: -1rem;
+	width: 2px;
+	background: var(--sl-color-text-accent);
+	border-radius: 1px;
 }
 
 .sidebar-content .group-label > .large,
-.sidebar-content summary > .large {
+.sidebar-content summary > .large,
+.sidebar-content a.large {
 	font-size: 0.75rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
 	color: var(--sl-color-gray-3);
+}
+
+/* Promote active top-level direct links (e.g. Changelog) above the
+ * gray group-label color set above. */
+.sidebar-content a.large[aria-current='page'] {
+	color: var(--sl-color-text-accent);
 }
 
 /* ── In-content link decoration ────────────────────────────────────────────
