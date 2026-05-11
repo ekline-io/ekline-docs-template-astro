@@ -196,6 +196,17 @@ html {
 	margin-inline: auto;
 }
 
+/* Pad the fixed top header so its content (logo, search, utility buttons)
+ * tracks the body layout: the logo lines up with the sidebar items at the
+ * left, and the right-side utilities mirror it on the right. Without this
+ * the header would still sprawl edge-to-edge while the body is centred. */
+header.header > div.header {
+	padding-inline: max(
+		1.5rem,
+		calc(var(--sl-sidebar-width) - var(--ek-rail-items))
+	);
+}
+
 /* ── Card styling ──────────────────────────────────────────────────────────
  *
  * Starlight's `<Card>` component cycles colored borders/icon backgrounds per
