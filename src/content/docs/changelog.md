@@ -3,10 +3,10 @@ title: Changelog
 description: Notable changes to the product, newest first.
 ---
 
-A running list of notable changes. Group by date (newest at the top) and use
+A running list of notable changes. Group by month (newest at the top) and use
 **Added / Changed / Fixed / Removed** subheadings so readers can skim quickly.
 
-## 2026-05-10
+## May 2026
 
 ### Added
 
@@ -17,12 +17,12 @@ A running list of notable changes. Group by date (newest at the top) and use
 
 - Error responses now include a `request_id` to make support faster.
 
-## 2026-04-22
+## April 2026
 
 ### Fixed
 
 - Pagination cursors are no longer invalidated when a widget is deleted mid-page.
 
-## 2026-04-01
+### Added
 
 - Initial public release.
