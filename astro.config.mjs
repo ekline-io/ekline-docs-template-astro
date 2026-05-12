@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import starlightContextualMenu from 'starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 import tailwindcss from '@tailwindcss/vite';
@@ -24,6 +25,14 @@ export default defineConfig({
 				Footer: './src/components/CustomFooter.astro',
 			},
 			plugins: [
+				// Adds a "Copy / View / Open in Claude / Open in ChatGPT" dropdown to
+				// each page heading. `injectMarkdownRoutes: true` generates a `.md`
+				// route per page so the View / Claude / ChatGPT actions can deep-link
+				// to raw markdown.
+				starlightContextualMenu({
+					actions: ['copy', 'view', 'claude', 'chatgpt'],
+					injectMarkdownRoutes: true,
+				}),
 				starlightLlmsTxt({
 					projectName: 'My Docs',
 					description:
