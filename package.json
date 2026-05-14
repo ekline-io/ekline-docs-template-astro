@@ -13,7 +13,7 @@
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/starlight": "^0.39.2",
     "@astrojs/starlight-tailwind": "^5.0.0",
-    "@ekline/starlight-contextual-menu": "^0.2.0",
+    "@ekline/starlight-contextual-menu": "^0.3.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@tailwindcss/vite": "^4.3.0",
