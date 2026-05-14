@@ -2,20 +2,28 @@
 /**
  * Starlight Head override.
  *
- * Renders the default Starlight head tags, then adds Astro's `<ClientRouter />`
- * to enable cross-page view transitions. With it, navigating between docs
- * pages performs a smooth fade/swap instead of a full reload — closer to the
- * feel of a SPA, without giving up the static-site benefits.
+ * Adds two head-level enhancements on top of Starlight's default <head>:
  *
- * To opt out: remove this file and the `Head` entry in `astro.config.mjs`.
+ *   1. `<ClientRouter />` — Astro view transitions for smooth SPA-style
+ *      navigation between pages.
+ *
+ *   2. `<link rel="alternate" type="text/markdown" href="…">` — pointer to
+ *      the page's Markdown twin (served by `@ekline/starlight-contextual-menu`
+ *      at `<page>.md`). Well-behaved AI crawlers (GPTBot, ClaudeBot, …) use
+ *      the `<link rel="alternate">` convention to discover non-HTML
+ *      representations of a page. The plugin's component only emits the tag
+ *      for pages that actually have a markdown twin (filters out virtual
+ *      entries from e.g. `starlight-openapi`).
  *
  * Docs:
  *   https://docs.astro.build/en/guides/view-transitions/
  *   https://starlight.astro.build/guides/overriding-components/
  */
 import Default from '@astrojs/starlight/components/Head.astro';
+import MarkdownAlternate from '@ekline/starlight-contextual-menu/MarkdownAlternate.astro';
 import { ClientRouter } from 'astro:transitions';
 ---
 
 <Default />
 <ClientRouter />
+<MarkdownAlternate />
