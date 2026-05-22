@@ -23,6 +23,10 @@ export default defineConfig({
 				Header: './src/components/CustomHeader.astro',
 				Hero: './src/components/CustomHero.astro',
 				Footer: './src/components/CustomFooter.astro',
+				// Re-init Pagefind after every Astro view-transition swap — the
+				// upstream component only initializes on `DOMContentLoaded`,
+				// which doesn't fire on subsequent <ClientRouter /> navigations.
+				Search: './src/components/CustomSearch.astro',
 			},
 			plugins: [
 				// Adds a "Copy / View / Open in Claude / Open in ChatGPT" dropdown to
