@@ -237,12 +237,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				currentToggles = null;
 			}
 
-			// Remove the window-level click listener if the dialog was open at
-			// navigation time — the dialog's `close` event doesn't fire on DOM
-			// removal, so the existing cleanup path is bypassed.
+			// Remove the window-level click listener and clear the body scroll
+			// lock if the dialog was open at navigation time — the dialog's
+			// `close` event doesn't fire on DOM removal, so its cleanup path is
+			// bypassed. Leaving `data-search-modal-open` set keeps the global
+			// `[data-search-modal-open] { overflow: hidden }` rule applied to
+			// the next page, permanently locking scroll.
 			if (this.onClickRef) {
 				window.removeEventListener('click', this.onClickRef);
 				this.onClickRef = null;
+				document.body.toggleAttribute('data-search-modal-open', false);
 			}
 
 			// Tear down the Svelte tree + Pagefind index reference. Without
@@ -262,14 +266,24 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 	// Registered once at module scope — survives view transitions because
 	// `window` does. `preventDefault` runs unconditionally when the Cmd/Ctrl-K
 	// combo matches, to match upstream behaviour even before any <site-search>
-	// has connected (or on pages that don't render Search).
-	window.addEventListener('keydown', (e) => {
-		if ((e.metaKey === true || e.ctrlKey === true) && e.key === 'k') {
-			e.preventDefault();
-			if (!currentToggles) return;
-			currentToggles.isOpen() ? currentToggles.close() : currentToggles.open();
-		}
-	});
+	// has connected (or on pages that don't render Search). Guarded against
+	// double-registration via a window-level flag (not a module-level one) for
+	// the same reason `customElements.get('site-search')` is checked below: a
+	// second module evaluation has its own module scope, so a per-module flag
+	// wouldn't catch the duplicate. A second `keydown` listener would toggle
+	// the modal open-then-closed on the same keypress.
+	type WindowWithKeydownGuard = Window & { __siteSearchKeydownAttached?: true };
+	const guardedWindow = window as WindowWithKeydownGuard;
+	if (!guardedWindow.__siteSearchKeydownAttached) {
+		guardedWindow.__siteSearchKeydownAttached = true;
+		window.addEventListener('keydown', (e) => {
+			if ((e.metaKey === true || e.ctrlKey === true) && e.key === 'k') {
+				e.preventDefault();
+				if (!currentToggles) return;
+				currentToggles.isOpen() ? currentToggles.close() : currentToggles.open();
+			}
+		});
+	}
 
 	// Guard against double-registration if the bundle is ever evaluated twice
 	// (HMR, a downstream import that resolves to the same module under a
