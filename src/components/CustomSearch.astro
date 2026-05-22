@@ -70,7 +70,14 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 	</dialog>
 </site-search>
 
-<script is:inline>
+<!--
+	Platform-detection script: swaps the Ctrl glyph to ⌘ and updates
+	`aria-keyshortcuts` on Apple devices. Marked `data-astro-rerun` so it
+	executes on every Astro view-transition swap, not just the first page
+	load — `<ClientRouter />` deduplicates inline scripts by textContent
+	otherwise (`node_modules/astro/dist/transitions/swap-functions.js`).
+-->
+<script is:inline data-astro-rerun>
 	(() => {
 		const openBtn = document.querySelector('button[data-open-modal]');
 		const shortcut = openBtn?.querySelector('kbd');
@@ -87,26 +94,57 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 <script>
 	import { pagefindUserConfig } from 'virtual:starlight/pagefind-config';
 
+	type PagefindUIInstance = { destroy?: () => void };
+
+	type Toggles = {
+		open: () => void;
+		close: () => void;
+		isOpen: () => boolean;
+		owner: SiteSearch;
+	};
+
 	class SiteSearch extends HTMLElement {
-		// Tracks whether Pagefind UI has been mounted into this element's
-		// `#starlight__search` div. Each `<site-search>` instance is short-lived
-		// (a fresh one is swapped in on every view transition), so this flag
-		// is per-instance — exactly what we want.
-		private mounted = false;
+		// Guards listener registration. `connectedCallback` may fire more than
+		// once on the same instance if an ancestor uses `transition:persist`
+		// (Astro moves the element rather than replacing it). Re-registering
+		// click handlers on each fire would stack duplicates.
+		private listenersAttached = false;
+
+		// Held so `disconnectedCallback` can tear down the Svelte tree + the
+		// in-memory Pagefind index reference instead of leaking one per swap.
+		private pagefindUI: PagefindUIInstance | null = null;
+
+		// Set to true in `disconnectedCallback` so an in-flight idle/import
+		// chain aborts before binding PagefindUI to a now-detached element.
+		private disposed = false;
+
+		// Reference to the in-flight `onClick` listener so `disconnectedCallback`
+		// can remove it from `window` if the dialog was open at the time of a
+		// view-transition navigation (the dialog's `close` event doesn't fire
+		// when the element is just removed from the DOM).
+		private onClickRef: ((event: MouseEvent) => void) | null = null;
 
 		connectedCallback() {
+			this.disposed = false;
+
 			const openBtn = this.querySelector<HTMLButtonElement>('button[data-open-modal]')!;
 			const closeBtn = this.querySelector<HTMLButtonElement>('button[data-close-modal]')!;
 			const dialog = this.querySelector('dialog')!;
 			const dialogFrame = this.querySelector('.dialog-frame')!;
 
-			/** Close the modal if a user clicks on a link or outside of the modal. */
+			/** Close the modal if a user clicks a link or outside of the modal. */
 			const onClick = (event: MouseEvent) => {
-				const isLink = 'href' in (event.target || {});
+				// Pagefind result links wrap children (mark / excerpt), so the
+				// click target is often an inner element, not the <a>. Resolve
+				// via `closest('a[href]')` so those clicks still count as link
+				// clicks and close the dialog before navigation happens.
+				const target = event.target;
+				const isLink = target instanceof Element && !!target.closest('a[href]');
 				if (
 					isLink ||
-					(document.body.contains(event.target as Node) &&
-						!dialogFrame.contains(event.target as Node))
+					(target instanceof Node &&
+						document.body.contains(target) &&
+						!dialogFrame.contains(target))
 				) {
 					closeModal();
 				}
@@ -118,27 +156,32 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				this.querySelector('input')?.focus();
 				event?.stopPropagation();
 				window.addEventListener('click', onClick);
+				this.onClickRef = onClick;
 			};
 
 			const closeModal = () => dialog.close();
 
-			openBtn.addEventListener('click', openModal);
-			openBtn.disabled = false;
-			closeBtn.addEventListener('click', closeModal);
+			if (!this.listenersAttached) {
+				this.listenersAttached = true;
+				openBtn.addEventListener('click', openModal);
+				openBtn.disabled = false;
+				closeBtn.addEventListener('click', closeModal);
 
-			dialog.addEventListener('close', () => {
-				document.body.toggleAttribute('data-search-modal-open', false);
-				window.removeEventListener('click', onClick);
-			});
+				dialog.addEventListener('close', () => {
+					document.body.toggleAttribute('data-search-modal-open', false);
+					if (this.onClickRef) {
+						window.removeEventListener('click', this.onClickRef);
+						this.onClickRef = null;
+					}
+				});
+			}
 
-			// Expose the modal toggles so the page-level keyboard listener
-			// (registered once at module scope, below) can drive whichever
-			// `<site-search>` instance is currently in the DOM.
-			currentToggles = { open: openModal, close: closeModal, isOpen: () => dialog.open };
+			// Module-scope ref so the page-level keyboard listener can drive
+			// whichever instance is currently connected. `owner` lets the
+			// `disconnectedCallback` null this only when it still points at us.
+			currentToggles = { open: openModal, close: closeModal, isOpen: () => dialog.open, owner: this };
 
-			if (this.mounted) return;
-			this.mounted = true;
-
+			if (this.pagefindUI) return;
 			if (import.meta.env.DEV) return;
 
 			let translations = {};
@@ -150,13 +193,25 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			const stripTrailingSlash = (path: string) => path.replace(/(.)\/(#.*)?$/, '$1$2');
 			const formatURL = shouldStrip ? stripTrailingSlash : (path: string) => path;
 
-			const onIdle = window.requestIdleCallback || ((cb: IdleRequestCallback) => setTimeout(cb, 1));
+			// Capture the target element at scheduling time and pass it to
+			// PagefindUI as an HTMLElement (not a selector string). PagefindUI
+			// resolves string selectors via `document.querySelector`, which is
+			// document-global — if a view-transition swap happens between
+			// `onIdle` scheduling and the callback running, the global lookup
+			// would bind Pagefind to the *next* page's `#starlight__search`.
+			const targetEl = this.querySelector<HTMLElement>('#starlight__search');
+			if (!targetEl) return;
+
+			const onIdle =
+				window.requestIdleCallback || ((cb: IdleRequestCallback) => setTimeout(cb, 1));
 			onIdle(async () => {
+				if (this.disposed || !targetEl.isConnected) return;
 				// @ts-expect-error — Missing types for @pagefind/default-ui package.
 				const { PagefindUI } = await import('@pagefind/default-ui');
-				new PagefindUI({
+				if (this.disposed || !targetEl.isConnected) return;
+				this.pagefindUI = new PagefindUI({
 					...pagefindUserConfig,
-					element: '#starlight__search',
+					element: targetEl,
 					baseUrl: import.meta.env.BASE_URL,
 					bundlePath: import.meta.env.BASE_URL.replace(/\/$/, '') + '/pagefind/',
 					showImages: false,
@@ -169,26 +224,60 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 							return sub_result;
 						});
 					},
-				});
+				}) as PagefindUIInstance;
 			});
+		}
+
+		disconnectedCallback() {
+			this.disposed = true;
+
+			// Drop the module-scope reference if it still points at us, so the
+			// page-level Cmd/Ctrl-K listener can't drive a detached dialog.
+			if (currentToggles?.owner === this) {
+				currentToggles = null;
+			}
+
+			// Remove the window-level click listener if the dialog was open at
+			// navigation time — the dialog's `close` event doesn't fire on DOM
+			// removal, so the existing cleanup path is bypassed.
+			if (this.onClickRef) {
+				window.removeEventListener('click', this.onClickRef);
+				this.onClickRef = null;
+			}
+
+			// Tear down the Svelte tree + Pagefind index reference. Without
+			// this, every view-transition leaks one PagefindUI instance.
+			try {
+				this.pagefindUI?.destroy?.();
+			} catch {}
+			this.pagefindUI = null;
 		}
 	}
 
-	// The currently-connected `<site-search>` element's modal controls. Updated
-	// in `connectedCallback` each time a fresh instance mounts (initial load
-	// and every view-transition swap).
-	let currentToggles: { open: () => void; close: () => void; isOpen: () => boolean } | null = null;
+	// The currently-connected `<site-search>`'s modal controls. Set in
+	// `connectedCallback`, nulled in `disconnectedCallback` when the disconnect
+	// is the same instance currently driving the shortcut.
+	let currentToggles: Toggles | null = null;
 
-	// Registered once — survives view transitions because `window` does.
+	// Registered once at module scope — survives view transitions because
+	// `window` does. `preventDefault` runs unconditionally when the Cmd/Ctrl-K
+	// combo matches, to match upstream behaviour even before any <site-search>
+	// has connected (or on pages that don't render Search).
 	window.addEventListener('keydown', (e) => {
 		if ((e.metaKey === true || e.ctrlKey === true) && e.key === 'k') {
+			e.preventDefault();
 			if (!currentToggles) return;
 			currentToggles.isOpen() ? currentToggles.close() : currentToggles.open();
-			e.preventDefault();
 		}
 	});
 
-	customElements.define('site-search', SiteSearch);
+	// Guard against double-registration if the bundle is ever evaluated twice
+	// (HMR, a downstream import that resolves to the same module under a
+	// different specifier, etc.). `define` throws `NotSupportedError` on a
+	// duplicate name.
+	if (!customElements.get('site-search')) {
+		customElements.define('site-search', SiteSearch);
+	}
 </script>
 
 <style>
