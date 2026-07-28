@@ -165,6 +165,72 @@ html {
 	scrollbar-gutter: stable;
 }
 
+/* ── Sidebar scrollbar ─────────────────────────────────────────────────────
+ *
+ * Starlight hides the table of contents' scrollbar outright (`scrollbar-width:
+ * none` in `TwoColumnContent.astro`) but leaves the nav rail's fully visible,
+ * so the two scrolling rails look nothing alike. Reveal the nav's on
+ * interaction instead: transparent at rest, fading in on hover or when
+ * something inside it takes keyboard focus, so the affordance is still there
+ * for anyone who needs it.
+ *
+ * The reserved gutter from `PageFrame.astro` stays — it is what stops the
+ * layout shifting when the scrollbar appears, and hiding the bar without
+ * keeping the gutter would trade this polish for the shift EK-2265 removed. */
+.sidebar-pane {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+	transition: scrollbar-color 200ms ease;
+}
+
+.sidebar-pane:hover,
+.sidebar-pane:focus-within {
+	scrollbar-color: var(--sl-color-gray-4) transparent;
+}
+
+/* Chromium and WebKit take the legacy pseudo-elements instead.
+ *
+ * `scrollbar-color` hands the thumb's hover and active states to the browser,
+ * and Chrome lightens the thumb whenever the pointer is over the bar itself —
+ * so it changes shade a second time, after it has already been revealed. The
+ * pseudo-elements are the only way to pin one shade across every state.
+ *
+ * Firefox has no `::-webkit-scrollbar`, so `@supports` skips this block and it
+ * keeps the standard-property behaviour above. */
+@supports selector(::-webkit-scrollbar) {
+	/* Every state needs resetting, not just the base one: leaving `scrollbar-color`
+	 * on the hover rule flips Chrome back to the standard path mid-interaction,
+	 * restoring its 16px default width and shifting the nav under the cursor. */
+	.sidebar-pane,
+	.sidebar-pane:hover,
+	.sidebar-pane:focus-within {
+		scrollbar-width: auto;
+		scrollbar-color: auto;
+	}
+
+	.sidebar-pane::-webkit-scrollbar {
+		width: 0.5rem;
+	}
+
+	.sidebar-pane::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.sidebar-pane::-webkit-scrollbar-thumb {
+		background-color: transparent;
+		border-radius: 0.25rem;
+		transition: background-color 200ms ease;
+	}
+
+	/* One shade for every revealed state, including pointer-on-the-bar. */
+	.sidebar-pane:hover::-webkit-scrollbar-thumb,
+	.sidebar-pane:focus-within::-webkit-scrollbar-thumb,
+	.sidebar-pane:hover::-webkit-scrollbar-thumb:hover,
+	.sidebar-pane:hover::-webkit-scrollbar-thumb:active {
+		background-color: var(--sl-color-gray-4);
+	}
+}
+
 .right-sidebar-container {
 	width: max(var(--ek-toc-min), var(--ek-rail-grow));
 	max-width: none;
