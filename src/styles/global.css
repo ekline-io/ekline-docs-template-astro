@@ -375,3 +375,66 @@ header.header > div.header {
 	transform: translateX(3px);
 	color: var(--sl-color-text-accent);
 }
+
+/* ── Contextual menu layout ────────────────────────────────────────────────
+ *
+ * `@ekline/starlight-contextual-menu` injects its button cluster from a
+ * deferred script and sets `display: flex` inline on the title's container, so
+ * `!important` is the only way to lay that container out ourselves.
+ *
+ * The layout attaches to the *static* title container rather than to the
+ * `.contextual-menu-parent` class the plugin adds at runtime, and the cluster's
+ * box is reserved up front. Without that, the container flips from `block` to
+ * `grid` when the script lands, which re-wraps the heading and drops the rest
+ * of the page — measured at +56px on this template when navigating between
+ * pages, at every viewport from 375px to 1024px.
+ *
+ * Both branches reserve the space the cluster will occupy: a row below the
+ * title on narrow viewports, a column beside it from Starlight's 50rem
+ * breakpoint up. Sharing a row all the way down is not an option — it leaves
+ * the title ~180px, wrapping a heading over six lines and breaking words
+ * mid-syllable.
+ *
+ * `minmax(0, …)` stops a long title word pushing the cluster past the container
+ * edge, and the title's top margin moves to the container so the row box
+ * matches the heading's content box for `align-self: center`. */
+.content-panel > .sl-container:has(> h1) {
+	display: grid !important;
+	grid-template-columns: minmax(0, 1fr);
+	/* Reserved cluster row — matches its 2rem height so injection changes nothing. */
+	grid-template-rows: auto 2rem;
+	row-gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+.content-panel > .sl-container:has(> h1) > h1 {
+	grid-column: 1;
+	grid-row: 1;
+	margin-top: 0;
+	overflow-wrap: break-word;
+}
+
+.contextual-menu-container {
+	grid-column: 1;
+	grid-row: 2;
+	justify-self: start;
+	margin: 0;
+}
+
+@media (min-width: 50rem) {
+	.content-panel > .sl-container:has(> h1) {
+		/* 9.5rem clears the widest cluster (147px measured) without the title
+		 * reflowing when it arrives. */
+		grid-template-columns: minmax(0, 1fr) 9.5rem;
+		grid-template-rows: auto;
+		column-gap: 1rem;
+		row-gap: 0;
+	}
+
+	.contextual-menu-container {
+		grid-column: 2;
+		grid-row: 1;
+		justify-self: end;
+		align-self: center;
+	}
+}
