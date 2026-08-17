@@ -316,7 +316,14 @@ test.describe('appearance', () => {
 				.forEach((group) => (group.open = true));
 		});
 
-		await expect(page.locator('.sidebar-content')).toHaveScreenshot('sidebar-operations.png');
+		// Tighter than the suite default. This capture is tall, so the default 1%
+		// ratio is a large absolute area — enough to swallow a badge losing its
+		// colour or a row's spacing collapsing, which is exactly what it is here
+		// to catch. The small switcher snapshots keep the looser default, where
+		// the tolerance is really only absorbing antialiasing.
+		await expect(page.locator('.sidebar-content')).toHaveScreenshot('sidebar-operations.png', {
+			maxDiffPixelRatio: 0.002,
+		});
 	});
 });
 

@@ -96,7 +96,7 @@ export const apiReference = {
 export const enabledViews = apiReference.views.filter((view) => view.enabled);
 
 /**
- * The view served at `/api/`.
+ * The view served at `/api/`, or `undefined` when every view is disabled.
  *
  * Falls back to the first enabled view if nothing is marked default, so a
  * mis-edit degrades to a working site rather than a build with no reference.
@@ -104,13 +104,36 @@ export const enabledViews = apiReference.views.filter((view) => view.enabled);
 export const defaultView =
 	enabledViews.find((view) => view.default) ?? enabledViews[0];
 
+// Two views claiming `default: true` is a config mistake with confusing
+// symptoms — `find` silently picks the first, so the other never gets the route
+// it declares and, if it was the intended default, never gets indexed either.
+// Cheaper to say so at build time than to debug a missing page later.
+if (enabledViews.filter((view) => view.default).length > 1) {
+	console.warn(
+		'[api-reference] More than one view is marked `default: true`; using ' +
+			`"${defaultView?.id}". Exactly one view should be the default.`
+	);
+}
+
 /**
  * Route a view is served at, e.g. `/api/` or `/api/full/`.
  *
  * Non-default views fall back to their `id` when no `slug` is set, so two views
  * can never collide on `/api/` and silently overwrite each other.
+ *
+ * Throws when handed nothing, rather than returning `/api/` for a view that was
+ * never built: with every view disabled, `defaultView` is `undefined`, and
+ * `undefined === defaultView` would quietly hand back a route that
+ * `getStaticPaths` does not generate — a sidebar full of links to a 404.
+ * Callers should check `enabledViews.length` first.
  */
 export function routeFor(view) {
+	if (!view) {
+		throw new Error(
+			'[api-reference] routeFor() needs a view. Every view is disabled — ' +
+				'check `enabledViews.length` before asking for a route.'
+		);
+	}
 	if (view === defaultView) return '/api/';
 	return `/api/${view.slug ?? view.id}/`;
 }

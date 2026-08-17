@@ -14,8 +14,18 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
 	testDir: './tests/visual',
-	// Screenshots are compared per-platform; rendering differs enough between
-	// macOS and Linux that one baseline cannot serve both.
+	/*
+	 * Screenshots are compared per-platform: font rendering differs enough
+	 * between macOS and Linux that one baseline cannot serve both.
+	 *
+	 * Only the platform you generate on is committed. The first run on another —
+	 * a Linux CI runner, most likely — has no baseline to compare against and
+	 * fails, because a missing snapshot is a failure rather than something
+	 * Playwright quietly creates. Generate and commit that platform's baselines
+	 * once (`npm run test:visual:update` on a matching machine or container),
+	 * or keep this suite to the platform it was authored on. See
+	 * `wiki/api-reference.md`.
+	 */
 	snapshotPathTemplate: '{testDir}/__screenshots__/{platform}/{arg}{ext}',
 	/*
 	 * Run serially.

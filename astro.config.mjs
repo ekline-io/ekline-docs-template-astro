@@ -6,7 +6,7 @@ import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import { openApiSidebarGroup } from './src/lib/openapi-sidebar.mjs';
-import { apiReference, defaultView, routeFor } from './src/config/api-reference.mjs';
+import { apiReference, enabledViews, defaultView, routeFor } from './src/config/api-reference.mjs';
 
 // Every operation in the OpenAPI document, as Starlight sidebar links pointing
 // into the rendered reference. Regenerated on every build, so swapping in your
@@ -15,14 +15,19 @@ import { apiReference, defaultView, routeFor } from './src/config/api-reference.
 // Everything about the reference — the document, which views are built, what
 // they are called — lives in `src/config/api-reference.mjs`. Edit that, not
 // this. See `wiki/api-reference.md`.
-const apiReferenceSidebar = await openApiSidebarGroup({
-	spec: apiReference.spec,
-	// The default view: the one served at `/api/`, and the only one guaranteed
-	// to exist whatever a customer has enabled.
-	base: routeFor(defaultView),
-	label: apiReference.sidebarLabel,
-	badges: apiReference.sidebarBadges,
-});
+//
+// Skipped entirely when every view is disabled: no route is generated in that
+// case, so a sidebar group would be a section of links to a page that does not
+// exist. `.filter(Boolean)` below drops it from the sidebar array.
+const apiReferenceSidebar = enabledViews.length
+	? await openApiSidebarGroup({
+			spec: apiReference.spec,
+			// The default view: the one served at `/api/`.
+			base: routeFor(defaultView),
+			label: apiReference.sidebarLabel,
+			badges: apiReference.sidebarBadges,
+		})
+	: null;
 
 // https://astro.build/config
 export default defineConfig({
@@ -97,7 +102,10 @@ export default defineConfig({
 				// needs no maintenance when the document changes. Readers switch
 				// between views from the control on the page itself, so the other
 				// views are deliberately not repeated here.
-				apiReferenceSidebar,
+				// Spread rather than a nullable entry plus `.filter(Boolean)`:
+				// `filter(Boolean)` does not narrow the type, so the array stays
+				// `| null` and Starlight's sidebar type rejects it.
+				...(apiReferenceSidebar ? [apiReferenceSidebar] : []),
 				{
 					label: 'Changelog',
 					slug: 'changelog',

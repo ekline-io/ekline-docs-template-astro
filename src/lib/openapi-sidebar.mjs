@@ -70,6 +70,21 @@ const METHOD_VARIANT = {
 	trace: 'default',
 };
 
+/**
+ * Report a degraded build on stderr.
+ *
+ * Always a warning, never a throw: a customer's first build must not die
+ * because their document has a typo. The site still builds and the reference
+ * still renders — only the generated extras are missing, so the message has to
+ * say which.
+ */
+function warn(spec, error, consequence) {
+	console.warn(
+		`[openapi-sidebar] Could not process "${spec}": ${error?.message ?? error}\n` +
+			`  ${consequence}`
+	);
+}
+
 /** Depth-first walk over the navigation tree. */
 function* walk(entries) {
 	for (const entry of entries ?? []) {
@@ -78,25 +93,56 @@ function* walk(entries) {
 	}
 }
 
-/** Turn a Scalar navigation ID into the in-page anchor for `base`. */
-function hrefFor(base, id) {
-	const hash = String(id).slice(DOCUMENT_NAME.length + 1);
-	return `${base}#${hash}`;
+/** The prefix `createNavigation` puts on every ID it generates. */
+const ID_PREFIX = `${DOCUMENT_NAME}/`;
+
+/**
+ * Strip Scalar's document prefix to get the in-page anchor.
+ *
+ * Guarded rather than a blind `slice`: every ID is prefixed today, but an
+ * unprefixed one would silently lose its first characters and produce a link
+ * that renders perfectly and scrolls nowhere. `null` lets callers skip the
+ * entry instead of emitting a broken one.
+ */
+function anchorFor(id) {
+	const value = String(id);
+	return value.startsWith(ID_PREFIX) ? value.slice(ID_PREFIX.length) : null;
 }
 
 /**
- * Read and fully resolve an OpenAPI document.
+ * Read and fully resolve an OpenAPI document, once per path per build.
  *
  * `normalize` accepts YAML or JSON, `upgrade` lifts Swagger 2.0 and OpenAPI 3.0
  * documents to 3.1, and `dereference` resolves `$ref`s — so a customer's spec
  * works whatever shape it arrives in.
+ *
+ * Memoised because the sidebar and the search index each need the document and
+ * are built from different places (config evaluation, then component render).
+ * Dereferencing dominates the cost on a large spec, and paying it twice per
+ * build is pure waste. The promise is cached, not the result, so concurrent
+ * callers share one read rather than racing.
  */
-async function loadDocument(specPath) {
-	const raw = await readFile(specPath, 'utf-8');
-	const { specification } = upgrade(normalize(raw));
-	// `dereference` is synchronous despite the name — no `await` here.
-	const { schema } = dereference(specification);
-	return schema ?? specification;
+const documentCache = new Map();
+
+function loadDocument(specPath) {
+	const cached = documentCache.get(specPath);
+	if (cached) return cached;
+
+	const pending = (async () => {
+		const raw = await readFile(specPath, 'utf-8');
+		const { specification } = upgrade(normalize(raw));
+		// `dereference` is synchronous despite the name — no `await` here.
+		const { schema } = dereference(specification);
+		return schema ?? specification;
+	})();
+
+	// Drop failures from the cache so a later call can retry — a dev server
+	// rebuilds after the customer fixes the file, and a cached rejection would
+	// keep reporting the old error forever.
+	pending.catch(() => documentCache.delete(specPath));
+
+	documentCache.set(specPath, pending);
+	return pending;
 }
 
 /**
@@ -115,9 +161,12 @@ export async function openApiOperations({ spec }) {
 	let document;
 	try {
 		document = await loadDocument(spec);
-	} catch {
-		// `openApiSidebarGroup` warns about the same document on the same build;
-		// repeating it here would just double every message.
+	} catch (error) {
+		// Warn here too. The sidebar reports its own failure, but the two are
+		// built at different moments from different call sites, so this one can
+		// fail alone — and a search that silently indexes no operations is
+		// indistinguishable from a search that found nothing.
+		warn(spec, error, 'The API reference is not searchable by operation.');
 		return [];
 	}
 
@@ -130,11 +179,14 @@ export async function openApiOperations({ spec }) {
 
 			for (const child of walk(tag.children)) {
 				if (!LINKABLE.has(child.type)) continue;
+
+				const anchor = anchorFor(child.id);
+				if (!anchor) continue;
+
 				operations.push({
 					title: child.title ?? child.name,
 					method: child.method ? String(child.method).toUpperCase() : '',
-					/** Anchor within the reference, without the leading `#`. */
-					anchor: String(child.id).slice(DOCUMENT_NAME.length + 1),
+					anchor,
 					tag: tag.title ?? tag.name,
 					isWebhook: child.type === 'webhook',
 				});
@@ -142,7 +194,8 @@ export async function openApiOperations({ spec }) {
 		}
 
 		return operations;
-	} catch {
+	} catch (error) {
+		warn(spec, error, 'The API reference is not searchable by operation.');
 		return [];
 	}
 }
@@ -177,10 +230,7 @@ export async function openApiSidebarGroup({
 	try {
 		document = await loadDocument(spec);
 	} catch (error) {
-		console.warn(
-			`[openapi-sidebar] Could not read "${spec}": ${error.message}\n` +
-				`  The API reference is still linked, but without per-operation entries.`
-		);
+		warn(spec, error, 'The API reference is still linked, but without per-operation entries.');
 		return fallback;
 	}
 
@@ -198,7 +248,10 @@ export async function openApiSidebarGroup({
 			for (const child of walk(entry.children)) {
 				if (!LINKABLE.has(child.type)) continue;
 
-				const item = { label: child.title ?? child.name, link: hrefFor(base, child.id) };
+				const anchor = anchorFor(child.id);
+				if (!anchor) continue;
+
+				const item = { label: child.title ?? child.name, link: `${base}#${anchor}` };
 				const variant = METHOD_VARIANT[String(child.method).toLowerCase()];
 				if (badges && child.method) {
 					item.badge = { text: String(child.method).toUpperCase(), variant: variant ?? 'default' };
@@ -216,10 +269,7 @@ export async function openApiSidebarGroup({
 
 		return { label, collapsed, items: [{ label: 'Overview', link: base }, ...groups] };
 	} catch (error) {
-		console.warn(
-			`[openapi-sidebar] Could not build sidebar entries from "${spec}": ${error.message}\n` +
-				`  The API reference is still linked, but without per-operation entries.`
-		);
+		warn(spec, error, 'The API reference is still linked, but without per-operation entries.');
 		return fallback;
 	}
 }

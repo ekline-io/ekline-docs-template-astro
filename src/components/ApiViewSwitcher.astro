@@ -74,10 +74,29 @@ const { current } = Astro.props;
 		link.href = target.toString();
 	}
 
-	// `pointerdown` and `focusin` both land before the navigation the click
-	// starts, and between them cover pointer and keyboard use.
-	document.addEventListener('pointerdown', carryHash);
-	document.addEventListener('focusin', carryHash);
+	/**
+	 * Bind to the switcher, not the document.
+	 *
+	 * `pointerdown` and `focusin` both land before the navigation a click starts,
+	 * and between them cover pointer and keyboard use — but on `document` they
+	 * also fire for every interaction anywhere on a long, interaction-heavy
+	 * reference, each time running a `closest()` lookup only to discard it.
+	 *
+	 * Re-bound on `astro:page-load` because the trade-off for scoping is that a
+	 * view transition replaces the element: a document-level listener survives a
+	 * swap, an element-level one goes with the element it was attached to.
+	 * Re-adding the same function to the same element is a no-op, so arriving
+	 * here twice cannot double-fire.
+	 */
+	function bindSwitcher() {
+		const switcher = document.querySelector('.ek-view-switcher');
+		if (!switcher) return;
+		switcher.addEventListener('pointerdown', carryHash);
+		switcher.addEventListener('focusin', carryHash);
+	}
+
+	bindSwitcher();
+	document.addEventListener('astro:page-load', bindSwitcher);
 </script>
 
 <style>

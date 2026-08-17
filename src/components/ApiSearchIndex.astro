@@ -12,10 +12,19 @@
  * operation, which is what lets Pagefind return it as a sub-result linking
  * straight to the operation rather than to the top of the reference.
  *
- * The block is visually hidden but not hidden from Pagefind: `display: none`
- * would be, and `aria-hidden` keeps it out of the accessibility tree, since the
- * same operations are already reachable through the sidebar and through
- * Scalar's own navigation. It exists for the indexer.
+ * `display: none` specifically, not the usual clip-based visually-hidden
+ * pattern. Pagefind reads the HTML a page ships and does not evaluate CSS, so
+ * it indexes this either way — but the browser does evaluate CSS, and a clipped
+ * element still has a box. These headings own the very anchors the URL hash
+ * uses (Scalar names its own rendered sections `api-1/…`), so with a box they
+ * become the target of every fragment navigation: following a search result, or
+ * switching views, would scroll the reader to a 1px sliver while Scalar
+ * separately scrolled to the real operation. With no box there is nothing to
+ * scroll to, and Scalar's router is left to do its job.
+ *
+ * `aria-hidden` keeps the block out of the accessibility tree as well — the
+ * same operations are already reachable through the sidebar and Scalar's own
+ * navigation. It exists for the indexer.
  */
 import { openApiOperations } from '../lib/openapi-sidebar.mjs';
 import { apiReference } from '../config/api-reference.mjs';
@@ -48,14 +57,6 @@ const operations = await openApiOperations({ spec: apiReference.spec });
 	 * which would defeat the whole point of the block.
 	 */
 	.ek-api-search-index {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		margin: -1px;
-		padding: 0;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-		border: 0;
+		display: none;
 	}
 </style>

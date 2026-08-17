@@ -145,17 +145,27 @@ const configuration = {
 	const SCALAR_ROOTS = '.scalar-app, .scalar-api-reference, [data-ek-scalar] > div';
 
 	function applyTheme() {
+		const onReferencePage = !!document.querySelector('[data-ek-scalar]');
 		const isDark = document.documentElement.dataset.theme === 'dark';
 
-		const roots = [
-			...document.querySelectorAll<HTMLElement>(SCALAR_ROOTS),
-			// `<body>` too. Scalar stamps its own theme class there — not only on
-			// its containers — and its stylesheet paints a background from it. Miss
-			// this and the body keeps whatever theme Scalar mounted with, so in dark
-			// mode every strip of page that Scalar does not paint over itself (the
-			// band around the view switcher, most visibly) stays white.
-			document.body,
-		];
+		const roots = [...document.querySelectorAll<HTMLElement>(SCALAR_ROOTS)];
+
+		// `<body>` too. Scalar stamps its own theme class there — not only on its
+		// containers — and its stylesheet paints a background from it. Miss this
+		// and the body keeps whatever theme Scalar mounted with, so in dark mode
+		// every strip of page Scalar does not paint over itself (the band around
+		// the view switcher, most visibly) stays white.
+		//
+		// Only while a reference is on the page, though. This also runs on
+		// `astro:page-load`, which fires for navigations *away* from the API
+		// routes, and leaving Scalar's class on an ordinary prose page keeps its
+		// background rule matching after the rule that compensates for it
+		// (`html body:has([data-ek-scalar])`) has stopped.
+		if (onReferencePage) {
+			roots.push(document.body);
+		} else {
+			document.body.classList.remove('dark-mode', 'light-mode');
+		}
 
 		for (const root of roots) {
 			root.classList.toggle('dark-mode', isDark);

@@ -84,6 +84,8 @@ Update screenshots after an intentional visual change with `npm run test:visual:
 
 Visual tests need a browser: `npx playwright install chromium`. They run serially and retry once — the reference loads Scalar's bundle from a CDN, and a cold fetch is slow enough to trip a timeout on an otherwise healthy run.
 
+**Screenshot baselines are per-platform.** Font rendering differs between macOS and Linux, so `tests/visual/__screenshots__/` is split by platform and only the one they were generated on is committed. Running the suite anywhere else fails on missing baselines — that is Playwright refusing to invent a comparison, not a regression. Before wiring this into CI, generate that platform's baselines once on a matching machine or container and commit them; or run only `npm test` there, which needs no browser.
+
 ## Astro 6 and peer dependencies
 
 `@scalar/astro` currently declares `peerDependencies: { astro: "^4 || ^5" }`, so a plain `npm install` on this Astro 6 template fails with `ERESOLVE`. `package.json` resolves it:
