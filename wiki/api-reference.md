@@ -2,7 +2,7 @@
 
 API references are rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro).
 
-Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its route, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.
+Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its slug, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.
 
 ## Swap in your own spec
 
@@ -21,10 +21,12 @@ JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are upgrad
 
 The template ships **two** example APIs, each demonstrating one layout:
 
-| Reference | Route | Layout | Navigation |
-| --- | --- | --- | --- |
-| Example Payments API | `/api/` | `docs` | Starlight's sidebar, shared with the rest of the docs |
-| Example Admin API | `/api/admin/` | `full` | Scalar's own sidebar, full width |
+| Reference | `slug` | Route | Layout | Navigation |
+| --- | --- | --- | --- | --- |
+| Example Payments API | `''` | `/api/` | `docs` | Starlight's sidebar, shared with the rest of the docs |
+| Example Admin API | `'admin'` | `/api/admin/` | `full` | Scalar's own sidebar, full width |
+
+References are addressed by **`slug`, not a full path** — every route this template builds lives under `/api/`, because that is where the route file is. An empty slug is `/api/` itself. `routeFor()` turns a slug into the one URL the page, the sidebar and the search index all use, so those three cannot end up disagreeing. Two references sharing a slug fails the build rather than silently making one unreachable.
 
 **`docs` is the right default for most sites.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination. Every operation appears in the sidebar, generated from the document, and is reachable from any page in the site.
 

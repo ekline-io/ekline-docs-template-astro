@@ -40,8 +40,16 @@ export const apiReferences = [
 		id: 'payments',
 		enabled: true,
 
-		/** Route the reference is served at. Must start and end with a slash. */
-		route: '/api/',
+		/**
+		 * Path segment under `/api/`, or `''` for `/api/` itself.
+		 *
+		 * A slug rather than a full path because the route file lives at
+		 * `src/pages/api/[...reference].astro` — everything it builds is under
+		 * `/api/` whatever this says. Taking a slug makes that a fact of the API
+		 * instead of a rule to remember, and `routeFor()` derives the one URL that
+		 * the page, the sidebar and the search index all use.
+		 */
+		slug: '',
 
 		/** @type {ApiLayout} */
 		layout: 'docs',
@@ -65,7 +73,7 @@ export const apiReferences = [
 	{
 		id: 'admin',
 		enabled: true,
-		route: '/api/admin/',
+		slug: 'admin',
 		/** @type {ApiLayout} */
 		layout: 'full',
 		spec: './public/openapi-admin.yaml',
@@ -79,6 +87,34 @@ export const apiReferences = [
 
 /** References that are actually built, in declaration order. */
 export const enabledReferences = apiReferences.filter((reference) => reference.enabled);
+
+/**
+ * The URL a reference is served at — the single source for the page, its
+ * sidebar entries and its search anchors, so those three cannot disagree.
+ */
+export function routeFor(reference) {
+	const slug = (reference.slug ?? '').replace(/^\/+|\/+$/g, '');
+	return slug ? `/api/${slug}/` : '/api/';
+}
+
+// Two references on one route is a config mistake with a confusing symptom:
+// both build to the same path, the sidebar grows two entries pointing at one
+// page, and whichever document loses is silently unreachable. Easy to introduce
+// by copying an entry and forgetting to change the slug, so say so at build
+// time rather than leaving it to be noticed in review.
+{
+	const seen = new Set();
+	for (const reference of enabledReferences) {
+		const route = routeFor(reference);
+		if (seen.has(route)) {
+			throw new Error(
+				`[api-reference] Two references are configured at "${route}" ` +
+					`("${reference.id}" is the second). Give each one a distinct \`slug\`.`
+			);
+		}
+		seen.add(route);
+	}
+}
 
 /**
  * Show each operation as its own sidebar link.

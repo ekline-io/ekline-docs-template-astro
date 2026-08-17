@@ -6,7 +6,11 @@ import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import { openApiSidebarGroup } from './src/lib/openapi-sidebar.mjs';
-import { enabledReferences, listsOperationsInSidebar } from './src/config/api-reference.mjs';
+import {
+	enabledReferences,
+	listsOperationsInSidebar,
+	routeFor,
+} from './src/config/api-reference.mjs';
 
 // One sidebar entry per API reference, generated from its OpenAPI document.
 // Regenerated on every build, so swapping in your own document updates the
@@ -25,10 +29,10 @@ const apiReferenceSidebar = await Promise.all(
 		listsOperationsInSidebar(reference)
 			? openApiSidebarGroup({
 					spec: reference.spec,
-					base: reference.route,
+					base: routeFor(reference),
 					label: reference.label,
 				})
-			: { label: reference.label, link: reference.route }
+			: { label: reference.label, link: routeFor(reference) }
 	)
 );
 

@@ -23,6 +23,7 @@ import { dirname, join } from 'node:path';
 import {
 	enabledReferences,
 	listsOperationsInSidebar,
+	routeFor,
 } from '../src/config/api-reference.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -30,7 +31,7 @@ const DIST = join(__dirname, '..', 'dist');
 
 /** `dist`-relative path of the HTML a reference builds to. */
 const htmlFor = (reference) =>
-	join(DIST, reference.route.replace(/^\/|\/$/g, ''), 'index.html');
+	join(DIST, routeFor(reference).replace(/^\/|\/$/g, ''), 'index.html');
 
 /** `dist`-relative path of the document a reference is served from. */
 const specFor = (reference) => join(DIST, reference.specUrl.replace(/^\//, ''));
@@ -58,7 +59,7 @@ test("every reference's OpenAPI document is emitted as a static asset", () => {
 
 test('every reference route is built', () => {
 	for (const reference of enabledReferences) {
-		assert.ok(existsSync(htmlFor(reference)), `${reference.id}: ${reference.route} not built`);
+		assert.ok(existsSync(htmlFor(reference)), `${reference.id}: ${routeFor(reference)} not built`);
 	}
 });
 
@@ -70,7 +71,7 @@ test('every reference points at its own document', () => {
 		const html = readFileSync(htmlFor(reference), 'utf-8');
 		assert.ok(
 			html.includes(reference.specUrl),
-			`${reference.id}: ${reference.route} does not reference ${reference.specUrl} — ` +
+			`${reference.id}: ${routeFor(reference)} does not reference ${reference.specUrl} — ` +
 				`it would 404 on its document at runtime`
 		);
 	}
@@ -160,11 +161,11 @@ test('a full-width reference gets a plain sidebar link, not an operation list', 
 
 	for (const reference of enabledReferences.filter((r) => !listsOperationsInSidebar(r))) {
 		assert.ok(
-			html.includes(`href="${reference.route}"`),
-			`${reference.id}: no sidebar link to ${reference.route}`
+			html.includes(`href="${routeFor(reference)}"`),
+			`${reference.id}: no sidebar link to ${routeFor(reference)}`
 		);
 		const anchors =
-			html.match(new RegExp(`href="${reference.route}#[^"]+"`, 'g')) ?? [];
+			html.match(new RegExp(`href="${routeFor(reference)}#[^"]+"`, 'g')) ?? [];
 		assert.equal(
 			anchors.length,
 			0,

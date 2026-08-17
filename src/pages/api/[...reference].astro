@@ -24,8 +24,10 @@ import { enabledReferences } from '../../config/api-reference.mjs';
 
 export function getStaticPaths() {
 	return enabledReferences.map((reference) => ({
-		// `/api/` becomes an undefined rest param; `/api/admin/` becomes `admin`.
-		params: { reference: reference.route.replace(/^\/api\/?|\/$/g, '') || undefined },
+		// The slug *is* the rest param; an empty one renders `/api/` itself. Both
+		// this and `routeFor()` read the same field, so the page cannot end up at
+		// a path its own sidebar and search links do not point to.
+		params: { reference: reference.slug || undefined },
 		props: { reference },
 	}));
 }
@@ -45,7 +47,7 @@ const isFullWidth = reference.layout === 'full';
 		tableOfContents: false,
 	}}
 >
-	<ApiSearchIndex spec={reference.spec} route={reference.route} />
+	<ApiSearchIndex spec={reference.spec} />
 	<script is:inline>
 		/**
 		 * Honour the anchor the page was opened with.

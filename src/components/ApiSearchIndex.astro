@@ -34,17 +34,15 @@ import { openApiOperations } from '../lib/openapi-sidebar.mjs';
 interface Props {
 	/** Path to this reference's OpenAPI document on disk. */
 	spec: string;
-	/** Route the reference is served at, so anchors resolve to the right page. */
-	route: string;
 }
 
-const { spec, route } = Astro.props;
+const { spec } = Astro.props;
 const operations = await openApiOperations({ spec });
 ---
 
 {
 	operations.length > 0 && (
-		<div class="ek-api-search-index" aria-hidden="true" data-ek-search-index={route}>
+		<div class="ek-api-search-index" aria-hidden="true">
 			{operations.map((operation) => (
 				<Fragment>
 					<h2 id={operation.anchor}>{operation.title}</h2>
