@@ -1,14 +1,16 @@
 /**
- * Smoke tests for the Scalar API reference.
+ * Smoke tests for the Scalar API references.
  *
- * These guard one failure mode that is otherwise silent: Scalar fetches the
- * OpenAPI document by URL in the browser, so renaming or moving
- * `public/openapi.yaml` still produces a clean `npm run build`. Nothing fails
- * until a visitor loads `/api/` and Scalar 404s on the document — by which
- * point the site is deployed.
+ * These guard one failure mode that is otherwise silent: Scalar fetches each
+ * OpenAPI document by URL in the browser, so renaming or moving one still
+ * produces a clean `npm run build`. Nothing fails until a visitor loads the
+ * route and Scalar 404s on the document — by which point the site is deployed.
  *
- * Asserting that the spec is emitted, and that each route's markup actually
- * points at the path it is emitted to, catches that at build time instead.
+ * Asserting that each document is emitted, and that its route's markup points
+ * at the path it is emitted to, catches that at build time instead.
+ *
+ * Driven from `src/config/api-reference.mjs` rather than a hardcoded list, so
+ * adding, removing or re-routing a reference cannot leave these tests behind.
  *
  * Run after `npm run build`:  `node --test tests/scalar-api-reference.test.mjs`
  */
@@ -18,55 +20,72 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import {
+	enabledReferences,
+	listsOperationsInSidebar,
+} from '../src/config/api-reference.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
 
-/** Path the reference is configured to fetch, relative to the site root. */
-const SPEC_PATH = 'openapi.yaml';
+/** `dist`-relative path of the HTML a reference builds to. */
+const htmlFor = (reference) =>
+	join(DIST, reference.route.replace(/^\/|\/$/g, ''), 'index.html');
 
-/** Every view enabled in `src/config/api-reference.mjs`. */
-const ROUTES = ['api/index.html', 'api/full/index.html'];
+/** `dist`-relative path of the document a reference is served from. */
+const specFor = (reference) => join(DIST, reference.specUrl.replace(/^\//, ''));
 
 test('build output exists (did `npm run build` run?)', () => {
 	assert.ok(existsSync(DIST), 'dist/ does not exist');
 });
 
-test('the OpenAPI document is emitted as a static asset', () => {
-	const spec = join(DIST, SPEC_PATH);
-	assert.ok(existsSync(spec), `dist/${SPEC_PATH} missing`);
-
-	const content = readFileSync(spec, 'utf-8');
-	assert.match(content, /^openapi:\s*3\./m, 'not an OpenAPI 3.x document');
-	assert.match(content, /^paths:/m, 'document declares no paths');
+test('more than one reference is configured', () => {
+	// The template ships two so both layouts are visible on real content. If you
+	// deleted one, drop this assertion with it.
+	assert.ok(enabledReferences.length >= 1, 'no API references are enabled');
 });
 
-test('every API reference route is built', () => {
-	for (const route of ROUTES) {
-		assert.ok(existsSync(join(DIST, route)), `dist/${route} missing`);
+test("every reference's OpenAPI document is emitted as a static asset", () => {
+	for (const reference of enabledReferences) {
+		const spec = specFor(reference);
+		assert.ok(existsSync(spec), `${reference.id}: ${reference.specUrl} missing from dist/`);
+
+		const content = readFileSync(spec, 'utf-8');
+		assert.match(content, /^openapi:\s*3\./m, `${reference.id}: not an OpenAPI 3.x document`);
+		assert.match(content, /^paths:/m, `${reference.id}: document declares no paths`);
 	}
 });
 
-test('every API reference route points at the emitted document', () => {
-	for (const route of ROUTES) {
-		const html = readFileSync(join(DIST, route), 'utf-8');
+test('every reference route is built', () => {
+	for (const reference of enabledReferences) {
+		assert.ok(existsSync(htmlFor(reference)), `${reference.id}: ${reference.route} not built`);
+	}
+});
+
+test('every reference points at its own document', () => {
+	// The failure this catches is a reference rendering someone else's API —
+	// easy to introduce when copying an entry in the config, and invisible until
+	// someone reads the page.
+	for (const reference of enabledReferences) {
+		const html = readFileSync(htmlFor(reference), 'utf-8');
 		assert.ok(
-			html.includes(`/${SPEC_PATH}`),
-			`dist/${route} does not reference /${SPEC_PATH} — the reference would ` +
-				`404 on its document at runtime`
+			html.includes(reference.specUrl),
+			`${reference.id}: ${reference.route} does not reference ${reference.specUrl} — ` +
+				`it would 404 on its document at runtime`
 		);
 	}
 });
 
-test('the reference mounts in client mode', () => {
-	// `renderMode="client"` is what makes the reference survive a view-transition
+test('every reference mounts in client mode', () => {
+	// `renderMode="client"` is what makes a reference survive a view-transition
 	// navigation; the static mode's bootstrap script only runs on a hard load.
 	// The client path is what emits this container.
-	for (const route of ROUTES) {
-		const html = readFileSync(join(DIST, route), 'utf-8');
+	for (const reference of enabledReferences) {
+		const html = readFileSync(htmlFor(reference), 'utf-8');
 		assert.match(
 			html,
 			/data-scalar-client/,
-			`dist/${route} was not rendered with renderMode="client"`
+			`${reference.id}: not rendered with renderMode="client"`
 		);
 	}
 });
@@ -134,6 +153,26 @@ test('the operation list is reachable from ordinary docs pages', () => {
 	assert.ok(links.length >= 10, `expected operations in the global sidebar, found ${links.length}`);
 });
 
+test('a full-width reference gets a plain sidebar link, not an operation list', () => {
+	// Scalar's own sidebar lists the operations on a `full` route, so repeating
+	// them in Starlight's would be two navigation trees for one document.
+	const html = readFileSync(join(DIST, 'get-started/quickstart/index.html'), 'utf-8');
+
+	for (const reference of enabledReferences.filter((r) => !listsOperationsInSidebar(r))) {
+		assert.ok(
+			html.includes(`href="${reference.route}"`),
+			`${reference.id}: no sidebar link to ${reference.route}`
+		);
+		const anchors =
+			html.match(new RegExp(`href="${reference.route}#[^"]+"`, 'g')) ?? [];
+		assert.equal(
+			anchors.length,
+			0,
+			`${reference.id}: full-width reference should not list operations in the sidebar`
+		);
+	}
+});
+
 test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// Opening it uploads the customer's OpenAPI document to Scalar's servers and
 	// asks the reader to accept Scalar's terms. A template must not default to
@@ -144,11 +183,11 @@ test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// escaper picks (`&#34;` vs `&quot;`) is an Astro implementation detail.
 	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
 
-	for (const route of ROUTES) {
-		const html = unescapeQuotes(readFileSync(join(DIST, route), 'utf-8'));
+	for (const reference of enabledReferences) {
+		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		assert.ok(
 			html.includes('"agent":{"disabled":true}'),
-			`dist/${route} does not disable the Scalar agent`
+			`${reference.id}: the Scalar agent is not disabled`
 		);
 	}
 });

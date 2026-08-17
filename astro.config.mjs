@@ -6,28 +6,31 @@ import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import { openApiSidebarGroup } from './src/lib/openapi-sidebar.mjs';
-import { apiReference, enabledViews, defaultView, routeFor } from './src/config/api-reference.mjs';
+import { enabledReferences, listsOperationsInSidebar } from './src/config/api-reference.mjs';
 
-// Every operation in the OpenAPI document, as Starlight sidebar links pointing
-// into the rendered reference. Regenerated on every build, so swapping in your
-// own document updates the sidebar with nothing to change here.
+// One sidebar entry per API reference, generated from its OpenAPI document.
+// Regenerated on every build, so swapping in your own document updates the
+// sidebar with nothing to change here.
 //
-// Everything about the reference — the document, which views are built, what
-// they are called — lives in `src/config/api-reference.mjs`. Edit that, not
-// this. See `wiki/api-reference.md`.
+// Which references exist, what they are called and which layout each uses lives
+// in `src/config/api-reference.mjs`. Edit that, not this. See
+// `wiki/api-reference.md`.
 //
-// Skipped entirely when every view is disabled: no route is generated in that
-// case, so a sidebar group would be a section of links to a page that does not
-// exist. `.filter(Boolean)` below drops it from the sidebar array.
-const apiReferenceSidebar = enabledViews.length
-	? await openApiSidebarGroup({
-			spec: apiReference.spec,
-			// The default view: the one served at `/api/`.
-			base: routeFor(defaultView),
-			label: apiReference.sidebarLabel,
-			badges: apiReference.sidebarBadges,
-		})
-	: null;
+// A `docs`-layout reference gets a group listing every operation, because its
+// route keeps Starlight's sidebar on screen. A `full`-layout one gets a plain
+// link: Scalar's own sidebar lists the operations there, and repeating them in
+// Starlight's would be two navigation trees for one document.
+const apiReferenceSidebar = await Promise.all(
+	enabledReferences.map((reference) =>
+		listsOperationsInSidebar(reference)
+			? openApiSidebarGroup({
+					spec: reference.spec,
+					base: reference.route,
+					label: reference.label,
+				})
+			: { label: reference.label, link: reference.route }
+	)
+);
 
 // https://astro.build/config
 export default defineConfig({
@@ -92,20 +95,14 @@ export default defineConfig({
 					label: 'Reference',
 					items: [{ autogenerate: { directory: 'reference' } }],
 				},
-				// Interactive API reference, rendered by Scalar from
-				// `public/openapi.yaml`. The routes live in `src/pages/api/` rather
-				// than in a Starlight plugin — Scalar renders the whole reference
-				// itself, so there are no per-operation pages to autogenerate.
+				// Interactive API references, rendered by Scalar. Their routes live
+				// in `src/pages/api/` rather than in a Starlight plugin — Scalar
+				// renders each whole reference itself, so there are no per-operation
+				// pages to autogenerate.
 				//
-				// The group below is generated from the spec (see the import at the
-				// top of this file), so it lists every operation grouped by tag and
-				// needs no maintenance when the document changes. Readers switch
-				// between views from the control on the page itself, so the other
-				// views are deliberately not repeated here.
-				// Spread rather than a nullable entry plus `.filter(Boolean)`:
-				// `filter(Boolean)` does not narrow the type, so the array stays
-				// `| null` and Starlight's sidebar type rejects it.
-				...(apiReferenceSidebar ? [apiReferenceSidebar] : []),
+				// Built from the OpenAPI documents (see the import at the top of this
+				// file), so they need no maintenance when a document changes.
+				...apiReferenceSidebar,
 				{
 					label: 'Changelog',
 					slug: 'changelog',

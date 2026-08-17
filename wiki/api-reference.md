@@ -1,14 +1,14 @@
 # API reference
 
-The API reference is rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro), from a single OpenAPI document.
+API references are rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro).
 
-Everything about it is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — the document, which views are built, what they are called. The routes, the sidebar, the search index, and the switcher readers see are all derived from that one object.
+Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its route, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.
 
 ## Swap in your own spec
 
-Replace `public/openapi.yaml` with your own document. That is the only required change: the routes, the sidebar's operation list, and the search entries all regenerate on the next build.
+Replace `public/openapi.yaml` with your own document. That is the only required change: the route, the sidebar's operation list, and the search entries all regenerate on the next build.
 
-To rename it, or point at a spec hosted elsewhere, change both fields in the config together:
+To rename it, or point at a spec hosted elsewhere, change both fields on that reference together:
 
 ```js
 spec: './public/openapi.yaml',   // read at build time, to generate the sidebar
@@ -17,24 +17,30 @@ specUrl: '/openapi.yaml',        // fetched by the browser, at runtime
 
 JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are upgraded to 3.1 automatically.
 
-The placeholder spec is deliberately dense — multiple auth schemes, discriminated unions, webhooks, callbacks, multipart upload, cursor pagination, RFC 9457 problem responses — so you can see how each construct renders before replacing it.
+## Two references, two layouts
 
-## Two views
+The template ships **two** example APIs, each demonstrating one layout:
 
-| View | Route | Chrome | Operation navigation |
+| Reference | Route | Layout | Navigation |
 | --- | --- | --- | --- |
-| `docs` | `/api/` | Full Starlight page | Starlight's sidebar, shared with the rest of the docs |
-| `full` | `/api/full/` | Header only (`splash`) | Scalar's own sidebar |
+| Example Payments API | `/api/` | `docs` | Starlight's sidebar, shared with the rest of the docs |
+| Example Admin API | `/api/admin/` | `full` | Scalar's own sidebar, full width |
 
-**`docs` is the default.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination.
+**`docs` is the right default for most sites.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination. Every operation appears in the sidebar, generated from the document, and is reachable from any page in the site.
 
-**`full`** hands the whole width to Scalar. Worth keeping for large documents: Scalar's sidebar is virtualised, so it stays responsive where a fully expanded Starlight tree would not.
+**`full`** hands the whole width to Scalar. Worth it for large documents: Scalar's sidebar is virtualised, so it stays responsive where a fully expanded Starlight tree would not.
 
-Readers switch between them with the control above the reference, which carries the current anchor across so they keep their place.
+There is deliberately **no control for switching between layouts**. That would be meta-UI about the documentation rather than documentation, and it is not something to ship to readers. Two real APIs make the same point and leave you with something to keep.
 
-### Shipping only one
+### Keeping one
 
-Set the other's `enabled: false`. Its route stops being built and the switcher disappears on its own. To change which view is served at `/api/`, move `default: true` — the sidebar and the search index follow automatically.
+Delete the entry you do not want from `apiReferences`, and delete its file from `public/`. Its route, sidebar entries and search entries go with it. The placeholder specs are examples — you are expected to remove at least one.
+
+Keeping both is also fine. Plenty of products document more than one API, and the list exists for exactly that.
+
+### Changing a layout rather than removing one
+
+Set `layout` to `'docs'` or `'full'` on the reference. Nothing else changes — the sidebar switches between an operation list and a plain link on its own, because a `full` route already has Scalar's sidebar and a second copy in Starlight's would be two navigation trees for one document.
 
 ## How the pieces fit
 
@@ -48,6 +54,8 @@ This template mounts `<ClientRouter />` for view transitions. Scalar's default `
 
 `src/lib/openapi-sidebar.mjs` builds it from the document using **Scalar's own navigation builder** (`createNavigation` from `@scalar/workspace-store`), not a hand-rolled one. Each link is an anchor into the rendered reference, so its hash must match the ID Scalar assigns — including how it slugifies tags and strips punctuation from webhook names (`payment.succeeded` becomes `paymentsucceeded`, the dot dropped rather than hyphenated). Sharing Scalar's builder means both sides move together on `npm update`.
 
+Generated only for `docs`-layout references — a `full` one already has Scalar's sidebar.
+
 Four representative anchors are pinned in `tests/scalar-api-reference.test.mjs`. If a Scalar upgrade changes the scheme, that test fails rather than leaving links that render and scroll nowhere.
 
 The generator never fails the build: a missing, malformed, or untagged document degrades to a plain link to the reference plus a warning on stderr.
@@ -56,9 +64,9 @@ The generator never fails the build: a missing, malformed, or untagged document 
 
 Pagefind indexes the HTML a page ships, and Scalar renders everything in the browser — so out of the box the reference is invisible to search. `ApiSearchIndex.astro` emits one server-rendered heading per operation, whose `id` is the anchor Scalar uses, giving Pagefind real content to index and letting results link straight to an operation.
 
-Only the default view is indexed. Both views render the same document, so indexing both would return every operation twice and send readers to whichever layout ranked higher.
+Each reference is indexed under its own route, so searching for one of its operations lands the reader on the page that renders it.
 
-Scalar's own search is switched off in both views. Two search fields — one for prose, one for the reference, neither labelled — makes the reader guess.
+Scalar's own search is switched off everywhere. Two search fields — one for prose, one for the reference, neither labelled — makes the reader guess.
 
 ### Theme
 
@@ -79,7 +87,7 @@ Scalar's "Ask AI" uploads your OpenAPI document to Scalar's servers and asks the
 | --- | --- |
 | `npm run check` | Types, via `astro check`. |
 | `npm test` | Build output: routes exist, the document is emitted and referenced, anchors match Scalar's scheme, the agent is disabled. No browser needed. |
-| `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, search returning operations, the sidebar's active row, the client overlay covering the page, the switcher preserving position, mobile overflow, plus screenshots of the parts we render ourselves. |
+| `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, each reference rendering its own document, search resolving to the right route, the sidebar's active row, the client overlay covering the page, mobile overflow, plus a screenshot of the generated sidebar. |
 | `npm run test:visual:ci` | The same, minus the screenshot comparisons. |
 
 ### What runs automatically

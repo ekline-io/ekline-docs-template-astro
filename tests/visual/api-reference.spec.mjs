@@ -1,17 +1,17 @@
 /**
- * Visual and behavioural regression tests for the API reference.
+ * Visual and behavioural regression tests for the API references.
  *
- * The reference is assembled from parts that cannot see each other: Starlight
+ * A reference is assembled from parts that cannot see each other: Starlight
  * renders the page, Scalar renders the document in the browser from a CDN
  * bundle, and a set of small bridges keeps the two agreeing on theme, search,
- * navigation, and which operation is current. Nothing in the build fails when a
- * bridge breaks — the page still renders, just wrong. These tests are what
- * notice.
+ * navigation, and stacking. Nothing in the build fails when a bridge breaks —
+ * the page still renders, just wrong. These tests are what notice.
  *
  * Two kinds of check, deliberately:
  *
- *   - **Screenshots** of the parts we build and control — the sidebar, the view
- *     switcher — where a regression is visual and hard to assert in words.
+ *   - **Screenshots** of the parts we build and control, where a regression is
+ *     visual and hard to assert in words. Tagged `@screenshot`; see the note on
+ *     that describe block.
  *   - **Measurements** for everything else. That a background matches, or that
  *     search returns an operation, is a fact worth asserting exactly rather than
  *     hoping a human spots it in a diff.
@@ -24,26 +24,30 @@
  */
 import { test, expect } from '@playwright/test';
 
-/** Routes under test, as configured in `src/config/api-reference.mjs`. */
-const DOCS_VIEW = '/api/';
-const FULL_VIEW = '/api/full/';
+/**
+ * The two references the template ships, as configured in
+ * `src/config/api-reference.mjs`. They are different APIs, each demonstrating
+ * one layout — a customer keeps whichever they need.
+ */
+const PAYMENTS = { route: '/api/', title: 'Example Payments API', layout: 'docs' };
+const ADMIN = { route: '/api/admin/', title: 'Example Admin API', layout: 'full' };
 
 /**
  * The rendered reference.
  *
- * Assertions scope to this rather than the page: the operation names also
- * appear in the sidebar (inside collapsed groups) and in the hidden block that
- * feeds the search index, so an unscoped `getByText` matches those instead and
- * reports them as hidden.
+ * Assertions scope to this rather than the page: operation names also appear in
+ * the sidebar (inside collapsed groups) and in the hidden block that feeds the
+ * search index, so an unscoped `getByText` matches those instead and reports
+ * them as hidden.
  */
 const reference = (page) => page.locator('[data-ek-scalar]');
 
 /** Wait until Scalar has fetched its bundle and painted the document. */
-async function waitForReference(page) {
+async function waitForReference(page, title) {
 	await expect(reference(page)).toBeVisible();
-	await expect(
-		reference(page).getByRole('heading', { name: 'Example Payments API' })
-	).toBeVisible({ timeout: 30_000 });
+	await expect(reference(page).getByRole('heading', { name: title })).toBeVisible({
+		timeout: 30_000,
+	});
 }
 
 /**
@@ -56,10 +60,7 @@ async function setTheme(page, theme) {
 	await page.locator('starlight-theme-select select').first().selectOption(theme);
 	await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 	// The theme bridge rewrites Scalar's classes on the next frame.
-	await page.waitForFunction(
-		(t) => document.body.classList.contains(`${t}-mode`),
-		theme
-	);
+	await page.waitForFunction((t) => document.body.classList.contains(`${t}-mode`), theme);
 }
 
 /** Background colour actually painted for an element, as `r,g,b`. */
@@ -75,26 +76,47 @@ function paintedBackground(page, selector) {
 	}, selector);
 }
 
-test.describe('both views render', () => {
-	for (const [name, route] of [
-		['docs view', DOCS_VIEW],
-		['full view', FULL_VIEW],
-	]) {
-		test(`${name} renders the document`, async ({ page }) => {
-			// Deep-link to an operation rather than trusting the landing state:
-			// it proves the document parsed, the operation rendered, and the anchor
-			// scheme still matches — all in one, and all silently broken otherwise.
-			await page.goto(`${route}#tag/payments/POST/payments`);
-			await waitForReference(page);
+test.describe('both references render', () => {
+	test('the docs-layout reference renders its own document', async ({ page }) => {
+		// Deep-link to an operation rather than trusting the landing state: it
+		// proves the document parsed, the operation rendered, and the anchor
+		// scheme still matches — all in one, and all silently broken otherwise.
+		await page.goto(`${PAYMENTS.route}#tag/payments/POST/payments`);
+		await waitForReference(page, PAYMENTS.title);
 
-			// A heading, not any text: operation names also appear in Scalar's own
-			// sidebar, which the docs view hides, so a text match finds a hidden
-			// node and reports the reference as broken when it is fine.
-			await expect(
-				reference(page).getByRole('heading', { name: 'Create a payment' })
-			).toBeVisible({ timeout: 15_000 });
-		});
-	}
+		// A heading, not any text: operation names also appear in Scalar's own
+		// sidebar, which the docs layout hides, so a text match finds a hidden
+		// node and reports the reference as broken when it is fine.
+		await expect(
+			reference(page).getByRole('heading', { name: 'Create a payment' })
+		).toBeVisible({ timeout: 15_000 });
+	});
+
+	test('the full-layout reference renders its own document', async ({ page }) => {
+		await page.goto(ADMIN.route);
+		await waitForReference(page, ADMIN.title);
+
+		// Each reference must render *its own* API. Copying a config entry and
+		// forgetting to change the spec is the easy mistake, and it produces a
+		// page that looks perfectly fine until someone reads it.
+		await expect(
+			reference(page).getByRole('heading', { name: PAYMENTS.title })
+		).toHaveCount(0);
+	});
+
+	test("the full-layout reference keeps Scalar's own sidebar", async ({ page, isMobile }) => {
+		// Boolean form, not the callback form: `test.skip(fn)` is only valid at
+		// describe level, and this describe also holds tests that must run on
+		// mobile.
+		test.skip(isMobile, 'Sidebars collapse behind a menu on mobile.');
+
+		await page.goto(ADMIN.route);
+		await waitForReference(page, ADMIN.title);
+
+		// Scalar owns navigation here, so its sidebar must be present — that is
+		// the whole reason this layout exists.
+		await expect(reference(page).getByText('Users').first()).toBeVisible();
+	});
 });
 
 /**
@@ -109,8 +131,8 @@ test.describe('theme', () => {
 
 	for (const theme of ['light', 'dark']) {
 		test(`${theme}: the reference and the page share one background`, async ({ page }) => {
-			await page.goto(DOCS_VIEW);
-			await waitForReference(page);
+			await page.goto(PAYMENTS.route);
+			await waitForReference(page, PAYMENTS.title);
 			await setTheme(page, theme);
 
 			// Scalar paints its own surfaces and stamps its own theme class on
@@ -134,8 +156,8 @@ test.describe('theme', () => {
 	}
 
 	test('the reference follows the site theme toggle without a reload', async ({ page }) => {
-		await page.goto(DOCS_VIEW);
-		await waitForReference(page);
+		await page.goto(PAYMENTS.route);
+		await waitForReference(page, PAYMENTS.title);
 
 		await setTheme(page, 'light');
 		const light = await paintedBackground(page, '.scalar-app');
@@ -147,49 +169,58 @@ test.describe('theme', () => {
 });
 
 test.describe('search', () => {
-	test.skip(({ isMobile }) => isMobile, 'Search dialog and Pagefind assertions are viewport-independent; run once on desktop.');
+	test.skip(({ isMobile }) => isMobile, 'Pagefind assertions are viewport-independent; run once on desktop.');
+
+	/** Query Pagefind directly — the index Starlight's dialog reads. */
+	const search = (page, term) =>
+		page.evaluate(async (t) => {
+			const pagefind = await import('/pagefind/pagefind.js');
+			await pagefind.init();
+			const results = await pagefind.search(t);
+			return Promise.all(
+				results.results.map(async (r) => {
+					const data = await r.data();
+					return { url: data.url, subResults: (data.sub_results ?? []).map((s) => s.url) };
+				})
+			);
+		}, term);
 
 	test('the site search finds operations and links to them', async ({ page }) => {
 		await page.goto('/get-started/quickstart/');
 
-		// Query Pagefind directly: this is the index Starlight's dialog reads, and
-		// asserting against it tests the integration rather than the dialog's UI.
-		const results = await page.evaluate(async () => {
-			const pagefind = await import('/pagefind/pagefind.js');
-			await pagefind.init();
-			const search = await pagefind.search('Submit dispute evidence');
-			if (!search.results.length) return null;
-			const top = await search.results[0].data();
-			return { url: top.url, subResults: (top.sub_results ?? []).map((s) => s.url) };
-		});
-
-		expect(results, 'search returned nothing for a known operation').not.toBeNull();
-		expect(results.url).toBe(DOCS_VIEW);
-		expect(results.subResults).toContain(
+		const results = await search(page, 'Submit dispute evidence');
+		expect(results.length, 'search returned nothing for a known operation').toBeGreaterThan(0);
+		expect(results[0].url).toBe(PAYMENTS.route);
+		expect(results[0].subResults).toContain(
 			'/api/#tag/disputes/POST/disputes/{dispute_id}/evidence'
 		);
 	});
 
-	test('only one view is indexed, so operations appear once', async ({ page }) => {
+	test('each reference is searchable under its own route', async ({ page }) => {
 		await page.goto('/get-started/quickstart/');
 
-		const pages = await page.evaluate(async () => {
-			const pagefind = await import('/pagefind/pagefind.js');
-			await pagefind.init();
-			const search = await pagefind.search('dispute evidence');
-			return Promise.all(search.results.map(async (r) => (await r.data()).url));
-		});
+		// An operation unique to the admin document must resolve to the admin
+		// route, not the payments one — the two indexes must not bleed together.
+		const results = await search(page, 'Revoke an API key');
+		expect(results.length, 'admin operations are not searchable').toBeGreaterThan(0);
+		expect(results[0].url).toBe(ADMIN.route);
+	});
 
-		expect(pages.filter((url) => url.startsWith('/api'))).toEqual([DOCS_VIEW]);
+	test('an operation appears under one route only', async ({ page }) => {
+		await page.goto('/get-started/quickstart/');
+
+		const results = await search(page, 'dispute evidence');
+		const apiRoutes = results.map((r) => r.url).filter((url) => url.startsWith('/api'));
+		expect(apiRoutes).toEqual([PAYMENTS.route]);
 	});
 
 	test('Scalar does not add a second search field', async ({ page }) => {
-		await page.goto(FULL_VIEW);
-		await waitForReference(page);
+		await page.goto(ADMIN.route);
+		await waitForReference(page, ADMIN.title);
 
 		// The site header's search is the only one. Scalar's would appear inside
 		// its sidebar.
-		await expect(page.locator('[data-ek-scalar]').getByPlaceholder(/search/i)).toHaveCount(0);
+		await expect(reference(page).getByPlaceholder(/search/i)).toHaveCount(0);
 		await expect(page.locator('header.header site-search')).toHaveCount(1);
 	});
 });
@@ -198,8 +229,8 @@ test.describe('sidebar navigation', () => {
 	test.skip(({ isMobile }) => isMobile, 'The docs sidebar is behind the mobile menu.');
 
 	test('operations are listed and deep-link into the reference', async ({ page }) => {
-		await page.goto(DOCS_VIEW);
-		await waitForReference(page);
+		await page.goto(PAYMENTS.route);
+		await waitForReference(page, PAYMENTS.title);
 
 		const operation = page.locator(
 			'.sidebar-content a[href="/api/#tag/payments/POST/payments/{payment_id}/capture"]'
@@ -207,9 +238,21 @@ test.describe('sidebar navigation', () => {
 		await expect(operation).toHaveCount(1);
 	});
 
+	test('a full-layout reference is one sidebar link, not an operation list', async ({ page }) => {
+		await page.goto(PAYMENTS.route);
+		await waitForReference(page, PAYMENTS.title);
+
+		// Scalar's own sidebar lists the operations on that route, so listing them
+		// in Starlight's as well would be two navigation trees for one document.
+		await expect(page.locator(`.sidebar-content a[href="${ADMIN.route}"]`)).toHaveCount(1);
+		await expect(
+			page.locator(`.sidebar-content a[href^="${ADMIN.route}#"]`)
+		).toHaveCount(0);
+	});
+
 	test('the active operation follows the reader', async ({ page }) => {
-		await page.goto(DOCS_VIEW);
-		await waitForReference(page);
+		await page.goto(PAYMENTS.route);
+		await waitForReference(page, PAYMENTS.title);
 
 		await page.evaluate(() => {
 			location.hash = '#tag/disputes/webhook/POST/disputecreated';
@@ -238,8 +281,8 @@ test.describe('API client overlay', () => {
 	 * either way, and only the paint order differs.
 	 */
 	test('the client covers the page instead of rendering under the sidebar', async ({ page }) => {
-		await page.goto(`${DOCS_VIEW}#tag/payments/GET/payments`);
-		await waitForReference(page);
+		await page.goto(`${PAYMENTS.route}#tag/payments/GET/payments`);
+		await waitForReference(page, PAYMENTS.title);
 
 		const mainPaneIsolation = () =>
 			page.evaluate(() => getComputedStyle(document.querySelector('.main-pane')).isolation);
@@ -262,10 +305,11 @@ test.describe('API client overlay', () => {
 				const el = document.elementFromPoint(x, y);
 				return !!el && !!el.closest('[data-ek-scalar]');
 			};
-			const box = document.querySelector('.scalar-container.scalar-client--open').getBoundingClientRect();
+			const box = document
+				.querySelector('.scalar-container.scalar-client--open')
+				.getBoundingClientRect();
 			return {
 				fillsViewport: box.width >= innerWidth - 20 && box.height >= innerHeight - 20,
-				// Over the sidebar, over the header, and mid-page.
 				overSidebar: inScalar(60, 300),
 				overHeader: inScalar(700, 30),
 				overContent: inScalar(700, 500),
@@ -276,66 +320,6 @@ test.describe('API client overlay', () => {
 		expect(covered.overSidebar, 'Starlight sidebar paints over the client').toBe(true);
 		expect(covered.overHeader, 'Starlight header paints over the client').toBe(true);
 		expect(covered.overContent).toBe(true);
-	});
-});
-
-test.describe('view switcher', () => {
-	test.skip(({ isMobile }) => isMobile, 'Covered on desktop; the switcher is identical on mobile.');
-
-	test('switching views keeps the reader in place', async ({ page }) => {
-		const hash = '#tag/refunds/POST/refunds';
-
-		await page.goto(`${DOCS_VIEW}${hash}`);
-		await waitForReference(page);
-		await expect(reference(page).getByRole('heading', { name: 'Create a refund' })).toBeVisible({
-			timeout: 15_000,
-		});
-
-		// Read the hash once it stops moving, and carry *that* forward.
-		//
-		// Asserting a fixed value here is wrong: Scalar's scroll-spy rewrites the
-		// hash continuously while it scrolls to the anchor, so the value at any
-		// given instant is whatever is on screen — which is the point. The contract
-		// is "the reader keeps their place", not "the hash equals what we typed".
-		const settledHash = await page.evaluate(async () => {
-			let previous = location.hash;
-			for (let i = 0; i < 40; i++) {
-				await new Promise((resolve) => setTimeout(resolve, 250));
-				if (location.hash === previous) return location.hash;
-				previous = location.hash;
-			}
-			return location.hash;
-		});
-
-		expect(decodeURIComponent(settledHash), 'expected to land on the operation').toBe(hash);
-
-		await page.getByRole('link', { name: 'Full width' }).click();
-		await expect(page).toHaveURL(/\/api\/full\//);
-		await waitForReference(page);
-
-		// Assert the operation rendered, not the URL and not the scroll offset.
-		//
-		// The URL is unusable as an assertion: Scalar rewrites `location.hash`
-		// continuously from its scroll-spy, so reading it straight after a
-		// navigation samples a random moment mid-settle. Scroll position is no
-		// better, for the same reason.
-		//
-		// Rendering is the reliable signal. Scalar only renders operations under
-		// tags it has opened, and on this view the Refunds tag is collapsed unless
-		// something points at it — loading `/api/full/` with no hash leaves this
-		// heading out of the DOM entirely. So its presence means the anchor
-		// survived the switch and Scalar acted on it.
-		await expect(
-			reference(page).getByRole('heading', { name: 'Create a refund' })
-		).toBeVisible({ timeout: 30_000 });
-	});
-
-	test('the current view is marked', async ({ page }) => {
-		await page.goto(FULL_VIEW);
-		await expect(page.getByRole('link', { name: 'Full width' })).toHaveAttribute(
-			'aria-current',
-			'page'
-		);
 	});
 });
 
@@ -350,43 +334,20 @@ test.describe('view switcher', () => {
 test.describe('appearance', { tag: '@screenshot' }, () => {
 	test.skip(({ isMobile }) => isMobile, 'Snapshots are taken at the desktop viewport.');
 
-	// Only the parts this template renders itself are snapshotted. Scalar's own
-	// output is excluded: it fills examples from the schema, and `date-time`
-	// fields resolve to the current instant, so it differs on every run.
-	for (const theme of ['light', 'dark']) {
-		test(`view switcher, ${theme}`, async ({ page }) => {
-			await page.goto(DOCS_VIEW);
-			await waitForReference(page);
-			await setTheme(page, theme);
-
-			await expect(page.locator('.ek-view-switcher')).toHaveScreenshot(
-				`view-switcher-${theme}.png`
-			);
-		});
-	}
-
 	test('sidebar operation list, expanded', async ({ page }) => {
-		test.skip(
-			test.info().project.name === 'mobile',
-			'The sidebar is behind a menu on mobile; covered by the mobile layout test.'
-		);
-
-		await page.goto(DOCS_VIEW);
-		await waitForReference(page);
+		await page.goto(PAYMENTS.route);
+		await waitForReference(page, PAYMENTS.title);
 		await setTheme(page, 'light');
 
 		// Open every tag group so the badges and nesting are all in frame.
 		await page.evaluate(() => {
-			document
-				.querySelectorAll('.sidebar-content details')
-				.forEach((group) => (group.open = true));
+			document.querySelectorAll('.sidebar-content details').forEach((group) => (group.open = true));
 		});
 
 		// Tighter than the suite default. This capture is tall, so the default 1%
 		// ratio is a large absolute area — enough to swallow a badge losing its
 		// colour or a row's spacing collapsing, which is exactly what it is here
-		// to catch. The small switcher snapshots keep the looser default, where
-		// the tolerance is really only absorbing antialiasing.
+		// to catch.
 		await expect(page.locator('.sidebar-content')).toHaveScreenshot('sidebar-operations.png', {
 			maxDiffPixelRatio: 0.002,
 		});
@@ -396,13 +357,10 @@ test.describe('appearance', { tag: '@screenshot' }, () => {
 test.describe('mobile', () => {
 	test.skip(({ isMobile }) => !isMobile, 'Mobile viewport only.');
 
-	for (const [name, route] of [
-		['docs view', DOCS_VIEW],
-		['full view', FULL_VIEW],
-	]) {
-		test(`${name} fits the viewport`, async ({ page }) => {
-			await page.goto(route);
-			await waitForReference(page);
+	for (const target of [PAYMENTS, ADMIN]) {
+		test(`${target.layout} layout fits the viewport`, async ({ page }) => {
+			await page.goto(target.route);
+			await waitForReference(page, target.title);
 
 			// Horizontal overflow is the classic failure for a two-column reference
 			// inside a docs shell, and it is invisible on a desktop viewport.

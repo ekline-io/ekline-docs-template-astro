@@ -1,6 +1,6 @@
 ---
 /**
- * Makes the API's operations findable through the site's own search.
+ * Makes an API's operations findable through the site's own search.
  *
  * Starlight searches with Pagefind, which indexes the HTML a page ships. Scalar
  * renders the entire reference in the browser, so as far as Pagefind is
@@ -12,35 +12,44 @@
  * operation, which is what lets Pagefind return it as a sub-result linking
  * straight to the operation rather than to the top of the reference.
  *
+ * Rendered once per reference, each with its own document, so every API in
+ * `src/config/api-reference.mjs` is searchable and none is indexed twice.
+ *
  * `display: none` specifically, not the usual clip-based visually-hidden
  * pattern. Pagefind reads the HTML a page ships and does not evaluate CSS, so
  * it indexes this either way — but the browser does evaluate CSS, and a clipped
  * element still has a box. These headings own the very anchors the URL hash
  * uses (Scalar names its own rendered sections `api-1/…`), so with a box they
- * become the target of every fragment navigation: following a search result, or
- * switching views, would scroll the reader to a 1px sliver while Scalar
- * separately scrolled to the real operation. With no box there is nothing to
- * scroll to, and Scalar's router is left to do its job.
+ * become the target of every fragment navigation: following a search result
+ * would scroll the reader to a 1px sliver while Scalar separately scrolled to
+ * the real operation. With no box there is nothing to scroll to, and Scalar's
+ * router is left to do its job.
  *
  * `aria-hidden` keeps the block out of the accessibility tree as well — the
  * same operations are already reachable through the sidebar and Scalar's own
  * navigation. It exists for the indexer.
  */
 import { openApiOperations } from '../lib/openapi-sidebar.mjs';
-import { apiReference } from '../config/api-reference.mjs';
 
-const operations = await openApiOperations({ spec: apiReference.spec });
+interface Props {
+	/** Path to this reference's OpenAPI document on disk. */
+	spec: string;
+	/** Route the reference is served at, so anchors resolve to the right page. */
+	route: string;
+}
+
+const { spec, route } = Astro.props;
+const operations = await openApiOperations({ spec });
 ---
 
 {
 	operations.length > 0 && (
-		<div class="ek-api-search-index" aria-hidden="true">
+		<div class="ek-api-search-index" aria-hidden="true" data-ek-search-index={route}>
 			{operations.map((operation) => (
 				<Fragment>
 					<h2 id={operation.anchor}>{operation.title}</h2>
 					<p>
-						{operation.isWebhook ? 'Webhook' : operation.method} · {operation.tag} ·
-						API reference
+						{operation.isWebhook ? 'Webhook' : operation.method} · {operation.tag}
 					</p>
 				</Fragment>
 			))}
@@ -49,13 +58,6 @@ const operations = await openApiOperations({ spec: apiReference.spec });
 }
 
 <style>
-	/*
-	 * The standard visually-hidden pattern: off-screen for readers, still present
-	 * in the markup for Pagefind, and zero-height so it cannot affect layout.
-	 *
-	 * Deliberately *not* `display: none` — Pagefind skips content hidden that way,
-	 * which would defeat the whole point of the block.
-	 */
 	.ek-api-search-index {
 		display: none;
 	}

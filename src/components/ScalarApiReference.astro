@@ -153,8 +153,7 @@ const configuration = {
 		// `<body>` too. Scalar stamps its own theme class there — not only on its
 		// containers — and its stylesheet paints a background from it. Miss this
 		// and the body keeps whatever theme Scalar mounted with, so in dark mode
-		// every strip of page Scalar does not paint over itself (the band around
-		// the view switcher, most visibly) stays white.
+		// every strip of page Scalar does not paint over itself stays white.
 		//
 		// Only while a reference is on the page, though. This also runs on
 		// `astro:page-load`, which fires for navigations *away* from the API

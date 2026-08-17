@@ -1,13 +1,13 @@
 ---
 /**
- * The API reference, in every view `src/config/api-reference.mjs` enables.
+ * Every API reference declared in `src/config/api-reference.mjs`.
  *
- * One route file rather than one per view: the config decides which views
- * exist, so a customer turning one off removes its route instead of leaving an
- * orphaned page file behind. The default view is served at `/api/`, the rest at
- * `/api/<slug>/`.
+ * One route file rather than one per reference: the config decides which exist,
+ * so removing one from the list removes its route instead of leaving an
+ * orphaned page file behind. Each entry names its own OpenAPI document and its
+ * own layout.
  *
- * The views differ only in how much of Starlight's chrome stays on screen:
+ * The layouts differ only in how much of Starlight's chrome stays on screen:
  *
  *   docs — the full Starlight page. Its sidebar lists every operation
  *          (generated from the document), so the API and the prose share one
@@ -19,46 +19,33 @@
  */
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ScalarApiReference from '../../components/ScalarApiReference.astro';
-import ApiViewSwitcher from '../../components/ApiViewSwitcher.astro';
 import ApiSearchIndex from '../../components/ApiSearchIndex.astro';
-import { apiReference, enabledViews, defaultView } from '../../config/api-reference.mjs';
+import { enabledReferences } from '../../config/api-reference.mjs';
 
 export function getStaticPaths() {
-	return enabledViews.map((view) => ({
-		// `undefined` renders the default view at `/api/` itself.
-		params: { view: view === defaultView ? undefined : (view.slug ?? view.id) },
-		props: { view },
+	return enabledReferences.map((reference) => ({
+		// `/api/` becomes an undefined rest param; `/api/admin/` becomes `admin`.
+		params: { reference: reference.route.replace(/^\/api\/?|\/$/g, '') || undefined },
+		props: { reference },
 	}));
 }
 
-const { view } = Astro.props;
-const isFullWidth = view.id === 'full';
-
-/**
- * Only the canonical view is searchable.
- *
- * Every view renders the same document, so indexing more than one would put the
- * same operation in the results several times over and send readers to whichever
- * layout happened to rank highest. Indexing the default view alone keeps one
- * result per operation, pointing at the route the sidebar also links to.
- */
-const isCanonical = view === defaultView;
+const { reference } = Astro.props;
+const isFullWidth = reference.layout === 'full';
 ---
 
 <StarlightPage
 	frontmatter={{
-		title: view.title,
-		description: view.description,
+		title: reference.title,
+		description: reference.description,
 		...(isFullWidth ? { template: 'splash' as const } : {}),
 		// Starlight builds its table of contents from server-rendered headings.
 		// Scalar renders every heading in the browser, so the TOC could only ever
 		// show a lone "Overview" — a column of chrome saying nothing.
 		tableOfContents: false,
-		pagefind: isCanonical,
 	}}
 >
-	<ApiViewSwitcher current={view.id} />
-	{isCanonical && <ApiSearchIndex />}
+	<ApiSearchIndex spec={reference.spec} route={reference.route} />
 	<script is:inline>
 		/**
 		 * Honour the anchor the page was opened with.
@@ -67,16 +54,14 @@ const isCanonical = view === defaultView;
 		 * also runs a scroll-spy that rewrites the hash to whatever is on screen.
 		 * On a cold load the spy can fire first, overwriting the incoming anchor
 		 * with the top of the document before the router acts on it. The reader
-		 * then lands at the introduction, and any shared deep link — or a switch
-		 * between views, which carries the anchor across — silently loses its
-		 * place. It is a race, so it fails perhaps half the time.
+		 * then lands at the introduction, and any shared deep link silently loses
+		 * its place. It is a race, so it fails perhaps half the time.
 		 *
 		 * Recording the anchor before Scalar mounts and re-applying it once, after
 		 * the document renders, settles the race in the reader's favour.
 		 *
-		 * `is:inline` keeps this in the document head-to-body order rather than
-		 * being bundled and deferred, so the hash is captured before Scalar's
-		 * bundle has had a chance to touch it.
+		 * `is:inline` keeps this in document order rather than being bundled and
+		 * deferred, so the hash is captured before Scalar's bundle can touch it.
 		 */
 		(() => {
 			const wanted = location.hash;
@@ -113,13 +98,13 @@ const isCanonical = view === defaultView;
 		})();
 	</script>
 	<ScalarApiReference
-		url={apiReference.specUrl}
+		url={reference.specUrl}
 		showSidebar={isFullWidth}
-		layout={isFullWidth ? 'full' : 'docs'}
+		layout={reference.layout}
 	/>
 </StarlightPage>
 
-{/* Only the docs view shows a Starlight sidebar to keep in step. */}
+{/* Only the docs layout shows a Starlight sidebar to keep in step. */}
 {!isFullWidth && (
 	<script>
 		/**
@@ -233,15 +218,7 @@ const isCanonical = view === defaultView;
 
 <style is:global>
 	/*
-	 * Give the switcher room without letting it push the reference down the page.
-	 * It sits directly above the reference in both views.
-	 */
-	.ek-view-switcher {
-		margin-bottom: 1rem;
-	}
-
-	/*
-	 * Full-width view: let the reference span the whole main pane.
+	 * Full-width layout: let the reference span the whole main pane.
 	 *
 	 * The `splash` template still wraps content in `.sl-container`, which caps it
 	 * near the reading-column width and centres it — right for a landing page,
@@ -264,14 +241,8 @@ const isCanonical = view === defaultView;
 		padding-top: 0;
 	}
 
-	/* The switcher would otherwise sit flush against the viewport edge once the
-	 * padding above is removed. */
-	body:has([data-ek-scalar-layout='full']) .ek-view-switcher {
-		margin: 1rem 0 0 1.5rem;
-	}
-
 	/*
-	 * Docs view: reclaim the reading-column width cap.
+	 * Docs layout: reclaim the reading-column width cap.
 	 *
 	 * Starlight caps `.sl-container` near 45rem for comfortable prose. An API
 	 * reference is not prose — Scalar lays operations out in two columns, with the
