@@ -79,9 +79,20 @@ Two things need active bridging:
 - **The toggle.** Scalar's `darkMode` option only seeds the initial state, so an observer mirrors Starlight's `data-theme` onto Scalar's classes — including on `<body>`, which Scalar also themes and paints a background from.
 - **Light-mode contrast.** Scalar's stock method-badge and syntax colours land between 2.9:1 and 4.35:1 against the panel fill, under the 4.5:1 minimum for small text. The overrides clear 4.5:1 with the hue unchanged, so blue-GET / green-POST still reads.
 
-### The AI assistant is off
+### Scalar's own product surfaces are off
 
-Scalar's "Ask AI" uploads your OpenAPI document to Scalar's servers and asks the reader to accept Scalar's terms. That is not a decision a template should make for you, so it ships disabled via `agent: { disabled: true }`. Delete that line to enable it; doing so also restores the "Generate MCP" button, which is part of the same feature.
+Scalar ships several controls that make sense on scalar.com and not inside a customer's documentation. All are disabled, and all are one line to restore:
+
+| Surface | Why it is off | Restore |
+| --- | --- | --- |
+| **Ask AI** | Uploads your OpenAPI document to Scalar's servers and asks the reader to accept Scalar's terms | delete `agent: { disabled: true }` |
+| **Open API Client** | Opens scalar.com's hosted client in a new tab; the URL carries `utm_source` / `utm_medium` / `utm_campaign` | set `hideClientButton: false` |
+| **Powered by Scalar** | Two links out to scalar.com, in the sidebar footer and the client's empty state | delete the `a[href*='scalar.com']` rule in `ScalarApiReference.astro` |
+| **Developer Tools / Configure / Share / Deploy** | Scalar's platform toolbar; shows on localhost by default, so a customer sees it exactly while evaluating the template | set `showToolbar` / `showDeveloperTools` back to their defaults |
+
+Turning off Ask AI also removes the "Generate MCP" button, which is part of the same feature. The embedded API client stays — "Test Request" still opens it in place, which is the part readers actually want.
+
+Scalar is MIT licensed. That requires the copyright notice to travel with the source, which it does; it does not require an attribution badge in rendered output, so removing the "Powered by" links is within the licence.
 
 ## Tests
 

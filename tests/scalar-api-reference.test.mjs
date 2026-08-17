@@ -174,6 +174,22 @@ test('a full-width reference gets a plain sidebar link, not an operation list', 
 	}
 });
 
+test("Scalar's link out to its hosted client is disabled", () => {
+	// The "Open API Client" link in the request modal opens scalar.com in a new
+	// tab, with `utm_source` / `utm_medium` / `utm_campaign` on the URL. It is an
+	// attribution link into Scalar's product, not a feature of the customer's
+	// docs; see the comment in `src/components/ScalarApiReference.astro`.
+	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
+
+	for (const reference of enabledReferences) {
+		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
+		assert.ok(
+			html.includes('"hideClientButton":true'),
+			`${reference.id}: the link to Scalar's hosted client is not hidden`
+		);
+	}
+});
+
 test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// Opening it uploads the customer's OpenAPI document to Scalar's servers and
 	// asks the reader to accept Scalar's terms. A template must not default to

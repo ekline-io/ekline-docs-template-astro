@@ -264,6 +264,50 @@ test.describe('sidebar navigation', () => {
 	});
 });
 
+test.describe('vendor links', () => {
+	test.skip(({ isMobile }) => isMobile, 'Same markup on every viewport; run once on desktop.');
+
+	/**
+	 * The reference should not send readers to scalar.com.
+	 *
+	 * Scalar renders three links out to its own site: "Open API Client" in the
+	 * request modal (carrying UTM campaign parameters), and "Powered by Scalar"
+	 * in both the sidebar footer and the client's empty state. Inside a
+	 * customer's documentation those read as part of the docs while leading to a
+	 * vendor's marketing site.
+	 *
+	 * `hideClientButton` covers the first; the other two are a slot fallback with
+	 * no config option, so CSS hides them by destination. Both are the kind of
+	 * thing a Scalar upgrade can quietly reinstate, and neither shows up in a
+	 * build or a unit test.
+	 */
+	for (const target of [PAYMENTS, ADMIN]) {
+		test(`${target.layout} layout links nowhere on scalar.com`, async ({ page }) => {
+			await page.goto(target.route);
+			await waitForReference(page, target.title);
+
+			// Open the client too — one of the links lives in its empty state.
+			await page.getByRole('button', { name: /Test Request/i }).first().click();
+			await expect(page.locator('.scalar-container.scalar-client--open')).toBeVisible();
+
+			await expect(
+				page.locator('.open-api-client-button'),
+				'the "Open API Client" link is back'
+			).toHaveCount(0);
+
+			const visibleVendorLinks = await page.evaluate(() =>
+				[...document.querySelectorAll('a[href*="scalar.com"]')]
+					.filter((a) => {
+						const rect = a.getBoundingClientRect();
+						return rect.width > 0 || rect.height > 0;
+					})
+					.map((a) => (a.textContent ?? '').trim())
+			);
+			expect(visibleVendorLinks, 'a scalar.com link is visible again').toEqual([]);
+		});
+	}
+});
+
 test.describe('API client overlay', () => {
 	test.skip(({ isMobile }) => isMobile, 'Covered on desktop; the overlay is full-screen either way.');
 

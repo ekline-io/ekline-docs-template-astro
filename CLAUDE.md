@@ -74,7 +74,7 @@ The template ships two example APIs, one per layout (`docs` at `/api/`, `full` a
 Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/`, `src/components/ScalarApiReference.astro`, or `src/lib/openapi-sidebar.mjs`. These constraints are easy to break and not obvious from the code:
 
 - **`renderMode="client"` is required.** The template mounts `<ClientRouter />`; Scalar's default `static` mode renders blank after any client-side navigation.
-- **The Scalar agent stays disabled.** Enabling it uploads the customer's OpenAPI document to Scalar's servers and asks their readers to accept Scalar's terms.
+- **Scalar's product surfaces stay off.** The agent (uploads the customer's document to Scalar's servers), the "Open API Client" link (UTM-tagged, opens scalar.com), the "Powered by Scalar" links, and the platform toolbar. The embedded client stays — that is the useful part. Each is one line to restore; see the table in `wiki/api-reference.md`.
 - **Theme through `--scalar-*` custom properties only.** Scalar's internal class names are not a stable API.
 - **One search field, and it is the site's.** Scalar's is disabled everywhere; `ApiSearchIndex.astro` feeds each reference's operations into Pagefind under its own route, so a single search covers guides and endpoints and every result lands on the page that renders it.
 - **Theme `<body>` too, not just Scalar's containers.** Scalar stamps its theme class on `<body>` and paints a background from it; miss it and dark mode shows white seams wherever Scalar's own surfaces don't cover the page.

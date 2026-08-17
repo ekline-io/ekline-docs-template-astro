@@ -104,6 +104,15 @@ const configuration = {
 	showToolbar: 'never' as const,
 	showDeveloperTools: 'never' as const,
 
+	// Drop the "Open API Client" link from the request modal.
+	//
+	// It opens scalar.com's hosted client in a new tab, and the URL it builds
+	// carries `utm_source=api-reference`, `utm_medium=button` and a campaign tag
+	// — it is an attribution link into Scalar's product, not a feature of the
+	// customer's documentation. The embedded client stays: "Test Request" still
+	// opens it in place, which is the part readers actually want.
+	hideClientButton: true,
+
 	// Turn off Scalar's "Ask AI" assistant by default.
 	//
 	// Opening it states: "By messaging Agent Scalar your OpenAPI document will be
@@ -243,6 +252,30 @@ const configuration = {
 		/* Match the 12px rounding used by cards and code blocks elsewhere. */
 		--scalar-radius: 0.5rem;
 		--scalar-radius-lg: 0.75rem;
+	}
+
+	/*
+	 * Drop the "Powered by Scalar" links.
+	 *
+	 * Two of them: one in the sidebar footer, one in the API client's empty
+	 * state. Both point at scalar.com and both open in a new tab, which sends a
+	 * reader out of the customer's documentation and onto a vendor's marketing
+	 * site from what looks like part of the docs.
+	 *
+	 * Scalar is MIT licensed. That requires the copyright notice to travel with
+	 * the source — which it does, in `node_modules` and in the CDN bundle — not
+	 * an attribution badge in rendered output, so removing these is within the
+	 * licence. To put them back, delete this rule.
+	 *
+	 * Matched on the destination rather than a class, because the classes here
+	 * are Tailwind utilities (`no-underline hover:underline`) that carry no
+	 * meaning and change freely. The link's target is the thing being removed,
+	 * so it is also the stable thing to select on. Upstream renders these as the
+	 * fallback of a `description` slot, which the CDN bundle gives us no way to
+	 * override.
+	 */
+	.ek-scalar a[href*='scalar.com'] {
+		display: none;
 	}
 
 	/*
