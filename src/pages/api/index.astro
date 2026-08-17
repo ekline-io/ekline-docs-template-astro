@@ -1,0 +1,85 @@
+---
+/**
+ * API reference — standalone layout (candidate A).
+ *
+ * Starlight's header, brand, and theme toggle are kept, but its sidebar and
+ * table of contents are dropped via the `splash` template, so Scalar's own
+ * operation navigation is the only navigation on the page.
+ *
+ * `<StarlightPage>` is Starlight's supported way to put its layout on a custom
+ * `.astro` route — nothing here reaches into Starlight internals.
+ * https://starlight.astro.build/guides/pages/#custom-pages
+ *
+ * The alternative layout lives at `/api/embedded/`. See `/wiki/api-reference.md`
+ * for the comparison and how to switch which one is canonical.
+ */
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ScalarApiReference from '../../components/ScalarApiReference.astro';
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'API reference',
+		description:
+			'Interactive reference for the Example Payments API, rendered with Scalar.',
+		template: 'splash',
+		tableOfContents: false,
+		pagefind: false,
+	}}
+>
+	<ScalarApiReference showSidebar={true} hideSearch={false} layout="standalone" />
+</StarlightPage>
+
+<style is:global>
+	/*
+	 * One *visible* search box on this route, and it is Scalar's.
+	 *
+	 * Starlight's header search and Scalar's sidebar search otherwise sit about
+	 * 50px apart — two fields, both labelled "Search", both showing a keyboard
+	 * hint, searching two different corpora with nothing on screen saying which
+	 * is which. Scalar's is the one that belongs beside the reference: it finds
+	 * operations, while Pagefind indexes only the prose pages and cannot see
+	 * this reference at all, since Scalar renders it in the browser.
+	 *
+	 * Only the trigger button is hidden, never `<site-search>` itself. Starlight
+	 * puts the button and its `<dialog>` inside that element and binds Cmd/Ctrl+K
+	 * globally, so hiding the host leaves the shortcut live but the dialog
+	 * invisible — it opens, takes focus, and shows nothing. Hiding the button
+	 * alone keeps Cmd/Ctrl+K working as site search (Scalar's is on Cmd/Ctrl+J)
+	 * and removes only the duplicated affordance.
+	 */
+	body:has([data-ek-scalar-layout='standalone']) header.header site-search > button {
+		display: none;
+	}
+
+	/*
+	 * Let the reference span the full width of the main pane.
+	 *
+	 * The `splash` template still wraps content in `.sl-container`, which caps it
+	 * near the reading-column width and centres it. That is right for a landing
+	 * page and wrong for a two-pane API reference — Scalar's sidebar and its
+	 * request/response columns need the whole viewport.
+	 *
+	 * Scoped to the standalone layout specifically. Both API routes render the
+	 * same component, and view transitions keep previously-loaded stylesheets
+	 * live, so a selector on `.ek-scalar` alone would follow the visitor onto
+	 * `/api/embedded/` and strip the padding off a page that wants it.
+	 */
+	body:has([data-ek-scalar-layout='standalone']) .main-pane > .main-frame > .sl-container,
+	body:has([data-ek-scalar-layout='standalone']) .content-panel > .sl-container {
+		max-width: none;
+		margin-inline: 0;
+		padding: 0;
+	}
+
+	body:has([data-ek-scalar-layout='standalone']) .content-panel {
+		padding: 0;
+		border: none;
+	}
+
+	/* The splash template centres its content block; the reference is a layout,
+	 * not a hero, so it should start at the top edge of the pane. */
+	body:has([data-ek-scalar-layout='standalone']) .main-frame {
+		padding-top: 0;
+	}
+</style>

@@ -1,0 +1,48 @@
+---
+/**
+ * API reference — embedded layout (candidate B).
+ *
+ * The reference rendered inside a standard Starlight documentation page, so the
+ * site's own sidebar stays on screen and the API reference reads as one more
+ * docs page rather than a separate destination.
+ *
+ * Starlight's chrome is the shell here, so Scalar's competing chrome is turned
+ * off: no Scalar sidebar, no Scalar search. What that trades away is real — the
+ * example spec has 20+ operations and Starlight's sidebar lists none of them, so
+ * finding one means scrolling. That trade is the whole point of keeping this
+ * route next to `/api/`; see `/wiki/api-reference.md` for the comparison.
+ */
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ScalarApiReference from '../../components/ScalarApiReference.astro';
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'API reference (embedded)',
+		description:
+			'The Scalar API reference rendered inside a standard Starlight documentation page.',
+		// Starlight builds its table of contents from server-rendered headings.
+		// Scalar renders every heading in the browser, so the TOC can only ever
+		// show a lone "Overview" entry — chrome that costs a column and tells the
+		// visitor nothing.
+		tableOfContents: false,
+		pagefind: false,
+	}}
+>
+	<ScalarApiReference showSidebar={false} hideSearch={true} layout="embedded" />
+</StarlightPage>
+
+<style is:global>
+	/*
+	 * Reclaim the reading-column width cap for this route.
+	 *
+	 * Starlight caps `.sl-container` near 45rem for comfortable prose. An API
+	 * reference is not prose: Scalar lays operations out in two columns, with the
+	 * example request and response beside the description. At 45rem that second
+	 * column has nowhere to go and collapses underneath, which is most of why
+	 * this layout felt cramped next to the standalone one.
+	 */
+	body:has([data-ek-scalar-layout='embedded']) .content-panel > .sl-container {
+		max-width: none;
+	}
+</style>

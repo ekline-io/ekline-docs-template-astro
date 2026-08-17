@@ -1,0 +1,1355 @@
+# =============================================================================
+# Example Payments API — placeholder OpenAPI document for this docs template.
+#
+# REPLACE THIS FILE with your own OpenAPI document. It is served as a static
+# asset at `/openapi.yaml` and loaded by the Scalar API reference configured in
+# `astro.config.mjs` / `src/pages/api/index.astro`.
+#
+# It is deliberately dense: it exercises most of the OpenAPI 3.1 surface that a
+# real payments-grade API uses — multiple auth schemes, discriminated unions,
+# webhooks, callbacks, links, multipart upload, cursor pagination, RFC 9457
+# problem responses and rate-limit headers — so you can see how Scalar renders
+# each construct before swapping in your own spec.
+# =============================================================================
+openapi: 3.1.0
+
+info:
+  title: Example Payments API
+  version: '2026-08-01'
+  summary: Accept payments, issue refunds, contest disputes, and pay out balances.
+  description: |
+    The **Example Payments API** is a placeholder document shipped with this
+    documentation template. It describes a fictional payments platform and
+    exists to demonstrate how Scalar renders a large, real-world API reference.
+
+    ## Base URLs
+
+    All requests go to a versioned base URL. Use the sandbox host for
+    development — it accepts [test cards](https://example.com/docs/test-cards)
+    and never moves real money.
+
+    ## Authentication
+
+    Three schemes are supported. Pick the one that matches your integration:
+
+    | Scheme | Use it for | Credential |
+    | --- | --- | --- |
+    | `bearerAuth` | Server-to-server calls | Secret key (`sk_live_…`) |
+    | `oauth2` | Acting on behalf of a connected account | Access token |
+    | `apiKeyAuth` | Publishable, browser-side tokenization only | Publishable key (`pk_live_…`) |
+
+    Never expose a secret key in client-side code. Publishable keys are scoped
+    to tokenization and cannot read or move funds.
+
+    ## Idempotency
+
+    Every mutating request accepts an `Idempotency-Key` header. Replaying a
+    request with the same key returns the original response instead of creating
+    a second charge — safe to retry on a network timeout.
+
+    ## Errors
+
+    Errors use [RFC 9457 problem details](https://www.rfc-editor.org/rfc/rfc9457)
+    with a `application/problem+json` content type.
+  termsOfService: https://example.com/terms
+  contact:
+    name: Developer support
+    url: https://example.com/support
+    email: api@example.com
+  license:
+    name: MIT
+    identifier: MIT
+
+externalDocs:
+  description: Full developer guides, SDKs, and test cards
+  url: https://example.com/docs
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production — moves real money
+  - url: https://api.sandbox.example.com/v1
+    description: Sandbox — test cards only, no real money
+  - url: https://{region}.api.example.com/v1
+    description: Regional production endpoint with data residency
+    variables:
+      region:
+        default: eu
+        enum: [eu, us, ap]
+        description: Data-residency region the account is provisioned in.
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Payments
+    description: |
+      Create and manage payment intents — the object that tracks a customer's
+      payment through authentication, authorization, and capture.
+    externalDocs:
+      description: Payments guide
+      url: https://example.com/docs/payments
+  - name: Refunds
+    description: Return captured funds to a customer, in whole or in part.
+  - name: Disputes
+    description: |
+      Respond when a customer's bank reverses a payment. Disputes are won or
+      lost on the evidence you submit before the deadline.
+  - name: Payouts
+    description: Move your available balance to an external bank account.
+  - name: Customers
+    description: Store customers and their reusable payment methods.
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Payments
+  # ---------------------------------------------------------------------------
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [Payments]
+      summary: List payments
+      description: |
+        Returns a cursor-paginated list of payments, most recent first.
+
+        Pass the `next_cursor` from a response as the `cursor` of the following
+        request to walk the full collection. Cursors are opaque and expire after
+        24 hours.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: Filter to payments in the given states. Repeat to combine.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/PaymentStatus'
+          example: [succeeded, requires_capture]
+        - name: customer_id
+          in: query
+          description: Only return payments belonging to this customer.
+          schema:
+            type: string
+            pattern: '^cus_[A-Za-z0-9]{16}$'
+          example: cus_9RxK2mVqL4pNzT8w
+        - name: created
+          in: query
+          description: |
+            Filter by creation time. Supports range operators as a deep object,
+            e.g. `created[gte]=2026-01-01T00:00:00Z`.
+          style: deepObject
+          explode: true
+          schema:
+            $ref: '#/components/schemas/TimestampRange'
+      responses:
+        '200':
+          description: A page of payments.
+          headers:
+            RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentList'
+              examples:
+                firstPage:
+                  summary: First page, more results available
+                  value:
+                    object: list
+                    has_more: true
+                    next_cursor: cur_01HQ8XW2ZK9Y4M
+                    data:
+                      - id: pay_4hK9mQ2xR7tL1nBv
+                        object: payment
+                        amount: 4599
+                        currency: usd
+                        status: succeeded
+                        customer_id: cus_9RxK2mVqL4pNzT8w
+                        created_at: '2026-07-14T09:31:02Z'
+                emptyPage:
+                  summary: No payments matched the filter
+                  value:
+                    object: list
+                    has_more: false
+                    next_cursor: null
+                    data: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+    post:
+      operationId: createPayment
+      tags: [Payments]
+      summary: Create a payment
+      description: |
+        Creates a payment intent and, depending on the payment method, either
+        completes it immediately or returns the next action the customer must
+        take (3-D Secure, redirect, or a wallet confirmation).
+
+        Set `capture_method` to `manual` to authorize now and capture later —
+        useful when you ship goods before charging.
+      security:
+        - bearerAuth: []
+        - oauth2: [payments:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        description: The payment to create.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+            examples:
+              card:
+                summary: Charge a saved card
+                description: The simplest case — an on-file card, captured immediately.
+                value:
+                  amount: 4599
+                  currency: usd
+                  customer_id: cus_9RxK2mVqL4pNzT8w
+                  payment_method:
+                    type: card
+                    card_token: tok_1MqR8xK2vL9pN4tY
+                  description: Order #4821
+              manualCapture:
+                summary: Authorize now, capture on shipment
+                value:
+                  amount: 12000
+                  currency: eur
+                  capture_method: manual
+                  payment_method:
+                    type: card
+                    card_token: tok_1MqR8xK2vL9pN4tY
+              bankDebit:
+                summary: Direct debit from a bank account
+                value:
+                  amount: 250000
+                  currency: eur
+                  payment_method:
+                    type: bank_account
+                    account_token: ba_7YtQ3nR8kM2xW5vZ
+                    mandate_id: mnd_2KpL9wX4tR7qN3mB
+      callbacks:
+        paymentCompleted:
+          '{$request.body#/callback_url}':
+            post:
+              operationId: paymentCompletedCallback
+              summary: Payment reached a terminal state
+              description: |
+                If you supply a `callback_url`, we POST the final payment object
+                to it once the payment succeeds or fails. Respond `2xx` within
+                10 seconds or we retry with exponential backoff for 24 hours.
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Payment'
+              responses:
+                '200':
+                  description: Callback acknowledged.
+      responses:
+        '201':
+          description: The payment was created.
+          headers:
+            Location:
+              description: Canonical URL of the newly created payment.
+              schema:
+                type: string
+                format: uri
+            Idempotency-Replayed:
+              description: |
+                `true` when this response was replayed from a previous request
+                with the same `Idempotency-Key` rather than newly created.
+              schema:
+                type: boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              examples:
+                succeeded:
+                  summary: Completed with no further action
+                  value:
+                    id: pay_4hK9mQ2xR7tL1nBv
+                    object: payment
+                    amount: 4599
+                    currency: usd
+                    status: succeeded
+                    created_at: '2026-07-14T09:31:02Z'
+                requiresAction:
+                  summary: Customer must complete 3-D Secure
+                  value:
+                    id: pay_8vN3kW7qT2mR5xLc
+                    object: payment
+                    amount: 4599
+                    currency: usd
+                    status: requires_action
+                    next_action:
+                      type: redirect_to_url
+                      redirect_url: https://3ds.example.com/authenticate/8vN3kW7q
+                    created_at: '2026-07-14T09:31:02Z'
+          links:
+            capturePayment:
+              operationId: capturePayment
+              description: Capture this payment when `capture_method` is `manual`.
+              parameters:
+                payment_id: $response.body#/id
+            refundPayment:
+              operationId: createRefund
+              description: Refund this payment once it has succeeded.
+              requestBody:
+                payment_id: $response.body#/id
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          description: The payment was declined by the issuer.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/PaymentDeclinedProblem'
+              example:
+                type: https://example.com/problems/card-declined
+                title: Card declined
+                status: 402
+                detail: The issuing bank declined this charge.
+                decline_code: insufficient_funds
+                payment_id: pay_8vN3kW7qT2mR5xLc
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /payments/{payment_id}:
+    parameters:
+      - $ref: '#/components/parameters/PaymentId'
+    get:
+      operationId: getPayment
+      tags: [Payments]
+      summary: Retrieve a payment
+      description: Returns a single payment by its identifier.
+      responses:
+        '200':
+          description: The requested payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/{payment_id}/capture:
+    parameters:
+      - $ref: '#/components/parameters/PaymentId'
+    post:
+      operationId: capturePayment
+      tags: [Payments]
+      summary: Capture an authorized payment
+      description: |
+        Captures funds previously authorized with `capture_method: manual`.
+
+        You may capture less than the authorized amount — the remainder is
+        released back to the customer. Authorizations expire after 7 days.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount_to_capture:
+                  type: integer
+                  format: int64
+                  minimum: 1
+                  description: |
+                    Amount to capture in the smallest currency unit. Defaults to
+                    the full authorized amount.
+                  example: 4599
+      responses:
+        '200':
+          description: The captured payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '409':
+          description: The payment is not in a capturable state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /payments/{payment_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/PaymentId'
+    get:
+      operationId: streamPaymentEvents
+      tags: [Payments]
+      summary: Stream payment events
+      description: |
+        Opens a [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html)
+        stream of state changes for a single payment. Useful for driving a
+        checkout UI without polling.
+
+        The stream closes once the payment reaches a terminal state.
+      responses:
+        '200':
+          description: An open event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Newline-delimited SSE frames.
+              example: |
+                event: payment.processing
+                data: {"id":"pay_4hK9mQ2xR7tL1nBv","status":"processing"}
+
+                event: payment.succeeded
+                data: {"id":"pay_4hK9mQ2xR7tL1nBv","status":"succeeded"}
+
+  # ---------------------------------------------------------------------------
+  # Refunds
+  # ---------------------------------------------------------------------------
+  /refunds:
+    post:
+      operationId: createRefund
+      tags: [Refunds]
+      summary: Create a refund
+      description: |
+        Refunds a captured payment, in whole or in part. Funds return to the
+        customer's original payment method within 5–10 business days.
+
+        Partial refunds may be issued repeatedly until the full captured amount
+        is returned.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_id]
+              properties:
+                payment_id:
+                  type: string
+                  description: The payment to refund.
+                  example: pay_4hK9mQ2xR7tL1nBv
+                amount:
+                  type: integer
+                  format: int64
+                  minimum: 1
+                  description: |
+                    Amount to refund in the smallest currency unit. Defaults to
+                    the full remaining refundable amount.
+                  example: 2000
+                reason:
+                  type: string
+                  enum: [duplicate, fraudulent, requested_by_customer]
+                  description: Why the refund is being issued.
+      responses:
+        '201':
+          description: The refund was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  # ---------------------------------------------------------------------------
+  # Disputes
+  # ---------------------------------------------------------------------------
+  /disputes/{dispute_id}/evidence:
+    parameters:
+      - name: dispute_id
+        in: path
+        required: true
+        description: Identifier of the dispute.
+        schema:
+          type: string
+          pattern: '^dp_[A-Za-z0-9]{16}$'
+        example: dp_5tR8mK3wQ7nX2vLp
+    post:
+      operationId: submitDisputeEvidence
+      tags: [Disputes]
+      summary: Submit dispute evidence
+      description: |
+        Uploads evidence contesting a dispute. Submit everything at once —
+        evidence can only be submitted **one time** per dispute, and the
+        submission is final.
+
+        Include whatever proves the charge was legitimate: a receipt, proof of
+        delivery, and your refund policy carry the most weight.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [receipt]
+              properties:
+                receipt:
+                  type: string
+                  format: binary
+                  description: Customer-facing receipt for the disputed charge (PDF or PNG).
+                shipping_documentation:
+                  type: string
+                  format: binary
+                  description: Proof the goods were delivered.
+                customer_communication:
+                  type: string
+                  format: binary
+                  description: Correspondence showing the customer accepted the charge.
+                uncategorized_text:
+                  type: string
+                  maxLength: 20000
+                  description: Any additional context, as plain text.
+            encoding:
+              receipt:
+                contentType: application/pdf, image/png
+              shipping_documentation:
+                contentType: application/pdf, image/png
+      responses:
+        '202':
+          description: Evidence accepted and queued for submission to the bank.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '409':
+          description: Evidence has already been submitted for this dispute.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '413':
+          description: The upload exceeded the 25 MB total limit.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ---------------------------------------------------------------------------
+  # Payouts
+  # ---------------------------------------------------------------------------
+  /payouts:
+    post:
+      operationId: createPayout
+      tags: [Payouts]
+      summary: Create a payout
+      description: |
+        Moves funds from your available balance to a connected bank account.
+        Payouts settle on the next banking day in most regions.
+      security:
+        - oauth2: [payouts:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency, destination_id]
+              properties:
+                amount:
+                  type: integer
+                  format: int64
+                  minimum: 100
+                  example: 500000
+                currency:
+                  $ref: '#/components/schemas/Currency'
+                destination_id:
+                  type: string
+                  description: A connected bank account to pay out to.
+                  example: ba_7YtQ3nR8kM2xW5vZ
+                statement_descriptor:
+                  type: string
+                  maxLength: 22
+                  description: Text shown on the recipient's bank statement.
+                  example: EXAMPLE PAYOUT
+      responses:
+        '201':
+          description: The payout was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payout'
+        '403':
+          description: The account is not eligible for payouts.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ---------------------------------------------------------------------------
+  # Customers
+  # ---------------------------------------------------------------------------
+  /customers/{customer_id}/payment-methods:
+    parameters:
+      - name: customer_id
+        in: path
+        required: true
+        description: Identifier of the customer.
+        schema:
+          type: string
+          pattern: '^cus_[A-Za-z0-9]{16}$'
+        example: cus_9RxK2mVqL4pNzT8w
+    get:
+      operationId: listPaymentMethods
+      tags: [Customers]
+      summary: List a customer's payment methods
+      description: Returns every reusable payment method stored for a customer.
+      responses:
+        '200':
+          description: The customer's payment methods.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethod'
+                examples:
+                  - - type: card
+                      card_token: tok_1MqR8xK2vL9pN4tY
+                      brand: visa
+                      last4: '4242'
+                      exp_month: 12
+                      exp_year: 2029
+                    - type: wallet
+                      provider: apple_pay
+                      wallet_token: wal_3xM8kQ2nR7tW5vLp
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /customers/{customer_id}/cards:
+    parameters:
+      - name: customer_id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: cus_9RxK2mVqL4pNzT8w
+    get:
+      operationId: listCustomerCards
+      tags: [Customers]
+      summary: List a customer's cards
+      deprecated: true
+      description: |
+        **Deprecated.** Use [`listPaymentMethods`](#tag/customers/get/customers/{customer_id}/payment-methods)
+        instead, which returns cards alongside bank accounts and wallets.
+
+        This operation is removed on **2027-01-01**.
+      responses:
+        '200':
+          description: The customer's cards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardPaymentMethod'
+
+# -----------------------------------------------------------------------------
+# Webhooks (OpenAPI 3.1)
+# -----------------------------------------------------------------------------
+webhooks:
+  paymentSucceeded:
+    post:
+      operationId: onPaymentSucceeded
+      tags: [Payments]
+      summary: payment.succeeded
+      description: |
+        Sent when a payment reaches the `succeeded` state and funds are
+        guaranteed. This is the event to fulfil an order on — do not fulfil on
+        the API response alone, since a payment may complete asynchronously.
+
+        Verify the `Example-Signature` header before trusting the payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+            example:
+              id: evt_6nR2kW9qM4tX7vLp
+              type: payment.succeeded
+              created_at: '2026-07-14T09:31:04Z'
+              data:
+                id: pay_4hK9mQ2xR7tL1nBv
+                object: payment
+                amount: 4599
+                currency: usd
+                status: succeeded
+      responses:
+        '200':
+          description: |
+            Return any `2xx` to acknowledge. Any other status — or no response
+            within 10 seconds — is retried with exponential backoff for 24 hours.
+
+  disputeCreated:
+    post:
+      operationId: onDisputeCreated
+      tags: [Disputes]
+      summary: dispute.created
+      description: |
+        Sent when a customer's bank reverses a payment. The `evidence_due_by`
+        field is a hard deadline — a dispute with no evidence submitted by then
+        is lost automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+      responses:
+        '200':
+          description: Acknowledged.
+
+# -----------------------------------------------------------------------------
+# Components
+# -----------------------------------------------------------------------------
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Secret key
+      description: |
+        Server-to-server authentication with your secret key.
+
+        ```http
+        Authorization: Bearer sk_live_4hK9mQ2xR7tL1nBv
+        ```
+
+        Secret keys can move money. Never ship one in client-side code.
+
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Publishable-Key
+      description: |
+        Browser-safe publishable key, scoped to tokenizing payment details.
+        It cannot read balances or create charges.
+
+    oauth2:
+      type: oauth2
+      description: |
+        Act on behalf of a connected account. Request only the scopes you need —
+        tokens are audited and over-broad scopes are rejected at review.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://connect.example.com/oauth/authorize
+          tokenUrl: https://connect.example.com/oauth/token
+          refreshUrl: https://connect.example.com/oauth/token
+          scopes:
+            payments:read: Read payments and their status
+            payments:write: Create, capture, and cancel payments
+            refunds:write: Issue refunds
+            payouts:write: Move balances to external bank accounts
+        clientCredentials:
+          tokenUrl: https://connect.example.com/oauth/token
+          scopes:
+            payments:read: Read payments and their status
+            payments:write: Create, capture, and cancel payments
+
+  parameters:
+    PaymentId:
+      name: payment_id
+      in: path
+      required: true
+      description: Identifier of the payment.
+      schema:
+        type: string
+        pattern: '^pay_[A-Za-z0-9]{16}$'
+      example: pay_4hK9mQ2xR7tL1nBv
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        A unique key — a UUID works well — that makes this request safe to
+        retry. Replaying a request with the same key returns the original
+        response instead of performing the action twice. Keys are retained for
+        24 hours.
+      schema:
+        type: string
+        maxLength: 255
+      example: 8f14e45f-ceea-467a-9c0a-2b3c4d5e6f70
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from a previous response's `next_cursor`.
+      schema:
+        type: string
+      example: cur_01HQ8XW2ZK9Y4M
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Number of records to return per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+
+  headers:
+    RateLimitRemaining:
+      description: Requests remaining in the current rate-limit window.
+      schema:
+        type: integer
+      example: 97
+    RateLimitReset:
+      description: Seconds until the rate-limit window resets.
+      schema:
+        type: integer
+      example: 43
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+      example: 30
+
+  schemas:
+    # --- Primitives ----------------------------------------------------------
+    Currency:
+      type: string
+      description: Three-letter [ISO 4217](https://www.iso.org/iso-4217-currency-codes.html) currency code, lowercase.
+      pattern: '^[a-z]{3}$'
+      examples: [usd, eur, gbp, jpy]
+
+    PaymentStatus:
+      type: string
+      description: |
+        Lifecycle state of a payment.
+
+        | Status | Meaning |
+        | --- | --- |
+        | `requires_payment_method` | No payment method attached yet |
+        | `requires_action` | Customer must authenticate (e.g. 3-D Secure) |
+        | `processing` | Funds are moving |
+        | `requires_capture` | Authorized, awaiting capture |
+        | `succeeded` | Funds captured — safe to fulfil |
+        | `canceled` | Abandoned before capture |
+        | `failed` | Declined or errored |
+      enum:
+        - requires_payment_method
+        - requires_action
+        - processing
+        - requires_capture
+        - succeeded
+        - canceled
+        - failed
+
+    TimestampRange:
+      type: object
+      description: Inclusive/exclusive bounds on a timestamp field.
+      additionalProperties: false
+      properties:
+        gte:
+          type: string
+          format: date-time
+          description: On or after this instant.
+        lte:
+          type: string
+          format: date-time
+          description: On or before this instant.
+
+    # --- Base resource (allOf composition) -----------------------------------
+    Resource:
+      type: object
+      description: Fields common to every top-level API resource.
+      required: [id, object, created_at]
+      properties:
+        id:
+          type: string
+          readOnly: true
+          description: Unique, prefixed identifier assigned at creation.
+        object:
+          type: string
+          readOnly: true
+          description: The resource type. Useful when handling mixed collections.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource was created (RFC 3339, UTC).
+        metadata:
+          type: object
+          description: |
+            Up to 50 arbitrary key–value pairs for your own bookkeeping. Never
+            store card numbers or other sensitive data here — metadata is
+            returned in plaintext and included in webhook payloads.
+          additionalProperties:
+            type: string
+            maxLength: 500
+          example:
+            order_id: '4821'
+            fulfilment_center: ams-1
+
+    # --- Payment methods (discriminated union) -------------------------------
+    PaymentMethod:
+      description: |
+        A way to move money. The `type` field discriminates the variant —
+        switch on it rather than sniffing for the presence of other fields.
+      oneOf:
+        - $ref: '#/components/schemas/CardPaymentMethod'
+        - $ref: '#/components/schemas/BankAccountPaymentMethod'
+        - $ref: '#/components/schemas/WalletPaymentMethod'
+      discriminator:
+        propertyName: type
+        mapping:
+          card: '#/components/schemas/CardPaymentMethod'
+          bank_account: '#/components/schemas/BankAccountPaymentMethod'
+          wallet: '#/components/schemas/WalletPaymentMethod'
+
+    CardPaymentMethod:
+      type: object
+      title: Card
+      description: A credit or debit card, referenced by a single-use or stored token.
+      required: [type, card_token]
+      properties:
+        type:
+          type: string
+          const: card
+        card_token:
+          type: string
+          description: Token produced by client-side tokenization. Raw card numbers are never accepted.
+          example: tok_1MqR8xK2vL9pN4tY
+        brand:
+          type: string
+          readOnly: true
+          enum: [visa, mastercard, amex, discover, jcb, unionpay]
+        last4:
+          type: string
+          readOnly: true
+          pattern: '^[0-9]{4}$'
+          example: '4242'
+        exp_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 12
+        exp_year:
+          type: integer
+          minimum: 2026
+          example: 2029
+        three_d_secure:
+          type: string
+          enum: [automatic, any, challenge]
+          default: automatic
+          description: How aggressively to request 3-D Secure authentication.
+
+    BankAccountPaymentMethod:
+      type: object
+      title: Bank account
+      description: A bank account debited under a mandate the customer has signed.
+      required: [type, account_token, mandate_id]
+      properties:
+        type:
+          type: string
+          const: bank_account
+        account_token:
+          type: string
+          example: ba_7YtQ3nR8kM2xW5vZ
+        mandate_id:
+          type: string
+          description: The signed debit mandate authorizing this charge.
+          example: mnd_2KpL9wX4tR7qN3mB
+        account_holder_type:
+          type: string
+          enum: [individual, company]
+          default: individual
+
+    WalletPaymentMethod:
+      type: object
+      title: Wallet
+      description: A device or platform wallet such as Apple Pay or Google Pay.
+      required: [type, provider, wallet_token]
+      properties:
+        type:
+          type: string
+          const: wallet
+        provider:
+          type: string
+          enum: [apple_pay, google_pay, paypal, link]
+        wallet_token:
+          type: string
+          example: wal_3xM8kQ2nR7tW5vLp
+
+    # --- Payment -------------------------------------------------------------
+    CreatePaymentRequest:
+      type: object
+      required: [amount, currency, payment_method]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Amount to charge in the **smallest currency unit** — cents for
+            `usd`, yen for `jpy` (which has no minor unit). `4599` in `usd` is
+            $45.99.
+          example: 4599
+        currency:
+          $ref: '#/components/schemas/Currency'
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        customer_id:
+          type: string
+          description: Attach the payment to an existing customer.
+          example: cus_9RxK2mVqL4pNzT8w
+        capture_method:
+          type: string
+          enum: [automatic, manual]
+          default: automatic
+          description: |
+            `automatic` captures as soon as the payment is authorized.
+            `manual` authorizes only — call **Capture a payment** within 7 days.
+        description:
+          type: string
+          maxLength: 500
+          description: Internal note. Not shown to the customer.
+          example: Order #4821
+        statement_descriptor:
+          type: string
+          maxLength: 22
+          description: Text shown on the customer's card statement.
+          example: EXAMPLE STORE
+        callback_url:
+          type: string
+          format: uri
+          writeOnly: true
+          description: If set, we POST the final payment object here.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    Payment:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            amount:
+              type: integer
+              format: int64
+              description: Amount charged, in the smallest currency unit.
+              example: 4599
+            amount_refunded:
+              type: integer
+              format: int64
+              readOnly: true
+              default: 0
+              description: Portion of `amount` already returned to the customer.
+            currency:
+              $ref: '#/components/schemas/Currency'
+            status:
+              $ref: '#/components/schemas/PaymentStatus'
+            customer_id:
+              type: [string, 'null']
+              description: The customer this payment belongs to, if any.
+            payment_method:
+              $ref: '#/components/schemas/PaymentMethod'
+            next_action:
+              $ref: '#/components/schemas/NextAction'
+            description:
+              type: [string, 'null']
+      examples:
+        - id: pay_4hK9mQ2xR7tL1nBv
+          object: payment
+          amount: 4599
+          amount_refunded: 0
+          currency: usd
+          status: succeeded
+          customer_id: cus_9RxK2mVqL4pNzT8w
+          created_at: '2026-07-14T09:31:02Z'
+
+    NextAction:
+      type: [object, 'null']
+      description: |
+        Present when `status` is `requires_action`. Drive the customer through
+        this step, then the payment continues on its own.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [redirect_to_url, use_sdk, verify_microdeposits]
+        redirect_url:
+          type: string
+          format: uri
+          description: Send the customer here to authenticate.
+        return_url:
+          type: string
+          format: uri
+          description: Where the customer lands once authentication completes.
+
+    PaymentList:
+      type: object
+      description: A cursor-paginated page of payments.
+      required: [object, data, has_more]
+      properties:
+        object:
+          type: string
+          const: list
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+        has_more:
+          type: boolean
+          description: Whether more records exist after this page.
+        next_cursor:
+          type: [string, 'null']
+          description: Pass as `cursor` to fetch the next page. `null` on the last page.
+
+    # --- Other resources -----------------------------------------------------
+    Refund:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            payment_id:
+              type: string
+              example: pay_4hK9mQ2xR7tL1nBv
+            amount:
+              type: integer
+              format: int64
+              example: 2000
+            currency:
+              $ref: '#/components/schemas/Currency'
+            status:
+              type: string
+              enum: [pending, succeeded, failed, canceled]
+            reason:
+              type: [string, 'null']
+              enum: [duplicate, fraudulent, requested_by_customer, null]
+
+    Dispute:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            payment_id:
+              type: string
+            amount:
+              type: integer
+              format: int64
+            currency:
+              $ref: '#/components/schemas/Currency'
+            reason:
+              type: string
+              enum: [fraudulent, product_not_received, product_unacceptable, duplicate, subscription_canceled]
+            status:
+              type: string
+              enum: [needs_response, under_review, won, lost]
+            evidence_due_by:
+              type: string
+              format: date-time
+              description: |
+                Hard deadline for submitting evidence. A dispute with no
+                evidence by this instant is lost automatically.
+
+    Payout:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            amount:
+              type: integer
+              format: int64
+            currency:
+              $ref: '#/components/schemas/Currency'
+            destination_id:
+              type: string
+            status:
+              type: string
+              enum: [pending, in_transit, paid, failed, canceled]
+            arrival_date:
+              type: string
+              format: date
+              description: Expected date the funds land in the destination account.
+
+    WebhookEvent:
+      type: object
+      description: Envelope wrapping every webhook delivery.
+      required: [id, type, created_at, data]
+      properties:
+        id:
+          type: string
+          description: Unique event identifier. Use it to deduplicate retries.
+          example: evt_6nR2kW9qM4tX7vLp
+        type:
+          type: string
+          description: The event name.
+          examples: [payment.succeeded, payment.failed, dispute.created, payout.paid]
+        created_at:
+          type: string
+          format: date-time
+        data:
+          description: The resource this event concerns, at the time of the event.
+          oneOf:
+            - $ref: '#/components/schemas/Payment'
+            - $ref: '#/components/schemas/Refund'
+            - $ref: '#/components/schemas/Dispute'
+            - $ref: '#/components/schemas/Payout'
+
+    # --- Errors (RFC 9457) ---------------------------------------------------
+    Problem:
+      type: object
+      description: |
+        An error, in [RFC 9457 problem details](https://www.rfc-editor.org/rfc/rfc9457)
+        format. Branch on `type` — it is a stable identifier, unlike `title` and
+        `detail`, which are human-readable and may change.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Stable URI identifying the problem kind.
+          example: https://example.com/problems/validation-failed
+        title:
+          type: string
+          description: Short, human-readable summary.
+          example: Validation failed
+        status:
+          type: integer
+          description: HTTP status code, repeated for convenience.
+          example: 422
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri
+          description: URI identifying this specific occurrence.
+        request_id:
+          type: string
+          description: Quote this when contacting support.
+          example: req_2xM8kQ9nR4tW7vLp
+
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            errors:
+              type: array
+              description: One entry per field that failed validation.
+              items:
+                type: object
+                required: [pointer, detail]
+                properties:
+                  pointer:
+                    type: string
+                    description: JSON Pointer to the offending field.
+                    example: /amount
+                  detail:
+                    type: string
+                    example: must be greater than or equal to 1
+
+    PaymentDeclinedProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            decline_code:
+              type: string
+              description: Why the issuer declined. Surface a friendly message, not this code.
+              enum:
+                - insufficient_funds
+                - card_expired
+                - incorrect_cvc
+                - do_not_honor
+                - lost_or_stolen
+                - suspected_fraud
+            payment_id:
+              type: string
+
+  responses:
+    BadRequest:
+      description: The request was malformed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Unauthorized:
+      description: The credential is missing, malformed, or revoked.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://example.com/problems/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: No API key was provided in the Authorization header.
+
+    NotFound:
+      description: No resource exists with that identifier.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    IdempotencyConflict:
+      description: |
+        The `Idempotency-Key` was reused with a different request body. Keys
+        must be unique per distinct operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    ValidationFailed:
+      description: The request was well-formed but semantically invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            type: https://example.com/problems/validation-failed
+            title: Validation failed
+            status: 422
+            detail: One or more fields are invalid.
+            request_id: req_2xM8kQ9nR4tW7vLp
+            errors:
+              - pointer: /amount
+                detail: must be greater than or equal to 1
+              - pointer: /currency
+                detail: must be a supported ISO 4217 code
+
+    TooManyRequests:
+      description: The rate limit was exceeded. Back off and retry.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

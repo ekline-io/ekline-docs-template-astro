@@ -410,20 +410,15 @@ header.header > div.header {
 
 /* ── OpenAPI method pills ──────────────────────────────────────────────────
  *
- * Harmonize the auto-generated `starlight-openapi` method badges with the
- * site's typography: monospace, tracked-out, smaller. The plugin's default
- * verb-color cues are kept (GET = blue, POST = green, DELETE = red, …) since
- * those follow API-docs convention — only the typography is unified.
+ * Nothing here any more. The API reference is rendered by Scalar, which draws
+ * its own method badges and already sets them in the mono face at a small,
+ * tracked-out size — the treatment this block used to apply to
+ * `starlight-openapi`'s badges.
+ *
+ * Scalar's own theming lives with the component, in
+ * `src/components/ScalarApiReference.astro`, because it is expressed through
+ * Scalar's `--scalar-*` custom properties rather than by restyling elements.
  */
-.sl-openapi-operation-method-badge {
-	font-family: var(--sl-font-mono);
-	font-size: 0.6875rem;
-	font-weight: 600;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	padding: 0.125rem 0.5rem;
-	border-radius: 0.25rem;
-}
 
 /* ── LinkCard hover motion ────────────────────────────────────────────────
  *

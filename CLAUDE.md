@@ -58,4 +58,16 @@ Component overrides (Starlight's "Overriding Components" mechanism) go in `src/c
 
 - **`@astrojs/sitemap`** — emits `sitemap-index.xml` + `sitemap-0.xml` on build. Requires `site` to be set.
 - **`starlight-llms-txt`** — emits `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt` on build for AI assistant consumption. Configure `projectName`, `description`, and optionally `customSets` / `promote` in `astro.config.mjs`. Docs: https://github.com/delucis/starlight-llms-txt
+- **`@scalar/astro`** — renders the API reference at `/api/` from `public/openapi.yaml`. This is an *Astro component*, not a Starlight plugin, so the routes are real pages under `src/pages/api/` and there is nothing in the `plugins` array. Shared config lives in `src/components/ScalarApiReference.astro`. Docs: https://scalar.com/products/api-references/integrations/astro
+
+## API reference
+
+Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/` or `src/components/ScalarApiReference.astro`. Four constraints there are easy to break and not obvious from the code:
+
+- **`renderMode="client"` is required.** The template mounts `<ClientRouter />`; Scalar's default `static` mode renders blank after any client-side navigation.
+- **The Scalar agent stays disabled.** Enabling it uploads the customer's OpenAPI document to Scalar's servers and asks their readers to accept Scalar's terms.
+- **Theme through `--scalar-*` custom properties only.** Scalar's internal class names are not a stable API.
+- **One search field per layout.** Hide Starlight's search *button*, never the `<site-search>` host — the host also contains the dialog that Cmd/Ctrl+K opens.
+
+`@scalar/astro` still declares Astro `^4 || ^5` as a peer, so `package.json` carries an `overrides` entry pinning it to the project's Astro. Remove it once upstream widens the range.
 

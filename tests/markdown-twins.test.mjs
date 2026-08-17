@@ -3,10 +3,14 @@
  *
  *   1. Every real docs page emits a `<link rel="alternate" type="text/markdown">`.
  *   2. Every alternate href resolves to a real `.md` file in `dist/`.
- *   3. Auto-generated / virtual pages (e.g. starlight-openapi `/api/**`) do
- *      NOT emit the alternate link.
+ *   3. Custom routes with no Markdown source (the Scalar API reference under
+ *      `/api/**`) do NOT emit the alternate link.
  *   4. Every `.md` file has well-formed content (non-empty, leading `#`).
- *   5. The OpenAPI virtual pages do NOT have a `.md` sibling in `dist/`.
+ *   5. Those same API reference routes have no `.md` sibling in `dist/`.
+ *
+ * On (3) and (5): `/api/` and `/api/embedded/` are `.astro` pages that render an
+ * OpenAPI document in the browser via Scalar. There is no Markdown behind them
+ * to serve, so advertising a twin would point crawlers at a 404.
  *
  * Run after `npm run build`:  `node --test tests/markdown-twins.test.mjs`
  *
@@ -151,7 +155,7 @@ test('every emitted .md file is non-empty and starts with `# `', () => {
 	);
 });
 
-test('OpenAPI virtual pages have NO .md sibling in dist/', () => {
+test('OpenAPI routes have NO .md sibling in dist/', () => {
 	const offending = mdFiles
 		.map((p) => relative(DIST, p))
 		.filter((p) => p.startsWith('api' + sep) || p.startsWith('api.md'));

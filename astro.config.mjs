@@ -4,7 +4,6 @@ import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
-import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
@@ -42,15 +41,6 @@ export default defineConfig({
 					description:
 						'A documentation site built with Astro Starlight. Replace this description with a one-paragraph summary of your project.',
 				}),
-				// Generates reference pages under `/api/` from the OpenAPI spec.
-				// Replace `src/schemas/api.yaml` with your own spec (YAML or JSON).
-				starlightOpenAPI([
-					{
-						base: 'api',
-						label: 'API reference',
-						schema: './src/schemas/api.yaml',
-					},
-				]),
 			],
 			sidebar: [
 				{
@@ -79,8 +69,21 @@ export default defineConfig({
 					label: 'Reference',
 					items: [{ autogenerate: { directory: 'reference' } }],
 				},
-				// API reference pages auto-generated from `src/schemas/api.yaml`.
-				...openAPISidebarGroups,
+				// Interactive API reference, rendered by Scalar from
+				// `public/openapi.yaml`. The routes live in `src/pages/api/` rather
+				// than in a Starlight plugin — Scalar renders the whole reference
+				// itself, so there are no per-operation pages to autogenerate.
+				//
+				// Two candidate layouts ship side by side while we settle on one;
+				// see `/wiki/api-reference.md`. Drop the `embedded` entry once the
+				// standalone layout is confirmed as canonical.
+				{
+					label: 'API',
+					items: [
+						{ label: 'API reference', link: '/api/' },
+						{ label: 'API reference (embedded)', link: '/api/embedded/' },
+					],
+				},
 				{
 					label: 'Changelog',
 					slug: 'changelog',
