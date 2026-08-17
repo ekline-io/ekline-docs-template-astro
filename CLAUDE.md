@@ -37,7 +37,12 @@ Once the Astro/Starlight project is scaffolded, the standard commands will be:
 - `npm run dev` — start the dev server (default http://localhost:4321)
 - `npm run build` — production build to `./dist/`
 - `npm run preview` — preview the production build locally
-- `npm run astro -- <cmd>` — run Astro CLI commands (e.g. `astro check` for type/content diagnostics)
+- `npm run check` — type-check (`astro check`); must stay at zero errors, CI gates on it
+- `npm test` — build, then assert against the output; no browser required
+- `npm run test:visual` — browser tests for the API reference (`npx playwright install chromium` first)
+- `npm run astro -- <cmd>` — run Astro CLI commands
+
+CI (`.github/workflows/ci.yml`) runs `check`, `test`, and `test:visual:ci` on every PR. The screenshot comparisons are excluded there because their baselines are macOS-only; run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
 
 These follow the defaults from `npm create astro@latest`. If/when the scripts in `package.json` diverge from these, update this section.
 

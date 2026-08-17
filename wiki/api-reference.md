@@ -77,8 +77,16 @@ Scalar's "Ask AI" uploads your OpenAPI document to Scalar's servers and asks the
 
 | Command | What it covers |
 | --- | --- |
+| `npm run check` | Types, via `astro check`. |
 | `npm test` | Build output: routes exist, the document is emitted and referenced, anchors match Scalar's scheme, the agent is disabled. No browser needed. |
-| `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, search returning operations, the sidebar's active row, the switcher preserving position, mobile overflow, plus screenshots of the parts we render ourselves. |
+| `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, search returning operations, the sidebar's active row, the client overlay covering the page, the switcher preserving position, mobile overflow, plus screenshots of the parts we render ourselves. |
+| `npm run test:visual:ci` | The same, minus the screenshot comparisons. |
+
+### What runs automatically
+
+`.github/workflows/ci.yml` runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so a failure there also blocks the deploy.
+
+The browser tests matter most. Every integration bug this reference has had — a blank reference after client-side navigation, white seams in dark mode, the API client rendering underneath the sidebar, method badges coming out white-on-white — produced a page that **built perfectly**. `npm test` reads build output and cannot see paint order, theme classes, or scroll behaviour. Only the browser suite can.
 
 Update screenshots after an intentional visual change with `npm run test:visual:update`, and commit the result.
 

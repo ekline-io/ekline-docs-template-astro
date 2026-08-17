@@ -72,9 +72,12 @@ Run all commands from the project root in a terminal.
 | `npm run dev` | Local dev server at `localhost:4321` |
 | `npm run build` | Production build to `./dist/` |
 | `npm run preview` | Preview the production build locally |
+| `npm run check` | Type-check the project (`astro check`) |
 | `npm test` | Build, then check the output (no browser needed) |
 | `npm run test:visual` | Browser tests for the API reference — needs `npx playwright install chromium` |
-| `npm run astro ...` | Run Astro CLI commands (for example, `astro check`) |
+| `npm run astro ...` | Run Astro CLI commands |
+
+All of these run on every pull request via [`.github/workflows/ci.yml`](.github/workflows/ci.yml), except the screenshot comparisons — those are macOS-only baselines and stay a local check. See [`wiki/api-reference.md`](./wiki/api-reference.md).
 
 ## Learn more
 

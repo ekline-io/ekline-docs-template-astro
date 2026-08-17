@@ -19,12 +19,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-	existsSync,
-	readFileSync,
-	readdirSync,
-	statSync,
-} from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
@@ -38,17 +33,6 @@ function* walk(dir, predicate) {
 		if (entry.isDirectory()) yield* walk(p, predicate);
 		else if (predicate(entry.name, p)) yield p;
 	}
-}
-
-function urlForHtml(htmlPath) {
-	// dist/index.html       -> /
-	// dist/foo/index.html   -> /foo/
-	// dist/404.html         -> /404/  (Astro emits 404 at file level)
-	const rel = relative(DIST, htmlPath).split(sep).join('/');
-	if (rel === 'index.html') return '/';
-	if (rel.endsWith('/index.html'))
-		return '/' + rel.slice(0, -'index.html'.length);
-	return '/' + rel.replace(/\.html$/, '/');
 }
 
 function urlToDistPath(href) {

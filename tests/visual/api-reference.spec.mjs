@@ -339,7 +339,15 @@ test.describe('view switcher', () => {
 	});
 });
 
-test.describe('appearance', () => {
+/**
+ * Screenshot comparisons, tagged so CI can skip them.
+ *
+ * Baselines are per-platform — font rendering differs between macOS and Linux —
+ * and only the platform they were generated on is committed. Everything else in
+ * this file asserts behaviour and passes identically anywhere, so CI runs
+ * `--grep-invert @screenshot` and these stay a local pre-merge check.
+ */
+test.describe('appearance', { tag: '@screenshot' }, () => {
 	test.skip(({ isMobile }) => isMobile, 'Snapshots are taken at the desktop viewport.');
 
 	// Only the parts this template renders itself are snapshotted. Scalar's own
