@@ -221,6 +221,64 @@ test.describe('sidebar navigation', () => {
 	});
 });
 
+test.describe('API client overlay', () => {
+	test.skip(({ isMobile }) => isMobile, 'Covered on desktop; the overlay is full-screen either way.');
+
+	/**
+	 * "Test Request" opens Scalar's full-screen client.
+	 *
+	 * Scalar builds the overlay correctly — `position: fixed; inset: 0` under a
+	 * `z-index: 10000` wrapper — but Starlight sets `isolation: isolate` on
+	 * `.main-pane`, which makes that pane a stacking context and traps the
+	 * z-index inside it. Starlight's own fixed sidebar and header then paint over
+	 * the dialog, hiding its left-hand column of parameter labels behind the
+	 * sidebar.
+	 *
+	 * Nothing in a build or a unit test can see that: the markup is identical
+	 * either way, and only the paint order differs.
+	 */
+	test('the client covers the page instead of rendering under the sidebar', async ({ page }) => {
+		await page.goto(`${DOCS_VIEW}#tag/payments/GET/payments`);
+		await waitForReference(page);
+
+		const mainPaneIsolation = () =>
+			page.evaluate(() => getComputedStyle(document.querySelector('.main-pane')).isolation);
+
+		// Starlight's isolation is left alone until the client is actually open —
+		// it is what stops page content painting over the header and sidebar.
+		expect(await mainPaneIsolation()).toBe('isolate');
+
+		await page.getByRole('button', { name: /Test Request/i }).first().click();
+
+		const overlay = page.locator('.scalar-container.scalar-client--open');
+		await expect(overlay).toBeVisible();
+		expect(await mainPaneIsolation()).toBe('auto');
+
+		// The overlay fills the viewport, and nothing from the docs page is on top
+		// of it — hit-testing catches a stacking regression that a screenshot
+		// tolerance might absorb.
+		const covered = await page.evaluate(() => {
+			const inScalar = (x, y) => {
+				const el = document.elementFromPoint(x, y);
+				return !!el && !!el.closest('[data-ek-scalar]');
+			};
+			const box = document.querySelector('.scalar-container.scalar-client--open').getBoundingClientRect();
+			return {
+				fillsViewport: box.width >= innerWidth - 20 && box.height >= innerHeight - 20,
+				// Over the sidebar, over the header, and mid-page.
+				overSidebar: inScalar(60, 300),
+				overHeader: inScalar(700, 30),
+				overContent: inScalar(700, 500),
+			};
+		});
+
+		expect(covered.fillsViewport, 'overlay does not fill the viewport').toBe(true);
+		expect(covered.overSidebar, 'Starlight sidebar paints over the client').toBe(true);
+		expect(covered.overHeader, 'Starlight header paints over the client').toBe(true);
+		expect(covered.overContent).toBe(true);
+	});
+});
+
 test.describe('view switcher', () => {
 	test.skip(({ isMobile }) => isMobile, 'Covered on desktop; the switcher is identical on mobile.');
 

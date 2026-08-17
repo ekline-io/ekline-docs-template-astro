@@ -247,6 +247,34 @@ const configuration = {
 	}
 
 	/*
+	 * Let Scalar's API client cover the page.
+	 *
+	 * "Test Request" opens a full-screen client. Scalar builds it correctly — a
+	 * `position: fixed; inset: 0` overlay under a wrapper carrying
+	 * `z-index: 10000` — but Starlight sets `isolation: isolate` on `.main-pane`,
+	 * which makes that pane a stacking context. Every z-index inside it, however
+	 * large, is then resolved *within* the pane, while Starlight's own fixed
+	 * sidebar (`z-index: 5`) and header (`z-index: 10`) sit in the root stacking
+	 * context and paint over the whole thing. The result is a dialog with its
+	 * left column hidden behind the sidebar and the page still visible around it.
+	 *
+	 * Dropping the isolation lets the overlay resolve against the root context
+	 * and cover the page as intended.
+	 *
+	 * Scoped to `.scalar-client--open`, the class Scalar puts on its container
+	 * while the client is open, so ordinary browsing keeps Starlight's isolation
+	 * exactly as upstream ships it — and the page keeps the protection it is
+	 * there for, that content cannot paint over the fixed header and sidebar.
+	 *
+	 * The `:has()` re-evaluates when that class appears, even though its subject
+	 * is an ancestor of the element that changed; verified in the browser, not
+	 * assumed.
+	 */
+	html body:has(.scalar-client--open) .main-pane {
+		isolation: auto;
+	}
+
+	/*
 	 * The page background stays the site's, not Scalar's.
 	 *
 	 * Scalar stamps its theme class on `<body>` and paints a background from it —
