@@ -8,7 +8,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "npm run build && node --test tests/*.test.mjs"
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:visual": "npm run build && playwright test",
+    "test:visual:update": "npm run build && playwright test --update-snapshots"
   },
   "overrides": {
     "@scalar/astro": {
@@ -30,5 +32,8 @@
     "sharp": "^0.34.5",
     "starlight-llms-txt": "^0.8.1",
     "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

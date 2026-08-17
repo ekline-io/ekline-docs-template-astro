@@ -72,6 +72,8 @@ Run all commands from the project root in a terminal.
 | `npm run dev` | Local dev server at `localhost:4321` |
 | `npm run build` | Production build to `./dist/` |
 | `npm run preview` | Preview the production build locally |
+| `npm test` | Build, then check the output (no browser needed) |
+| `npm run test:visual` | Browser tests for the API reference — needs `npx playwright install chromium` |
 | `npm run astro ...` | Run Astro CLI commands (for example, `astro check`) |
 
 ## Learn more

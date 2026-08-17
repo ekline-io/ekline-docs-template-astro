@@ -16,7 +16,7 @@ import { join } from 'node:path';
 
 import { openApiSidebarGroup } from '../src/lib/openapi-sidebar.mjs';
 
-const BASE = '/api/embedded/';
+const BASE = '/api/';
 
 /** Write a throwaway spec and return its path. */
 function specFile(contents) {

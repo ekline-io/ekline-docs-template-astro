@@ -24,8 +24,8 @@ const DIST = join(__dirname, '..', 'dist');
 /** Path the reference is configured to fetch, relative to the site root. */
 const SPEC_PATH = 'openapi.yaml';
 
-/** Both candidate layouts. See `wiki/api-reference.md`. */
-const ROUTES = ['api/index.html', 'api/embedded/index.html'];
+/** Every view enabled in `src/config/api-reference.mjs`. */
+const ROUTES = ['api/index.html', 'api/full/index.html'];
 
 test('build output exists (did `npm run build` run?)', () => {
 	assert.ok(existsSync(DIST), 'dist/ does not exist');
@@ -87,18 +87,18 @@ test('the reference mounts in client mode', () => {
  */
 const KNOWN_ANCHORS = [
 	// Plain collection endpoint.
-	'/api/embedded/#tag/payments/GET/payments',
+	'/api/#tag/payments/GET/payments',
 	// Path template — braces are preserved, not encoded or slugified.
-	'/api/embedded/#tag/payments/POST/payments/{payment_id}/capture',
+	'/api/#tag/payments/POST/payments/{payment_id}/capture',
 	// Webhook — the dot in `payment.succeeded` is dropped, not turned into a dash.
-	'/api/embedded/#tag/payments/webhook/POST/paymentsucceeded',
+	'/api/#tag/payments/webhook/POST/paymentsucceeded',
 	// Tag slug is lowercased from the tag name in the document.
-	'/api/embedded/#tag/disputes/POST/disputes/{dispute_id}/evidence',
+	'/api/#tag/disputes/POST/disputes/{dispute_id}/evidence',
 ];
 
 test('the sidebar lists operations generated from the OpenAPI document', () => {
-	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
-	const links = html.match(/href="\/api\/embedded\/#[^"]+"/g) ?? [];
+	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
+	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 
 	assert.ok(
 		links.length >= 10,
@@ -107,7 +107,7 @@ test('the sidebar lists operations generated from the OpenAPI document', () => {
 });
 
 test('generated sidebar anchors match the hashes Scalar assigns', () => {
-	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
+	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
 
 	for (const anchor of KNOWN_ANCHORS) {
 		assert.ok(
@@ -121,7 +121,7 @@ test('generated sidebar anchors match the hashes Scalar assigns', () => {
 });
 
 test('operation links carry their HTTP method as a badge', () => {
-	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
+	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
 	assert.match(html, /sl-badge[^"]*"[^>]*>GET</, 'no GET badge in the sidebar');
 	assert.match(html, /sl-badge[^"]*"[^>]*>POST</, 'no POST badge in the sidebar');
 });
@@ -130,7 +130,7 @@ test('the operation list is reachable from ordinary docs pages', () => {
 	// The sidebar is global, so a reader on a prose page can jump straight to an
 	// endpoint instead of finding the reference first and searching inside it.
 	const html = readFileSync(join(DIST, 'get-started/quickstart/index.html'), 'utf-8');
-	const links = html.match(/href="\/api\/embedded\/#[^"]+"/g) ?? [];
+	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 	assert.ok(links.length >= 10, `expected operations in the global sidebar, found ${links.length}`);
 });
 

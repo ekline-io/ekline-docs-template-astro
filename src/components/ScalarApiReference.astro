@@ -40,29 +40,15 @@ interface Props {
 	 */
 	showSidebar?: boolean;
 	/**
-	 * Whether Scalar renders its own search field.
-	 *
-	 * Exactly one search box should be visible per layout. Scalar's searches the
-	 * operations in the spec; Starlight's Pagefind searches the prose pages and
-	 * cannot see the reference at all, because Scalar renders it in the browser.
-	 * Which one to keep therefore depends on which navigation the layout keeps.
+	 * Which view is rendering this reference. Surfaced as a data attribute so
+	 * each view's layout CSS can target itself precisely — both views render the
+	 * same component, so a selector on `.ek-scalar` alone would style whichever
+	 * page loaded the stylesheet last.
 	 */
-	hideSearch?: boolean;
-	/**
-	 * Which candidate layout is rendering this reference. Surfaced as a data
-	 * attribute so each route's layout CSS can target itself precisely — both
-	 * routes render the same component, so a selector on `.ek-scalar` alone
-	 * would style whichever page loaded the stylesheet last.
-	 */
-	layout?: 'standalone' | 'embedded';
+	layout?: 'docs' | 'full';
 }
 
-const {
-	url = '/openapi.yaml',
-	showSidebar = true,
-	hideSearch = false,
-	layout = 'standalone',
-} = Astro.props;
+const { url = '/openapi.yaml', showSidebar = true, layout = 'docs' } = Astro.props;
 
 /**
  * Built as a standalone binding rather than inlined into the component call.
@@ -77,7 +63,15 @@ const {
 const configuration = {
 	url,
 	showSidebar,
-	hideSearch,
+
+	// The site's own search covers the API, in both views.
+	//
+	// Scalar ships a search over the operations, but a docs site with two search
+	// fields — one for the prose, one for the reference, neither saying which —
+	// makes the reader guess. Starlight's Pagefind search is the one that stays,
+	// and `ApiSearchIndex.astro` feeds the operations into its index so a single
+	// search covers guides and endpoints alike.
+	hideSearch: true,
 
 	// Inherit the site's Inter / JetBrains Mono rather than pulling Scalar's own
 	// webfonts over the network — one type system, one less render-blocking
@@ -88,8 +82,12 @@ const configuration = {
 	// second control for the same setting, and the two would disagree.
 	hideDarkModeToggle: true,
 
-	// Starlight binds Cmd/Ctrl+K to Pagefind site search. Leaving Scalar on its
-	// default `k` makes one chord open two different search dialogs.
+	// Belt and braces on the keyboard shortcut.
+	//
+	// Starlight binds Cmd/Ctrl+K to site search, and Scalar's default is `k`.
+	// `hideSearch` above should stop Scalar binding at all, but that is its
+	// choice to make, not ours — moving it off `k` means one chord cannot open
+	// two dialogs even if a future version binds regardless.
 	//
 	// `as const` on this and the two below: Scalar types them as string-literal
 	// unions, and assigning through a variable (see above) widens a bare literal
@@ -149,7 +147,17 @@ const configuration = {
 	function applyTheme() {
 		const isDark = document.documentElement.dataset.theme === 'dark';
 
-		for (const root of document.querySelectorAll<HTMLElement>(SCALAR_ROOTS)) {
+		const roots = [
+			...document.querySelectorAll<HTMLElement>(SCALAR_ROOTS),
+			// `<body>` too. Scalar stamps its own theme class there — not only on
+			// its containers — and its stylesheet paints a background from it. Miss
+			// this and the body keeps whatever theme Scalar mounted with, so in dark
+			// mode every strip of page that Scalar does not paint over itself (the
+			// band around the view switcher, most visibly) stays white.
+			document.body,
+		];
+
+		for (const root of roots) {
 			root.classList.toggle('dark-mode', isDark);
 			root.classList.toggle('light-mode', !isDark);
 		}
@@ -226,6 +234,23 @@ const configuration = {
 		/* Match the 12px rounding used by cards and code blocks elsewhere. */
 		--scalar-radius: 0.5rem;
 		--scalar-radius-lg: 0.75rem;
+	}
+
+	/*
+	 * The page background stays the site's, not Scalar's.
+	 *
+	 * Scalar stamps its theme class on `<body>` and paints a background from it —
+	 * its own near-black in dark mode, which is a different colour from
+	 * Starlight's slate. Anywhere Scalar's own surfaces do not cover the page,
+	 * the two meet as a visible seam.
+	 *
+	 * `html body` rather than `body` on purpose: Scalar's `body.dark-mode` rule
+	 * matches with the same specificity, and its stylesheet is injected into
+	 * `<head>` at runtime — after Astro's — so an equal-specificity rule would
+	 * lose the source-order tie.
+	 */
+	html body:has([data-ek-scalar]) {
+		background-color: var(--sl-color-bg);
 	}
 
 	/*

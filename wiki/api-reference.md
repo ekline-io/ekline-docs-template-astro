@@ -1,77 +1,88 @@
 # API reference
 
-The API reference at `/api/` is rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro). Scalar draws the whole reference — navigation, schemas, and a built-in client for sending real requests — from a single OpenAPI document.
+The API reference is rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro), from a single OpenAPI document.
+
+Everything about it is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — the document, which views are built, what they are called. The routes, the sidebar, the search index, and the switcher readers see are all derived from that one object.
 
 ## Swap in your own spec
 
-Replace `public/openapi.yaml` with your own OpenAPI document. That is the only required change.
+Replace `public/openapi.yaml` with your own document. That is the only required change: the routes, the sidebar's operation list, and the search entries all regenerate on the next build.
 
-The file ships from `public/`, so it is served unprocessed at `/openapi.yaml` and Scalar fetches it in the browser. To rename it, or point at a spec you host elsewhere, update the `url` in `src/components/ScalarApiReference.astro`:
+To rename it, or point at a spec hosted elsewhere, change both fields in the config together:
 
-```astro
-<ScalarComponent
-  renderMode="client"
-  configuration={{ url: 'https://api.example.com/openapi.json', ... }}
-/>
+```js
+spec: './public/openapi.yaml',   // read at build time, to generate the sidebar
+specUrl: '/openapi.yaml',        // fetched by the browser, at runtime
 ```
 
-JSON works as well as YAML, and both OpenAPI 3.0 and 3.1 are supported.
+JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are upgraded to 3.1 automatically.
 
-The placeholder spec is deliberately dense — multiple auth schemes, discriminated unions, webhooks, callbacks, multipart upload, cursor pagination, and RFC 9457 problem responses — so you can see how Scalar renders each construct before replacing it.
+The placeholder spec is deliberately dense — multiple auth schemes, discriminated unions, webhooks, callbacks, multipart upload, cursor pagination, RFC 9457 problem responses — so you can see how each construct renders before replacing it.
 
-> A test asserts that the document is emitted and that each route actually references it. Without that, renaming the file still produces a clean build and only 404s once a visitor loads the page.
+## Two views
 
-## Operations in the docs sidebar
+| View | Route | Chrome | Operation navigation |
+| --- | --- | --- | --- |
+| `docs` | `/api/` | Full Starlight page | Starlight's sidebar, shared with the rest of the docs |
+| `full` | `/api/full/` | Header only (`splash`) | Scalar's own sidebar |
 
-The sidebar group under **API reference** is generated from your OpenAPI document at build time: one collapsible group per tag, one link per operation and webhook, each badged with its HTTP method. Replace `public/openapi.yaml` and it regenerates — there is nothing to maintain in `astro.config.mjs`.
+**`docs` is the default.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination.
 
-Because Starlight's sidebar is global, those links are present on every page, so a reader on a guide can jump straight to an endpoint instead of finding the reference first and searching inside it.
+**`full`** hands the whole width to Scalar. Worth keeping for large documents: Scalar's sidebar is virtualised, so it stays responsive where a fully expanded Starlight tree would not.
 
-The highlight follows the reader: clicking an operation, deep-linking to one, or simply scrolling past it moves the sidebar's active row, because Scalar keeps the URL hash in step with the section in view.
+Readers switch between them with the control above the reference, which carries the current anchor across so they keep their place.
 
-The generator lives in [`src/lib/openapi-sidebar.mjs`](../src/lib/openapi-sidebar.mjs). Two details matter if you touch it:
+### Shipping only one
 
-- **It uses Scalar's own navigation builder** (`createNavigation` from `@scalar/workspace-store`) rather than deriving anchors itself. Each link is an anchor into the rendered reference, so its hash must match the ID Scalar assigns — including how it slugifies tags and strips punctuation from webhook names (`payment.succeeded` becomes `paymentsucceeded`, the dot dropped rather than hyphenated). Sharing Scalar's builder means both sides move together on `npm update` instead of drifting apart silently. A test pins four representative anchors so a change fails the build rather than leaving links that scroll nowhere.
-- **It never fails the build.** A missing, malformed, or empty spec degrades to a single link to the reference plus a warning on stderr.
+Set the other's `enabled: false`. Its route stops being built and the switcher disappears on its own. To change which view is served at `/api/`, move `default: true` — the sidebar and the search index follow automatically.
 
-## Two layouts
+## How the pieces fit
 
-| Route | Chrome | Operation navigation |
-| --- | --- | --- |
-| `/api/embedded/` | Full Starlight page | Starlight's sidebar — shared with the rest of the docs |
-| `/api/` | Starlight header only (`splash` template) | Scalar's own sidebar, plus its operation search |
-
-**`/api/embedded/` is the better default for most sites.** The docs and the API share one navigation tree, so the reference reads as part of the documentation rather than a separate destination, and there is no second sidebar competing with Starlight's.
-
-`/api/` is worth keeping if your spec is very large or you want Scalar's search over operations: Scalar owns the full width there, and its sidebar is virtualised, which handles hundreds of operations more gracefully than a fully-expanded Starlight tree.
-
-**To ship only one**, delete the other route file and its entry in `astro.config.mjs`. If you drop `/api/embedded/`, also point `openApiSidebarGroup`'s `base` at `/api/` — the generated links follow whichever route you keep.
-
-## Things worth knowing before you change the component
-
-`src/components/ScalarApiReference.astro` holds the shared configuration. Each decision below has a comment in the file explaining it; these are the ones most likely to bite.
+Starlight renders the page, Scalar renders the document in the browser, and a few small bridges keep them agreeing. Each has a comment in the source explaining it; these are the ones most likely to bite.
 
 ### `renderMode="client"` is required
 
-This template mounts `<ClientRouter />` for view transitions. Scalar's default `static` mode pre-renders a document whose bootstrap script only runs on a hard page load, so the reference would be **blank after any in-site navigation** until the visitor refreshed. Client mode remounts around Astro's navigation events. Do not remove it while view transitions are on.
+This template mounts `<ClientRouter />` for view transitions. Scalar's default `static` mode pre-renders a document whose bootstrap script only runs on a hard page load, so the reference would be **blank after any in-site navigation** until the visitor refreshed. Do not remove it while view transitions are on.
 
-### The AI assistant is off by default
+### The sidebar's operation list is generated
 
-Scalar's "Ask AI" button uploads your OpenAPI document to Scalar's servers and asks the reader to accept Scalar's terms. That is not a decision a template should make for you, so it ships disabled via `agent: { disabled: true }`. Delete that line to enable it. Doing so also restores the "Generate MCP" button, which is part of the same feature.
+`src/lib/openapi-sidebar.mjs` builds it from the document using **Scalar's own navigation builder** (`createNavigation` from `@scalar/workspace-store`), not a hand-rolled one. Each link is an anchor into the rendered reference, so its hash must match the ID Scalar assigns — including how it slugifies tags and strips punctuation from webhook names (`payment.succeeded` becomes `paymentsucceeded`, the dot dropped rather than hyphenated). Sharing Scalar's builder means both sides move together on `npm update`.
 
-### Dark mode is bridged, not automatic
+Four representative anchors are pinned in `tests/scalar-api-reference.test.mjs`. If a Scalar upgrade changes the scheme, that test fails rather than leaving links that render and scroll nowhere.
 
-Scalar's `darkMode` option only seeds the initial state. Starlight's toggle writes `data-theme` on `<html>`, so a small observer in the component mirrors that onto Scalar's root classes. Without it the two halves of the page disagree the moment someone touches the toggle.
+The generator never fails the build: a missing, malformed, or untagged document degrades to a plain link to the reference plus a warning on stderr.
 
-### Theming goes through `--scalar-*`, not element selectors
+### Search covers the API
 
-The component maps Scalar's documented custom properties onto Starlight's `--sl-color-*` props, so retheming the site in `src/styles/global.css` carries into the reference for free. Scalar's internal class names are not a stable API — don't style against them.
+Pagefind indexes the HTML a page ships, and Scalar renders everything in the browser — so out of the box the reference is invisible to search. `ApiSearchIndex.astro` emits one server-rendered heading per operation, whose `id` is the anchor Scalar uses, giving Pagefind real content to index and letting results link straight to an operation.
 
-Light mode also pins four colours to accessible values. Scalar's stock method-badge and syntax colours land between 2.9:1 and 4.35:1 against the panel fill, under the 4.5:1 minimum for small text; the replacements clear 4.5:1 with the hue unchanged, so blue-GET / green-POST still reads correctly.
+Only the default view is indexed. Both views render the same document, so indexing both would return every operation twice and send readers to whichever layout ranked higher.
 
-### Search
+Scalar's own search is switched off in both views. Two search fields — one for prose, one for the reference, neither labelled — makes the reader guess.
 
-Each layout shows exactly one search field. On `/api/` that is Scalar's, because it finds operations — Pagefind indexes only the prose pages and cannot see a reference that renders in the browser. Starlight's search stays reachable on <kbd>⌘K</kbd> / <kbd>Ctrl+K</kbd>; only its button is hidden. Scalar's is on <kbd>⌘J</kbd> / <kbd>Ctrl+J</kbd> so the two don't collide.
+### Theme
+
+The component maps Scalar's documented `--scalar-*` custom properties onto Starlight's `--sl-color-*` props, so retheming the site in `src/styles/global.css` carries into the reference. Scalar's internal class names are not a stable API — don't style against them.
+
+Two things need active bridging:
+
+- **The toggle.** Scalar's `darkMode` option only seeds the initial state, so an observer mirrors Starlight's `data-theme` onto Scalar's classes — including on `<body>`, which Scalar also themes and paints a background from.
+- **Light-mode contrast.** Scalar's stock method-badge and syntax colours land between 2.9:1 and 4.35:1 against the panel fill, under the 4.5:1 minimum for small text. The overrides clear 4.5:1 with the hue unchanged, so blue-GET / green-POST still reads.
+
+### The AI assistant is off
+
+Scalar's "Ask AI" uploads your OpenAPI document to Scalar's servers and asks the reader to accept Scalar's terms. That is not a decision a template should make for you, so it ships disabled via `agent: { disabled: true }`. Delete that line to enable it; doing so also restores the "Generate MCP" button, which is part of the same feature.
+
+## Tests
+
+| Command | What it covers |
+| --- | --- |
+| `npm test` | Build output: routes exist, the document is emitted and referenced, anchors match Scalar's scheme, the agent is disabled. No browser needed. |
+| `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, search returning operations, the sidebar's active row, the switcher preserving position, mobile overflow, plus screenshots of the parts we render ourselves. |
+
+Update screenshots after an intentional visual change with `npm run test:visual:update`, and commit the result.
+
+Visual tests need a browser: `npx playwright install chromium`. They run serially and retry once — the reference loads Scalar's bundle from a CDN, and a cold fetch is slow enough to trip a timeout on an otherwise healthy run.
 
 ## Astro 6 and peer dependencies
 
@@ -83,4 +94,4 @@ Each layout shows exactly one search field. On `/api/` that is Scalar's, because
 }
 ```
 
-This pins the integration to whatever Astro version the project already uses, so `npm install` works with no extra flags. Remove the override once Scalar widens the range — nothing else depends on it.
+This pins the integration to whatever Astro version the project already uses, so `npm install` works with no extra flags. Remove the override once Scalar widens the range.

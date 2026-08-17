@@ -8,7 +8,7 @@
  *   4. Every `.md` file has well-formed content (non-empty, leading `#`).
  *   5. Those same API reference routes have no `.md` sibling in `dist/`.
  *
- * On (3) and (5): `/api/` and `/api/embedded/` are `.astro` pages that render an
+ * On (3) and (5): the `/api/**` routes are `.astro` pages that render an
  * OpenAPI document in the browser via Scalar. There is no Markdown behind them
  * to serve, so advertising a twin would point crawlers at a 404.
  *

@@ -62,12 +62,15 @@ Component overrides (Starlight's "Overriding Components" mechanism) go in `src/c
 
 ## API reference
 
-Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/` or `src/components/ScalarApiReference.astro`. Four constraints there are easy to break and not obvious from the code:
+All of it is configured from [`src/config/api-reference.mjs`](src/config/api-reference.mjs) — the document, which views are built, their labels. Routes, sidebar, search index, and the reader-facing view switcher are derived from that one object; change it rather than the files it feeds.
+
+Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/`, `src/components/ScalarApiReference.astro`, or `src/lib/openapi-sidebar.mjs`. These constraints are easy to break and not obvious from the code:
 
 - **`renderMode="client"` is required.** The template mounts `<ClientRouter />`; Scalar's default `static` mode renders blank after any client-side navigation.
 - **The Scalar agent stays disabled.** Enabling it uploads the customer's OpenAPI document to Scalar's servers and asks their readers to accept Scalar's terms.
 - **Theme through `--scalar-*` custom properties only.** Scalar's internal class names are not a stable API.
-- **One search field per layout.** Hide Starlight's search *button*, never the `<site-search>` host — the host also contains the dialog that Cmd/Ctrl+K opens.
+- **One search field, and it is the site's.** Scalar's is disabled in both views; `ApiSearchIndex.astro` feeds the operations into Pagefind so a single search covers guides and endpoints. Index only the default view — both render the same document, so indexing both duplicates every result.
+- **Theme `<body>` too, not just Scalar's containers.** Scalar stamps its theme class on `<body>` and paints a background from it; miss it and dark mode shows white seams wherever Scalar's own surfaces don't cover the page.
 - **The sidebar's operation list is generated, not written.** `src/lib/openapi-sidebar.mjs` builds it from the spec at build time using Scalar's own navigation builder, so the anchors match the IDs the reference assigns. Don't hand-derive those hashes — the slug rules are non-obvious (webhook punctuation is stripped, not hyphenated) and would drift on upgrade.
 
 `@scalar/astro` still declares Astro `^4 || ^5` as a peer, so `package.json` carries an `overrides` entry pinning it to the project's Astro. Remove it once upstream widens the range.

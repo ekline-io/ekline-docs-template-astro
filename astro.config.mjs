@@ -6,18 +6,22 @@ import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import { openApiSidebarGroup } from './src/lib/openapi-sidebar.mjs';
+import { apiReference, defaultView, routeFor } from './src/config/api-reference.mjs';
 
-// Every operation in `public/openapi.yaml`, as Starlight sidebar links pointing
+// Every operation in the OpenAPI document, as Starlight sidebar links pointing
 // into the rendered reference. Regenerated on every build, so swapping in your
-// own OpenAPI document updates the sidebar with no config changes here.
+// own document updates the sidebar with nothing to change here.
 //
-// Pointed at the embedded route, because that is the one that keeps Starlight's
-// sidebar on screen — `/api/` uses the `splash` template and hides it, leaving
-// Scalar's own sidebar to do the navigating. See `wiki/api-reference.md`.
+// Everything about the reference — the document, which views are built, what
+// they are called — lives in `src/config/api-reference.mjs`. Edit that, not
+// this. See `wiki/api-reference.md`.
 const apiReferenceSidebar = await openApiSidebarGroup({
-	spec: './public/openapi.yaml',
-	base: '/api/embedded/',
-	label: 'API reference',
+	spec: apiReference.spec,
+	// The default view: the one served at `/api/`, and the only one guaranteed
+	// to exist whatever a customer has enabled.
+	base: routeFor(defaultView),
+	label: apiReference.sidebarLabel,
+	badges: apiReference.sidebarBadges,
 });
 
 // https://astro.build/config
@@ -90,9 +94,10 @@ export default defineConfig({
 				//
 				// The group below is generated from the spec (see the import at the
 				// top of this file), so it lists every operation grouped by tag and
-				// needs no maintenance when the document changes.
+				// needs no maintenance when the document changes. Readers switch
+				// between views from the control on the page itself, so the other
+				// views are deliberately not repeated here.
 				apiReferenceSidebar,
-				{ label: 'API reference (full width)', link: '/api/' },
 				{
 					label: 'Changelog',
 					slug: 'changelog',

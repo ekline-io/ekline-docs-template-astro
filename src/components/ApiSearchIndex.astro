@@ -1,0 +1,61 @@
+---
+/**
+ * Makes the API's operations findable through the site's own search.
+ *
+ * Starlight searches with Pagefind, which indexes the HTML a page ships. Scalar
+ * renders the entire reference in the browser, so as far as Pagefind is
+ * concerned the API pages are blank — searching "create a payment" finds the
+ * guides that mention it and never the endpoint itself.
+ *
+ * This emits one server-rendered heading per operation, so Pagefind has real
+ * content to index. Each heading's `id` is the anchor Scalar assigns that
+ * operation, which is what lets Pagefind return it as a sub-result linking
+ * straight to the operation rather than to the top of the reference.
+ *
+ * The block is visually hidden but not hidden from Pagefind: `display: none`
+ * would be, and `aria-hidden` keeps it out of the accessibility tree, since the
+ * same operations are already reachable through the sidebar and through
+ * Scalar's own navigation. It exists for the indexer.
+ */
+import { openApiOperations } from '../lib/openapi-sidebar.mjs';
+import { apiReference } from '../config/api-reference.mjs';
+
+const operations = await openApiOperations({ spec: apiReference.spec });
+---
+
+{
+	operations.length > 0 && (
+		<div class="ek-api-search-index" aria-hidden="true">
+			{operations.map((operation) => (
+				<Fragment>
+					<h2 id={operation.anchor}>{operation.title}</h2>
+					<p>
+						{operation.isWebhook ? 'Webhook' : operation.method} · {operation.tag} ·
+						API reference
+					</p>
+				</Fragment>
+			))}
+		</div>
+	)
+}
+
+<style>
+	/*
+	 * The standard visually-hidden pattern: off-screen for readers, still present
+	 * in the markup for Pagefind, and zero-height so it cannot affect layout.
+	 *
+	 * Deliberately *not* `display: none` — Pagefind skips content hidden that way,
+	 * which would defeat the whole point of the block.
+	 */
+	.ek-api-search-index {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
+	}
+</style>

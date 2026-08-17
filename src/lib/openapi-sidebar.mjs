@@ -100,6 +100,54 @@ async function loadDocument(specPath) {
 }
 
 /**
+ * Every operation and webhook in the document, flattened.
+ *
+ * Shared by the sidebar and the search index so both describe the same set from
+ * the same source — a sidebar listing an operation that search cannot find (or
+ * the reverse) is the kind of drift nobody notices until a reader reports it.
+ *
+ * @param {object} options
+ * @param {string} options.spec Path to the OpenAPI document on disk.
+ * @returns Operations with the anchor each one lives at. Empty if the document
+ *   cannot be read — callers render nothing rather than failing the build.
+ */
+export async function openApiOperations({ spec }) {
+	let document;
+	try {
+		document = await loadDocument(spec);
+	} catch {
+		// `openApiSidebarGroup` warns about the same document on the same build;
+		// repeating it here would just double every message.
+		return [];
+	}
+
+	try {
+		const navigation = createNavigation(DOCUMENT_NAME, document, {});
+		const operations = [];
+
+		for (const tag of navigation.children ?? []) {
+			if (tag.type !== 'tag') continue;
+
+			for (const child of walk(tag.children)) {
+				if (!LINKABLE.has(child.type)) continue;
+				operations.push({
+					title: child.title ?? child.name,
+					method: child.method ? String(child.method).toUpperCase() : '',
+					/** Anchor within the reference, without the leading `#`. */
+					anchor: String(child.id).slice(DOCUMENT_NAME.length + 1),
+					tag: tag.title ?? tag.name,
+					isWebhook: child.type === 'webhook',
+				});
+			}
+		}
+
+		return operations;
+	} catch {
+		return [];
+	}
+}
+
+/**
  * Build a Starlight sidebar group from an OpenAPI document.
  *
  * @param {object} options
