@@ -1,0 +1,671 @@
+# =============================================================================
+# Example Admin API — the template's second placeholder OpenAPI document.
+#
+# This one is rendered in the FULL-WIDTH view, at `/api/admin/`, so the template
+# shows both layouts without needing a switcher control. Delete whichever of the
+# two you don't want — see `wiki/api-reference.md`.
+#
+# It is deliberately a different shape from `openapi.yaml`: many small
+# operations across several tags, with plain schemas. That is the case the
+# full-width layout exists for — Scalar's own sidebar carries the navigation and
+# stays quick with a long operation list, where an expanded Starlight tree would
+# not.
+# =============================================================================
+openapi: 3.1.0
+
+info:
+  title: Example Admin API
+  version: '2026-08-01'
+  summary: Manage users, teams, roles, API keys, and the audit log.
+  description: |
+    The **Example Admin API** is a placeholder document shipped with this
+    documentation template, alongside the [Example Payments API](/api/).
+
+    Where the payments document shows how Scalar renders a dense API — nested
+    schemas, discriminated unions, webhooks — this one shows the opposite shape:
+    a wide, flat surface of small CRUD operations. It is rendered full-width so
+    Scalar's own sidebar does the navigating.
+
+    ## Authentication
+
+    All requests use a bearer token scoped to an organisation. Admin tokens can
+    modify access for every member, so treat them as you would a root password.
+
+    ## Pagination
+
+    List endpoints return a `page` of results with a `total`. Pass `page` and
+    `per_page` to walk them.
+  contact:
+    name: Developer support
+    url: https://example.com/support
+    email: api@example.com
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: https://api.example.com/admin/v1
+    description: Production
+  - url: https://api.sandbox.example.com/admin/v1
+    description: Sandbox
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Users
+    description: People with access to the organisation.
+  - name: Teams
+    description: Groups of users that permissions can be granted to as a unit.
+  - name: Roles
+    description: Named sets of permissions.
+  - name: API keys
+    description: Machine credentials, scoped and revocable.
+  - name: Audit log
+    description: An append-only record of who changed what.
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Users
+  # ---------------------------------------------------------------------------
+  /users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      summary: List users
+      description: Returns every user in the organisation, including invited-but-not-yet-active ones.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: status
+          in: query
+          description: Filter by account status.
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: A page of users.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      operationId: inviteUser
+      tags: [Users]
+      summary: Invite a user
+      description: |
+        Sends an invitation email. The user is created immediately with status
+        `invited` and becomes `active` when they accept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: ada@example.com
+                role_id:
+                  type: string
+                  description: Role to grant on acceptance. Defaults to the organisation's default role.
+                  example: rol_2KpL9wX4tR7qN3mB
+      responses:
+        '201':
+          description: The invitation was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: A user with that email already exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /users/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      operationId: getUser
+      tags: [Users]
+      summary: Retrieve a user
+      responses:
+        '200':
+          description: The requested user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      operationId: updateUser
+      tags: [Users]
+      summary: Update a user
+      description: Changes a user's name or role. Email addresses cannot be changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Ada Lovelace
+                role_id:
+                  type: string
+                  example: rol_2KpL9wX4tR7qN3mB
+      responses:
+        '200':
+          description: The updated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    delete:
+      operationId: removeUser
+      tags: [Users]
+      summary: Remove a user
+      description: |
+        Revokes access immediately. The user's audit-log entries are retained —
+        removing someone does not erase what they did.
+      responses:
+        '204':
+          description: The user was removed.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------------------------
+  # Teams
+  # ---------------------------------------------------------------------------
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [Teams]
+      summary: List teams
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: A page of teams.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Team'
+
+    post:
+      operationId: createTeam
+      tags: [Teams]
+      summary: Create a team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: Platform
+      responses:
+        '201':
+          description: The team was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+
+  /teams/{team_id}/members:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: tem_5tR8mK3wQ7nX2vLp
+    put:
+      operationId: replaceTeamMembers
+      tags: [Teams]
+      summary: Replace team members
+      description: |
+        Sets the team's membership to exactly the users given. Anyone not in the
+        list is removed from the team — this is a replace, not a merge.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_ids]
+              properties:
+                user_ids:
+                  type: array
+                  items:
+                    type: string
+                  example: [usr_9RxK2mVqL4pNzT8w, usr_4hK9mQ2xR7tL1nBv]
+      responses:
+        '200':
+          description: The updated team.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+
+  # ---------------------------------------------------------------------------
+  # Roles
+  # ---------------------------------------------------------------------------
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [Roles]
+      summary: List roles
+      responses:
+        '200':
+          description: Every role defined in the organisation.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+
+    post:
+      operationId: createRole
+      tags: [Roles]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, permissions]
+              properties:
+                name:
+                  type: string
+                  example: Billing admin
+                permissions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Permission'
+      responses:
+        '201':
+          description: The role was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+  /roles/{role_id}:
+    parameters:
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: rol_2KpL9wX4tR7qN3mB
+    delete:
+      operationId: deleteRole
+      tags: [Roles]
+      summary: Delete a role
+      description: Fails if any user still holds the role. Reassign them first.
+      responses:
+        '204':
+          description: The role was deleted.
+        '409':
+          description: The role is still assigned to at least one user.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ---------------------------------------------------------------------------
+  # API keys
+  # ---------------------------------------------------------------------------
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [API keys]
+      summary: List API keys
+      description: Returns key metadata only. The secret is shown once, at creation.
+      responses:
+        '200':
+          description: The organisation's API keys.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+
+    post:
+      operationId: createApiKey
+      tags: [API keys]
+      summary: Create an API key
+      description: |
+        The response contains the only copy of the secret you will ever receive.
+        Store it before closing the response — it cannot be retrieved again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                  example: CI deploy key
+                scopes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Permission'
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: Optional expiry. Keys without one never expire.
+      responses:
+        '201':
+          description: The key was created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiKey'
+                  - type: object
+                    properties:
+                      secret:
+                        type: string
+                        description: Shown once. Never returned again.
+                        example: sk_live_4hK9mQ2xR7tL1nBv
+
+  /api-keys/{key_id}:
+    parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: key_7YtQ3nR8kM2xW5vZ
+    delete:
+      operationId: revokeApiKey
+      tags: [API keys]
+      summary: Revoke an API key
+      description: Takes effect immediately. In-flight requests using the key will fail.
+      responses:
+        '204':
+          description: The key was revoked.
+
+  # ---------------------------------------------------------------------------
+  # Audit log
+  # ---------------------------------------------------------------------------
+  /audit-log:
+    get:
+      operationId: listAuditEvents
+      tags: [Audit log]
+      summary: List audit events
+      description: |
+        Returns events newest first. The log is append-only and retained for
+        13 months; entries cannot be edited or deleted through the API.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: actor_id
+          in: query
+          description: Only events performed by this user.
+          schema:
+            type: string
+        - name: action
+          in: query
+          description: Only events of this kind.
+          schema:
+            type: string
+            examples: [user.invited, role.deleted, api_key.revoked]
+      responses:
+        '200':
+          description: A page of audit events.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEvent'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Admin token
+      description: |
+        An organisation-scoped admin token.
+
+        ```http
+        Authorization: Bearer sk_live_4hK9mQ2xR7tL1nBv
+        ```
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: 1-indexed page number.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPage:
+      name: per_page
+      in: query
+      description: Results per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      description: Identifier of the user.
+      schema:
+        type: string
+      example: usr_9RxK2mVqL4pNzT8w
+
+  schemas:
+    Page:
+      type: object
+      description: Envelope returned by paginated list endpoints.
+      properties:
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 25
+        total:
+          type: integer
+          description: Total matching records across all pages.
+          example: 137
+
+    UserStatus:
+      type: string
+      description: |
+        | Status | Meaning |
+        | --- | --- |
+        | `invited` | Invitation sent, not yet accepted |
+        | `active` | Has access |
+        | `suspended` | Access revoked, account retained |
+      enum: [invited, active, suspended]
+
+    Permission:
+      type: string
+      description: A single capability that a role or key can grant.
+      enum:
+        - users:read
+        - users:write
+        - teams:read
+        - teams:write
+        - roles:write
+        - billing:read
+        - billing:write
+        - audit:read
+
+    User:
+      type: object
+      required: [id, email, status]
+      properties:
+        id:
+          type: string
+          readOnly: true
+          example: usr_9RxK2mVqL4pNzT8w
+        email:
+          type: string
+          format: email
+          example: ada@example.com
+        name:
+          type: [string, 'null']
+          example: Ada Lovelace
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        role_id:
+          type: [string, 'null']
+          example: rol_2KpL9wX4tR7qN3mB
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    Team:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          readOnly: true
+          example: tem_5tR8mK3wQ7nX2vLp
+        name:
+          type: string
+          example: Platform
+        member_count:
+          type: integer
+          readOnly: true
+          example: 8
+
+    Role:
+      type: object
+      required: [id, name, permissions]
+      properties:
+        id:
+          type: string
+          readOnly: true
+          example: rol_2KpL9wX4tR7qN3mB
+        name:
+          type: string
+          example: Billing admin
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        is_default:
+          type: boolean
+          description: Granted to new users when an invitation names no role.
+          default: false
+
+    ApiKey:
+      type: object
+      required: [id, name, scopes]
+      properties:
+        id:
+          type: string
+          readOnly: true
+          example: key_7YtQ3nR8kM2xW5vZ
+        name:
+          type: string
+          example: CI deploy key
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+
+    AuditEvent:
+      type: object
+      required: [id, action, created_at]
+      properties:
+        id:
+          type: string
+          example: aud_6nR2kW9qM4tX7vLp
+        action:
+          type: string
+          example: api_key.revoked
+        actor_id:
+          type: [string, 'null']
+          description: The user who performed the action. `null` for system events.
+          example: usr_9RxK2mVqL4pNzT8w
+        target_id:
+          type: [string, 'null']
+          description: The resource the action was performed on.
+          example: key_7YtQ3nR8kM2xW5vZ
+        created_at:
+          type: string
+          format: date-time
+
+    Problem:
+      type: object
+      description: An error, in [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) format.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: https://example.com/problems/conflict
+        title:
+          type: string
+          example: Conflict
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: The token is missing, malformed, or revoked.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    NotFound:
+      description: No resource exists with that identifier.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

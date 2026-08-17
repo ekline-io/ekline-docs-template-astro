@@ -1,0 +1,384 @@
+---
+/**
+ * Scalar API reference, wired into the Starlight shell.
+ *
+ * Wraps Scalar's official Astro integration (`@scalar/astro`) so the two
+ * candidate layouts in `src/pages/api/` share one configuration and one set of
+ * theme bridges. See `/wiki/api-reference.md` for the customer-facing guide.
+ *
+ * Two things here are load-bearing and easy to break:
+ *
+ *   1. `renderMode="client"`. Scalar's default `static` mode pre-renders a full
+ *      HTML document whose bootstrap script only runs on a hard page load. This
+ *      template mounts `<ClientRouter />` (see `CustomHead.astro`), so with the
+ *      default mode the reference renders blank after any in-site navigation
+ *      until the visitor manually refreshes. Scalar's own source names Starlight
+ *      as the reason this mode exists.
+ *
+ *   2. The dark-mode bridge below. Scalar's `darkMode` option only seeds the
+ *      *initial* state, and the reference keeps its own theme class on its root
+ *      element. Starlight's header toggle writes `data-theme` on `<html>`, so
+ *      without the observer the two halves of the page disagree the moment a
+ *      visitor touches the toggle.
+ *
+ * Docs: https://scalar.com/products/api-references/integrations/astro
+ */
+import { ScalarComponent } from '@scalar/astro';
+
+interface Props {
+	/**
+	 * Path to the OpenAPI document. Served as a static asset from `public/`, so
+	 * customers swap one file rather than touching component code.
+	 */
+	url?: string;
+	/**
+	 * Whether Scalar renders its own operation sidebar.
+	 *
+	 * `true` on the standalone layout, where Scalar owns navigation entirely.
+	 * Set `false` when the page already shows Starlight's sidebar, so visitors
+	 * aren't given two competing navigation trees.
+	 */
+	showSidebar?: boolean;
+	/**
+	 * Which view is rendering this reference. Surfaced as a data attribute so
+	 * each view's layout CSS can target itself precisely — both views render the
+	 * same component, so a selector on `.ek-scalar` alone would style whichever
+	 * page loaded the stylesheet last.
+	 */
+	layout?: 'docs' | 'full';
+}
+
+const { url = '/openapi.yaml', showSidebar = true, layout = 'docs' } = Astro.props;
+
+/**
+ * Built as a standalone binding rather than inlined into the component call.
+ *
+ * `agent` is a real, shipped Scalar option, but it is newer than the
+ * `HtmlRenderingConfiguration` type in the installed `@scalar/types`. Passed as
+ * a fresh object literal it would trip TypeScript's excess-property check and
+ * fail `astro check` for anyone who runs it — a bad first impression on a
+ * template. Assigning through a variable skips that check without casting the
+ * configuration to `any`, so every other key stays type-checked.
+ */
+const configuration = {
+	url,
+	showSidebar,
+
+	// The site's own search covers the API, in both views.
+	//
+	// Scalar ships a search over the operations, but a docs site with two search
+	// fields — one for the prose, one for the reference, neither saying which —
+	// makes the reader guess. Starlight's Pagefind search is the one that stays,
+	// and `ApiSearchIndex.astro` feeds the operations into its index so a single
+	// search covers guides and endpoints alike.
+	hideSearch: true,
+
+	// Inherit the site's Inter / JetBrains Mono rather than pulling Scalar's own
+	// webfonts over the network — one type system, one less render-blocking
+	// request.
+	withDefaultFonts: false,
+
+	// Starlight's header already owns the theme toggle. Scalar's would be a
+	// second control for the same setting, and the two would disagree.
+	hideDarkModeToggle: true,
+
+	// Belt and braces on the keyboard shortcut.
+	//
+	// Starlight binds Cmd/Ctrl+K to site search, and Scalar's default is `k`.
+	// `hideSearch` above should stop Scalar binding at all, but that is its
+	// choice to make, not ours — moving it off `k` means one chord cannot open
+	// two dialogs even if a future version binds regardless.
+	//
+	// `as const` on this and the two below: Scalar types them as string-literal
+	// unions, and assigning through a variable (see above) widens a bare literal
+	// to `string`, which the union rejects. The assertion keeps the narrow type
+	// without weakening the check — a typo here is still a compile error.
+	searchHotKey: 'j' as const,
+
+	// Scalar's platform chrome — "Developer Tools", "Configure", "Share",
+	// "Deploy" — belongs to scalar.com, not to a customer's docs site. Both
+	// default to `localhost`, so they are invisible in production but sit across
+	// the top of the reference for anyone running the template locally, which is
+	// exactly when a customer is deciding whether to adopt it. `never` makes
+	// local and deployed builds look the same.
+	showToolbar: 'never' as const,
+	showDeveloperTools: 'never' as const,
+
+	// Drop the "Open API Client" link from the request modal.
+	//
+	// It opens scalar.com's hosted client in a new tab, and the URL it builds
+	// carries `utm_source=api-reference`, `utm_medium=button` and a campaign tag
+	// — it is an attribution link into Scalar's product, not a feature of the
+	// customer's documentation. The embedded client stays: "Test Request" still
+	// opens it in place, which is the part readers actually want.
+	hideClientButton: true,
+
+	// Turn off Scalar's "Ask AI" assistant by default.
+	//
+	// Opening it states: "By messaging Agent Scalar your OpenAPI document will be
+	// temporarily uploaded to Scalar's servers. You must agree to our Terms and
+	// Privacy Policy." A template cannot make that call on a customer's behalf —
+	// plenty of customers will point this at an unreleased or internal API, and
+	// the customer's own readers would be the ones asked to accept a third
+	// party's terms.
+	//
+	// Off is the reversible default: a customer who wants the assistant deletes
+	// this line. Left on, the only way to discover the upload is to click the
+	// button in production. Turning it off also removes the "Generate MCP"
+	// button, which belongs to the same feature.
+	agent: { disabled: true },
+
+	// The example spec has a single tag group open by default so the page
+	// doesn't land as one long undifferentiated wall of operations.
+	defaultOpenAllTags: false,
+};
+---
+
+<div class="ek-scalar" data-ek-scalar data-ek-scalar-layout={layout}>
+	<ScalarComponent renderMode="client" configuration={configuration} />
+</div>
+
+<script>
+	/**
+	 * Mirror Starlight's theme onto the Scalar reference.
+	 *
+	 * Starlight's toggle sets `data-theme="dark" | "light"` on `<html>`. Scalar
+	 * styles itself from `.dark-mode` / `.light-mode` classes on its own root, and
+	 * its `darkMode` config option is read once at mount — so nothing propagates a
+	 * later toggle. Rewriting those classes restyles the reference in place, with
+	 * no remount and no flash.
+	 *
+	 * Runs on first mount and again after every view transition, since
+	 * `<ClientRouter />` replaces the document and Scalar remounts underneath it.
+	 */
+	const SCALAR_ROOTS = '.scalar-app, .scalar-api-reference, [data-ek-scalar] > div';
+
+	function applyTheme() {
+		const onReferencePage = !!document.querySelector('[data-ek-scalar]');
+		const isDark = document.documentElement.dataset.theme === 'dark';
+
+		const roots = [...document.querySelectorAll<HTMLElement>(SCALAR_ROOTS)];
+
+		// `<body>` too. Scalar stamps its own theme class there — not only on its
+		// containers — and its stylesheet paints a background from it. Miss this
+		// and the body keeps whatever theme Scalar mounted with, so in dark mode
+		// every strip of page Scalar does not paint over itself stays white.
+		//
+		// Only while a reference is on the page, though. This also runs on
+		// `astro:page-load`, which fires for navigations *away* from the API
+		// routes, and leaving Scalar's class on an ordinary prose page keeps its
+		// background rule matching after the rule that compensates for it
+		// (`html body:has([data-ek-scalar])`) has stopped.
+		if (onReferencePage) {
+			roots.push(document.body);
+		} else {
+			document.body.classList.remove('dark-mode', 'light-mode');
+		}
+
+		for (const root of roots) {
+			root.classList.toggle('dark-mode', isDark);
+			root.classList.toggle('light-mode', !isDark);
+		}
+	}
+
+	/**
+	 * Scalar mounts asynchronously (it fetches its bundle from a CDN), so the
+	 * elements we need to restyle do not exist yet when this script first runs.
+	 * Observing the container covers both the initial mount and any later
+	 * re-render, and re-applying on `data-theme` changes covers the toggle.
+	 */
+	function watch() {
+		applyTheme();
+
+		const container = document.querySelector('[data-ek-scalar]');
+		if (!container) return;
+
+		new MutationObserver(applyTheme).observe(container, {
+			childList: true,
+			subtree: true,
+		});
+
+		new MutationObserver(applyTheme).observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-theme'],
+		});
+	}
+
+	watch();
+	document.addEventListener('astro:page-load', watch);
+</script>
+
+<style is:global>
+	/*
+	 * Theme bridge: map Scalar's design tokens onto the site's own palette so the
+	 * reference reads as part of this site rather than an embedded third-party
+	 * widget. Scalar exposes a documented `--scalar-*` custom-property API for
+	 * exactly this, which is why none of it reaches into Scalar's internal class
+	 * names — those are not a stable contract.
+	 *
+	 * Starlight's `--sl-color-*` props already flip with the theme, so pointing
+	 * Scalar's tokens at them makes both halves of the page track the toggle from
+	 * a single source.
+	 *
+	 * Specificity note — the doubled class is deliberate. Scalar defines these
+	 * same properties on `.scalar-app` (and again on `.scalar-app.dark-mode`)
+	 * from a stylesheet it injects into `<head>` at runtime, i.e. after Astro's.
+	 * Declaring ours on the `.ek-scalar` wrapper alone loses twice over: a
+	 * definition on the element itself beats an inherited one, and matching
+	 * Scalar's specificity still loses the source-order tie. `.scalar-app.scalar-app`
+	 * clears both without reaching for `!important`.
+	 */
+	.ek-scalar,
+	.ek-scalar .scalar-app.scalar-app {
+		--scalar-font: var(--sl-font, var(--font-sans));
+		--scalar-font-code: var(--sl-font-mono, var(--font-mono));
+
+		--scalar-background-1: var(--sl-color-bg);
+		--scalar-background-2: var(--sl-color-bg-nav);
+		--scalar-background-3: var(--sl-color-gray-6);
+
+		--scalar-color-1: var(--sl-color-white);
+		--scalar-color-2: var(--sl-color-gray-2);
+		--scalar-color-3: var(--sl-color-gray-3);
+		--scalar-color-accent: var(--sl-color-text-accent);
+		--scalar-background-accent: color-mix(
+			in srgb,
+			var(--sl-color-text-accent) 12%,
+			transparent
+		);
+
+		--scalar-border-color: var(--sl-color-hairline);
+
+		/* Match the 12px rounding used by cards and code blocks elsewhere. */
+		--scalar-radius: 0.5rem;
+		--scalar-radius-lg: 0.75rem;
+	}
+
+	/*
+	 * Drop the "Powered by Scalar" links.
+	 *
+	 * Two of them: one in the sidebar footer, one in the API client's empty
+	 * state. Both point at scalar.com and both open in a new tab, which sends a
+	 * reader out of the customer's documentation and onto a vendor's marketing
+	 * site from what looks like part of the docs.
+	 *
+	 * Scalar is MIT licensed. That requires the copyright notice to travel with
+	 * the source — which it does, in `node_modules` and in the CDN bundle — not
+	 * an attribution badge in rendered output, so removing these is within the
+	 * licence. To put them back, delete this rule.
+	 *
+	 * Matched on the destination rather than a class, because the classes here
+	 * are Tailwind utilities (`no-underline hover:underline`) that carry no
+	 * meaning and change freely. The link's target is the thing being removed,
+	 * so it is also the stable thing to select on. Upstream renders these as the
+	 * fallback of a `description` slot, which the CDN bundle gives us no way to
+	 * override.
+	 */
+	.ek-scalar a[href*='scalar.com'] {
+		display: none;
+	}
+
+	/*
+	 * Let Scalar's API client cover the page.
+	 *
+	 * "Test Request" opens a full-screen client. Scalar builds it correctly — a
+	 * `position: fixed; inset: 0` overlay under a wrapper carrying
+	 * `z-index: 10000` — but Starlight sets `isolation: isolate` on `.main-pane`,
+	 * which makes that pane a stacking context. Every z-index inside it, however
+	 * large, is then resolved *within* the pane, while Starlight's own fixed
+	 * sidebar (`z-index: 5`) and header (`z-index: 10`) sit in the root stacking
+	 * context and paint over the whole thing. The result is a dialog with its
+	 * left column hidden behind the sidebar and the page still visible around it.
+	 *
+	 * Dropping the isolation lets the overlay resolve against the root context
+	 * and cover the page as intended.
+	 *
+	 * Scoped to `.scalar-client--open`, the class Scalar puts on its container
+	 * while the client is open, so ordinary browsing keeps Starlight's isolation
+	 * exactly as upstream ships it — and the page keeps the protection it is
+	 * there for, that content cannot paint over the fixed header and sidebar.
+	 *
+	 * The `:has()` re-evaluates when that class appears, even though its subject
+	 * is an ancestor of the element that changed; verified in the browser, not
+	 * assumed.
+	 */
+	html body:has(.scalar-client--open) .main-pane {
+		isolation: auto;
+	}
+
+	/*
+	 * The page background stays the site's, not Scalar's.
+	 *
+	 * Scalar stamps its theme class on `<body>` and paints a background from it —
+	 * its own near-black in dark mode, which is a different colour from
+	 * Starlight's slate. Anywhere Scalar's own surfaces do not cover the page,
+	 * the two meet as a visible seam.
+	 *
+	 * `html body` rather than `body` on purpose: Scalar's `body.dark-mode` rule
+	 * matches with the same specificity, and its stylesheet is injected into
+	 * `<head>` at runtime — after Astro's — so an equal-specificity rule would
+	 * lose the source-order tie.
+	 */
+	html body:has([data-ek-scalar]) {
+		background-color: var(--sl-color-bg);
+	}
+
+	/*
+	 * Drop the "Copy page" contextual-menu cluster on API reference routes.
+	 *
+	 * `@ekline/starlight-contextual-menu` offers Copy / View / Open in Claude /
+	 * Open in ChatGPT, all of which resolve to the page's Markdown twin. Neither
+	 * API route has one — the content is an OpenAPI document rendered in the
+	 * browser, so there is no server-rendered Markdown to link to and every
+	 * action would hand over an empty page. Scalar's own "Download OpenAPI
+	 * Document" link is the useful equivalent, and it is already on the page.
+	 *
+	 * The cluster is injected by a deferred script, and on narrow viewports it
+	 * lands above the reference rather than beside a title, which is where it is
+	 * most obviously wrong.
+	 */
+	body:has([data-ek-scalar]) .contextual-menu-container {
+		display: none;
+	}
+
+	/*
+	 * Light-mode contrast corrections.
+	 *
+	 * Measured with a WCAG audit over every rendered text node on this route, in
+	 * both themes. Dark mode passes clean; light mode had six failures, all small
+	 * text (10–14px), where the minimum is 4.5:1:
+	 *
+	 *   method badge blue    3.60  →  4.63
+	 *   method badge green   3.60  →  4.64
+	 *   JSON number orange   2.90  →  4.61
+	 *   muted label grey     4.35  →  4.63
+	 *
+	 * The binding background is `--sl-color-gray-6` (the panel fill), which is
+	 * darker than white and so scores lower than the same text on the page body.
+	 * Each replacement was solved by dropping HSL lightness only, so the hue —
+	 * and the blue-GET / green-POST convention readers rely on — is unchanged.
+	 *
+	 * The greys stay expressed as Starlight props so they still follow a
+	 * customer's palette. The method and syntax colours are Scalar's own
+	 * semantics with no Starlight equivalent, so they are literal values.
+	 */
+	:root[data-theme='light'] .ek-scalar .scalar-app.scalar-app {
+		--scalar-color-3: var(--sl-color-gray-2);
+		--scalar-color-blue: #0073b9;
+		--scalar-color-green: #007f50;
+		--scalar-color-orange: #c44300;
+	}
+
+	/*
+	 * Scalar ships its own scroll container sized to the viewport. Inside the
+	 * Starlight shell that produces a second scrollbar nested in the page's own —
+	 * the reference scrolls independently of the header, and a trackpad flick near
+	 * the boundary scrolls whichever container the cursor happens to be over.
+	 * Letting it size to content hands scrolling back to the page.
+	 */
+	.ek-scalar .scalar-app,
+	.ek-scalar .scalar-api-reference {
+		height: auto;
+		min-height: 0;
+	}
+</style>

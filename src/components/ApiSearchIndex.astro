@@ -1,0 +1,62 @@
+---
+/**
+ * Makes an API's operations findable through the site's own search.
+ *
+ * Starlight searches with Pagefind, which indexes the HTML a page ships. Scalar
+ * renders the entire reference in the browser, so as far as Pagefind is
+ * concerned the API pages are blank — searching "create a payment" finds the
+ * guides that mention it and never the endpoint itself.
+ *
+ * This emits one server-rendered heading per operation, so Pagefind has real
+ * content to index. Each heading's `id` is the anchor Scalar assigns that
+ * operation, which is what lets Pagefind return it as a sub-result linking
+ * straight to the operation rather than to the top of the reference.
+ *
+ * Rendered once per reference, each with its own document, so every API in
+ * `src/config/api-reference.mjs` is searchable and none is indexed twice.
+ *
+ * `display: none` specifically, not the usual clip-based visually-hidden
+ * pattern. Pagefind reads the HTML a page ships and does not evaluate CSS, so
+ * it indexes this either way — but the browser does evaluate CSS, and a clipped
+ * element still has a box. These headings own the very anchors the URL hash
+ * uses (Scalar names its own rendered sections `api-1/…`), so with a box they
+ * become the target of every fragment navigation: following a search result
+ * would scroll the reader to a 1px sliver while Scalar separately scrolled to
+ * the real operation. With no box there is nothing to scroll to, and Scalar's
+ * router is left to do its job.
+ *
+ * `aria-hidden` keeps the block out of the accessibility tree as well — the
+ * same operations are already reachable through the sidebar and Scalar's own
+ * navigation. It exists for the indexer.
+ */
+import { openApiOperations } from '../lib/openapi-sidebar.mjs';
+
+interface Props {
+	/** Path to this reference's OpenAPI document on disk. */
+	spec: string;
+}
+
+const { spec } = Astro.props;
+const operations = await openApiOperations({ spec });
+---
+
+{
+	operations.length > 0 && (
+		<div class="ek-api-search-index" aria-hidden="true">
+			{operations.map((operation) => (
+				<Fragment>
+					<h2 id={operation.anchor}>{operation.title}</h2>
+					<p>
+						{operation.isWebhook ? 'Webhook' : operation.method} · {operation.tag}
+					</p>
+				</Fragment>
+			))}
+		</div>
+	)
+}
+
+<style>
+	.ek-api-search-index {
+		display: none;
+	}
+</style>

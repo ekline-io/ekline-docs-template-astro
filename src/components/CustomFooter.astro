@@ -20,9 +20,15 @@ import eklineMark from '../assets/ekline-mark.svg';
 		padding-top: 1.25rem;
 		border-top: 1px solid var(--sl-color-gray-5);
 		font-size: var(--sl-text-xs);
-		color: var(--sl-color-gray-4);
+		/* `gray-3`, at full opacity, for legibility.
+		 *
+		 * This credit was `gray-4` at 85% opacity, which measured 2.63:1 in light
+		 * and 2.35:1 in dark — well under the 4.5:1 WCAG AA minimum for text this
+		 * small, and it appears on every page of the site. Stacking a
+		 * partial opacity on an already-muted grey is what pushed it under; the
+		 * credit still reads as secondary without it. */
+		color: var(--sl-color-gray-3);
 		text-align: center;
-		opacity: 0.85;
 		display: flex;
 		align-items: center;
 		justify-content: center;

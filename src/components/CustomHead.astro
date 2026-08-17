@@ -12,8 +12,9 @@
  *      at `<page>.md`). Well-behaved AI crawlers (GPTBot, ClaudeBot, …) use
  *      the `<link rel="alternate">` convention to discover non-HTML
  *      representations of a page. The plugin's component only emits the tag
- *      for pages that actually have a markdown twin (filters out virtual
- *      entries from e.g. `starlight-openapi`).
+ *      for pages that actually have a markdown twin, so custom routes with no
+ *      Markdown source — such as the Scalar API reference under `/api/` — are
+ *      skipped automatically.
  *
  * Docs:
  *   https://docs.astro.build/en/guides/view-transitions/

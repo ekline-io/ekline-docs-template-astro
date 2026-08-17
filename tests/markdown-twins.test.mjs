@@ -3,10 +3,14 @@
  *
  *   1. Every real docs page emits a `<link rel="alternate" type="text/markdown">`.
  *   2. Every alternate href resolves to a real `.md` file in `dist/`.
- *   3. Auto-generated / virtual pages (e.g. starlight-openapi `/api/**`) do
- *      NOT emit the alternate link.
+ *   3. Custom routes with no Markdown source (the Scalar API reference under
+ *      `/api/**`) do NOT emit the alternate link.
  *   4. Every `.md` file has well-formed content (non-empty, leading `#`).
- *   5. The OpenAPI virtual pages do NOT have a `.md` sibling in `dist/`.
+ *   5. Those same API reference routes have no `.md` sibling in `dist/`.
+ *
+ * On (3) and (5): the `/api/**` routes are `.astro` pages that render an
+ * OpenAPI document in the browser via Scalar. There is no Markdown behind them
+ * to serve, so advertising a twin would point crawlers at a 404.
  *
  * Run after `npm run build`:  `node --test tests/markdown-twins.test.mjs`
  *
@@ -15,12 +19,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-	existsSync,
-	readFileSync,
-	readdirSync,
-	statSync,
-} from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
@@ -34,17 +33,6 @@ function* walk(dir, predicate) {
 		if (entry.isDirectory()) yield* walk(p, predicate);
 		else if (predicate(entry.name, p)) yield p;
 	}
-}
-
-function urlForHtml(htmlPath) {
-	// dist/index.html       -> /
-	// dist/foo/index.html   -> /foo/
-	// dist/404.html         -> /404/  (Astro emits 404 at file level)
-	const rel = relative(DIST, htmlPath).split(sep).join('/');
-	if (rel === 'index.html') return '/';
-	if (rel.endsWith('/index.html'))
-		return '/' + rel.slice(0, -'index.html'.length);
-	return '/' + rel.replace(/\.html$/, '/');
 }
 
 function urlToDistPath(href) {
@@ -151,7 +139,7 @@ test('every emitted .md file is non-empty and starts with `# `', () => {
 	);
 });
 
-test('OpenAPI virtual pages have NO .md sibling in dist/', () => {
+test('OpenAPI routes have NO .md sibling in dist/', () => {
 	const offending = mdFiles
 		.map((p) => relative(DIST, p))
 		.filter((p) => p.startsWith('api' + sep) || p.startsWith('api.md'));

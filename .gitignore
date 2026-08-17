@@ -22,3 +22,9 @@ pnpm-debug.log*
 
 # Playwright MCP browser snapshots/logs
 .playwright-mcp/
+
+# Playwright visual regression artifacts (baselines under
+# tests/visual/__screenshots__ are committed; these are not)
+test-results/
+playwright-report/
+blob-report/

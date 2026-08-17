@@ -37,7 +37,12 @@ Once the Astro/Starlight project is scaffolded, the standard commands will be:
 - `npm run dev` — start the dev server (default http://localhost:4321)
 - `npm run build` — production build to `./dist/`
 - `npm run preview` — preview the production build locally
-- `npm run astro -- <cmd>` — run Astro CLI commands (e.g. `astro check` for type/content diagnostics)
+- `npm run check` — type-check (`astro check`); must stay at zero errors, CI gates on it
+- `npm test` — build, then assert against the output; no browser required
+- `npm run test:visual` — browser tests for the API reference (`npx playwright install chromium` first)
+- `npm run astro -- <cmd>` — run Astro CLI commands
+
+CI (`.github/workflows/ci.yml`) runs `check`, `test`, and `test:visual:ci` on every PR. The screenshot comparisons are excluded there because their baselines are macOS-only; run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
 
 These follow the defaults from `npm create astro@latest`. If/when the scripts in `package.json` diverge from these, update this section.
 
@@ -58,4 +63,22 @@ Component overrides (Starlight's "Overriding Components" mechanism) go in `src/c
 
 - **`@astrojs/sitemap`** — emits `sitemap-index.xml` + `sitemap-0.xml` on build. Requires `site` to be set.
 - **`starlight-llms-txt`** — emits `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt` on build for AI assistant consumption. Configure `projectName`, `description`, and optionally `customSets` / `promote` in `astro.config.mjs`. Docs: https://github.com/delucis/starlight-llms-txt
+- **`@scalar/astro`** — renders the API references declared in `src/config/api-reference.mjs`. This is an *Astro component*, not a Starlight plugin, so the routes are real pages under `src/pages/api/` and there is nothing in the `plugins` array. Shared config lives in `src/components/ScalarApiReference.astro`. Docs: https://scalar.com/products/api-references/integrations/astro
+
+## API reference
+
+All of it is configured from [`src/config/api-reference.mjs`](src/config/api-reference.mjs) — a list of references, each with its own OpenAPI document, route, layout and label. Routes, sidebar and search index are derived from that list; change it rather than the files it feeds.
+
+The template ships two example APIs, one per layout (`docs` at `/api/`, `full` at `/api/admin/`), so both are visible on real content. A customer deletes the one they don't need. There is deliberately no reader-facing control for switching layouts — that is meta-UI about the docs rather than docs.
+
+Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/`, `src/components/ScalarApiReference.astro`, or `src/lib/openapi-sidebar.mjs`. These constraints are easy to break and not obvious from the code:
+
+- **`renderMode="client"` is required.** The template mounts `<ClientRouter />`; Scalar's default `static` mode renders blank after any client-side navigation.
+- **Scalar's product surfaces stay off.** The agent (uploads the customer's document to Scalar's servers), the "Open API Client" link (UTM-tagged, opens scalar.com), the "Powered by Scalar" links, and the platform toolbar. The embedded client stays — that is the useful part. Each is one line to restore; see the table in `wiki/api-reference.md`.
+- **Theme through `--scalar-*` custom properties only.** Scalar's internal class names are not a stable API.
+- **One search field, and it is the site's.** Scalar's is disabled everywhere; `ApiSearchIndex.astro` feeds each reference's operations into Pagefind under its own route, so a single search covers guides and endpoints and every result lands on the page that renders it.
+- **Theme `<body>` too, not just Scalar's containers.** Scalar stamps its theme class on `<body>` and paints a background from it; miss it and dark mode shows white seams wherever Scalar's own surfaces don't cover the page.
+- **The sidebar's operation list is generated, not written.** `src/lib/openapi-sidebar.mjs` builds it from the spec at build time using Scalar's own navigation builder, so the anchors match the IDs the reference assigns. Don't hand-derive those hashes — the slug rules are non-obvious (webhook punctuation is stripped, not hyphenated) and would drift on upgrade.
+
+`@scalar/astro` still declares Astro `^4 || ^5` as a peer, so `package.json` carries an `overrides` entry pinning it to the project's Astro. Remove it once upstream widens the range.
 
