@@ -22,7 +22,9 @@ jobs:
   test:
     name: Check, build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A healthy run is ~2 minutes. Tight enough that a stall is caught early
+    # rather than burning a quarter-hour of runner time.
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v7
@@ -42,17 +44,32 @@ jobs:
       - name: Build and test
         run: npm test
 
-      # Cached separately from npm: the browser download is ~150MB and changes
-      # only when the Playwright version does.
+      # Keyed on the Playwright version, not the lockfile.
+      #
+      # The browser download is ~150MB and only ever changes when Playwright
+      # does. Hashing `package-lock.json` threw the cache away on every
+      # unrelated dependency bump and re-downloaded it for nothing.
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       # Runs even on a cache hit: the cache holds the browser, but `--with-deps`
-      # also installs the OS libraries it needs, which are not part of it.
+      # also installs the OS libraries it needs via apt, and those do not
+      # survive between runs.
+      #
+      # Normally 12–26s. One run stalled here for 10 minutes — an apt mirror
+      # having a bad day, not anything in this repo — and ate most of the job
+      # budget before the tests even started. The timeout turns a repeat of that
+      # into a fast, obvious failure worth re-running, rather than a job that
+      # looks hung.
       - name: Install Chromium
+        timeout-minutes: 4
         run: npx playwright install --with-deps chromium
 
       # `--grep-invert @screenshot`, via `test:visual:ci`.
