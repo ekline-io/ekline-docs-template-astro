@@ -79,6 +79,10 @@ Run all commands from the project root in a terminal.
 
 All of these run on every pull request via [`.github/workflows/ci.yml`](.github/workflows/ci.yml), except the screenshot comparisons — those are macOS-only baselines and stay a local check. See [`wiki/api-reference.md`](./wiki/api-reference.md).
 
+## Changelog
+
+Notable changes are recorded in [`CHANGELOG.md`](./CHANGELOG.md). The template is something you fork rather than install, so use it to decide whether a change is worth pulling across into a site you have already customised.
+
 ## Learn more
 
 - [Starlight docs](https://starlight.astro.build/) — sidebar, components, content schema, theming.
