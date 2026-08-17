@@ -5,6 +5,20 @@ import sitemap from '@astrojs/sitemap';
 import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
+import { openApiSidebarGroup } from './src/lib/openapi-sidebar.mjs';
+
+// Every operation in `public/openapi.yaml`, as Starlight sidebar links pointing
+// into the rendered reference. Regenerated on every build, so swapping in your
+// own OpenAPI document updates the sidebar with no config changes here.
+//
+// Pointed at the embedded route, because that is the one that keeps Starlight's
+// sidebar on screen — `/api/` uses the `splash` template and hides it, leaving
+// Scalar's own sidebar to do the navigating. See `wiki/api-reference.md`.
+const apiReferenceSidebar = await openApiSidebarGroup({
+	spec: './public/openapi.yaml',
+	base: '/api/embedded/',
+	label: 'API reference',
+});
 
 // https://astro.build/config
 export default defineConfig({
@@ -74,16 +88,11 @@ export default defineConfig({
 				// than in a Starlight plugin — Scalar renders the whole reference
 				// itself, so there are no per-operation pages to autogenerate.
 				//
-				// Two candidate layouts ship side by side while we settle on one;
-				// see `/wiki/api-reference.md`. Drop the `embedded` entry once the
-				// standalone layout is confirmed as canonical.
-				{
-					label: 'API',
-					items: [
-						{ label: 'API reference', link: '/api/' },
-						{ label: 'API reference (embedded)', link: '/api/embedded/' },
-					],
-				},
+				// The group below is generated from the spec (see the import at the
+				// top of this file), so it lists every operation grouped by tag and
+				// needs no maintenance when the document changes.
+				apiReferenceSidebar,
+				{ label: 'API reference (full width)', link: '/api/' },
 				{
 					label: 'Changelog',
 					slug: 'changelog',

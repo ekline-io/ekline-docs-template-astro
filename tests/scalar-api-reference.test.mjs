@@ -71,6 +71,69 @@ test('the reference mounts in client mode', () => {
 	}
 });
 
+/**
+ * Anchors the generated sidebar to the exact hashes Scalar assigns.
+ *
+ * `src/lib/openapi-sidebar.mjs` builds the sidebar with Scalar's own navigation
+ * builder, so both sides normally move together. This pins the result anyway:
+ * these four values were read out of a live browser, off the reference's own
+ * sidebar, and they cover the cases where the rules are least obvious —
+ * punctuation stripped from a webhook name rather than hyphenated, and path
+ * templates keeping their braces.
+ *
+ * If a Scalar upgrade changes the scheme, every sidebar link would otherwise
+ * still render and simply stop scrolling anywhere. This turns that silent
+ * breakage into a failed build.
+ */
+const KNOWN_ANCHORS = [
+	// Plain collection endpoint.
+	'/api/embedded/#tag/payments/GET/payments',
+	// Path template — braces are preserved, not encoded or slugified.
+	'/api/embedded/#tag/payments/POST/payments/{payment_id}/capture',
+	// Webhook — the dot in `payment.succeeded` is dropped, not turned into a dash.
+	'/api/embedded/#tag/payments/webhook/POST/paymentsucceeded',
+	// Tag slug is lowercased from the tag name in the document.
+	'/api/embedded/#tag/disputes/POST/disputes/{dispute_id}/evidence',
+];
+
+test('the sidebar lists operations generated from the OpenAPI document', () => {
+	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
+	const links = html.match(/href="\/api\/embedded\/#[^"]+"/g) ?? [];
+
+	assert.ok(
+		links.length >= 10,
+		`expected the generated sidebar to link every operation, found ${links.length}`
+	);
+});
+
+test('generated sidebar anchors match the hashes Scalar assigns', () => {
+	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
+
+	for (const anchor of KNOWN_ANCHORS) {
+		assert.ok(
+			html.includes(`href="${anchor}"`),
+			`sidebar is missing "${anchor}".\n` +
+				`  Scalar's ID scheme may have changed — re-derive it from the rendered ` +
+				`sidebar and update src/lib/openapi-sidebar.mjs, or these links will ` +
+				`render but scroll nowhere.`
+		);
+	}
+});
+
+test('operation links carry their HTTP method as a badge', () => {
+	const html = readFileSync(join(DIST, 'api/embedded/index.html'), 'utf-8');
+	assert.match(html, /sl-badge[^"]*"[^>]*>GET</, 'no GET badge in the sidebar');
+	assert.match(html, /sl-badge[^"]*"[^>]*>POST</, 'no POST badge in the sidebar');
+});
+
+test('the operation list is reachable from ordinary docs pages', () => {
+	// The sidebar is global, so a reader on a prose page can jump straight to an
+	// endpoint instead of finding the reference first and searching inside it.
+	const html = readFileSync(join(DIST, 'get-started/quickstart/index.html'), 'utf-8');
+	const links = html.match(/href="\/api\/embedded\/#[^"]+"/g) ?? [];
+	assert.ok(links.length >= 10, `expected operations in the global sidebar, found ${links.length}`);
+});
+
 test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// Opening it uploads the customer's OpenAPI document to Scalar's servers and
 	// asks the reader to accept Scalar's terms. A template must not default to

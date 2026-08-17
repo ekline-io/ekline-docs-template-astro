@@ -11,7 +11,7 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 So you don't have to set these up yourself:
 
 - **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [`wiki/theming.md`](./wiki/theming.md).
-- **Interactive API reference** at `/api/`, rendered by [Scalar](https://scalar.com/) from `public/openapi.yaml` — schemas, examples, and a built-in client for sending real requests. See [`wiki/api-reference.md`](./wiki/api-reference.md).
+- **Interactive API reference** rendered by [Scalar](https://scalar.com/) from `public/openapi.yaml` — schemas, examples, and a built-in client for sending real requests. Every operation is listed in the docs sidebar, generated from your spec on each build. See [`wiki/api-reference.md`](./wiki/api-reference.md).
 - **Sitemap** auto-generated on build (`sitemap-index.xml` + `sitemap-0.xml`).
 - **`llms.txt`** for AI assistants — `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt`.
 - **Full-text search** out of the box (Starlight ships [Pagefind](https://pagefind.app/)).

@@ -408,17 +408,81 @@ header.header > div.header {
 	opacity: 1;
 }
 
-/* ── OpenAPI method pills ──────────────────────────────────────────────────
+/* ── OpenAPI method badges in the sidebar ──────────────────────────────────
  *
- * Nothing here any more. The API reference is rendered by Scalar, which draws
- * its own method badges and already sets them in the mono face at a small,
- * tracked-out size — the treatment this block used to apply to
- * `starlight-openapi`'s badges.
+ * The API reference group is generated from the OpenAPI document (see
+ * `src/lib/openapi-sidebar.mjs`), and each operation carries a Starlight
+ * `badge` with its HTTP method.
  *
- * Scalar's own theming lives with the component, in
- * `src/components/ScalarApiReference.astro`, because it is expressed through
- * Scalar's `--scalar-*` custom properties rather than by restyling elements.
+ * Two fixes on Starlight's defaults:
+ *
+ *   1. Layout. The sidebar anchor is `display: block`, so the badge flows
+ *      inline after the label and a two-line operation name ("Capture an
+ *      authorized payment") drops its badge onto a line of its own, leaving a
+ *      ragged column. A flex row pins the badge to the top-right instead, and
+ *      keeps it from shrinking when the label is long.
+ *
+ *   2. Weight. Starlight's badges are solid fills, which is right for a lone
+ *      "New" or "Deprecated" but shouts when twenty of them stack down a
+ *      sidebar. Tinted text on a faint wash of the same hue keeps the
+ *      verb-colour cue — blue reads, green creates, red destroys — while
+ *      letting the operation names stay the thing you scan.
+ *
+ * `color-mix` on `currentColor` means each variant tints itself, so this stays
+ * correct if Starlight adds or recolours a badge variant.
  */
+.sidebar-content a:has(> .sl-badge) {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.sidebar-content a > .sl-badge {
+	flex: none;
+	/* Nudge down so the badge sits on the label's first-line baseline. */
+	margin-top: 0.15em;
+	font-family: var(--sl-font-mono);
+	font-size: 0.625rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	line-height: 1.4;
+	padding-inline: 0.3rem;
+	border-radius: 0.25rem;
+	border-color: transparent;
+}
+
+/* Each variant paints itself from Starlight's own hue pair: `-low` is the pale
+ * surface, `-high` the readable ink, and both are redefined per theme, so this
+ * stays legible in dark mode without a second set of rules.
+ *
+ * Tinting `currentColor` instead looks tempting and is wrong — Starlight sets
+ * these badges' text to white for their solid fills, so a `currentColor` wash
+ * renders white-on-white and the badges disappear. */
+.sidebar-content a > .sl-badge.note {
+	color: var(--sl-color-blue-high);
+	background-color: var(--sl-color-blue-low);
+}
+
+.sidebar-content a > .sl-badge.success {
+	color: var(--sl-color-green-high);
+	background-color: var(--sl-color-green-low);
+}
+
+.sidebar-content a > .sl-badge.caution {
+	color: var(--sl-color-orange-high);
+	background-color: var(--sl-color-orange-low);
+}
+
+.sidebar-content a > .sl-badge.danger {
+	color: var(--sl-color-red-high);
+	background-color: var(--sl-color-red-low);
+}
+
+.sidebar-content a > .sl-badge.default {
+	color: var(--sl-color-gray-2);
+	background-color: var(--sl-color-gray-6);
+}
 
 /* ── LinkCard hover motion ────────────────────────────────────────────────
  *

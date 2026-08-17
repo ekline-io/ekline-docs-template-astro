@@ -68,6 +68,7 @@ Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything u
 - **The Scalar agent stays disabled.** Enabling it uploads the customer's OpenAPI document to Scalar's servers and asks their readers to accept Scalar's terms.
 - **Theme through `--scalar-*` custom properties only.** Scalar's internal class names are not a stable API.
 - **One search field per layout.** Hide Starlight's search *button*, never the `<site-search>` host — the host also contains the dialog that Cmd/Ctrl+K opens.
+- **The sidebar's operation list is generated, not written.** `src/lib/openapi-sidebar.mjs` builds it from the spec at build time using Scalar's own navigation builder, so the anchors match the IDs the reference assigns. Don't hand-derive those hashes — the slug rules are non-obvious (webhook punctuation is stripped, not hyphenated) and would drift on upgrade.
 
 `@scalar/astro` still declares Astro `^4 || ^5` as a peer, so `package.json` carries an `overrides` entry pinning it to the project's Astro. Remove it once upstream widens the range.
 

@@ -21,20 +21,31 @@ The placeholder spec is deliberately dense — multiple auth schemes, discrimina
 
 > A test asserts that the document is emitted and that each route actually references it. Without that, renaming the file still produces a clean build and only 404s once a visitor loads the page.
 
+## Operations in the docs sidebar
+
+The sidebar group under **API reference** is generated from your OpenAPI document at build time: one collapsible group per tag, one link per operation and webhook, each badged with its HTTP method. Replace `public/openapi.yaml` and it regenerates — there is nothing to maintain in `astro.config.mjs`.
+
+Because Starlight's sidebar is global, those links are present on every page, so a reader on a guide can jump straight to an endpoint instead of finding the reference first and searching inside it.
+
+The highlight follows the reader: clicking an operation, deep-linking to one, or simply scrolling past it moves the sidebar's active row, because Scalar keeps the URL hash in step with the section in view.
+
+The generator lives in [`src/lib/openapi-sidebar.mjs`](../src/lib/openapi-sidebar.mjs). Two details matter if you touch it:
+
+- **It uses Scalar's own navigation builder** (`createNavigation` from `@scalar/workspace-store`) rather than deriving anchors itself. Each link is an anchor into the rendered reference, so its hash must match the ID Scalar assigns — including how it slugifies tags and strips punctuation from webhook names (`payment.succeeded` becomes `paymentsucceeded`, the dot dropped rather than hyphenated). Sharing Scalar's builder means both sides move together on `npm update` instead of drifting apart silently. A test pins four representative anchors so a change fails the build rather than leaving links that scroll nowhere.
+- **It never fails the build.** A missing, malformed, or empty spec degrades to a single link to the reference plus a warning on stderr.
+
 ## Two layouts
 
-Both are built so you can compare them on your own content:
-
-| Route | Chrome | Navigation |
+| Route | Chrome | Operation navigation |
 | --- | --- | --- |
-| `/api/` | Starlight header only (`splash` template) | Scalar's operation sidebar |
-| `/api/embedded/` | Full Starlight page | Starlight's docs sidebar |
+| `/api/embedded/` | Full Starlight page | Starlight's sidebar — shared with the rest of the docs |
+| `/api/` | Starlight header only (`splash` template) | Scalar's own sidebar, plus its operation search |
 
-**`/api/` is the recommended default.** Scalar's sidebar lists every operation, grouped by tag, with method badges — which is the navigation an API reference actually needs. Starlight's sidebar has one entry for the whole reference, so on `/api/embedded/` a reader looking for a specific endpoint has to scroll to find it. The gap widens with every operation you add.
+**`/api/embedded/` is the better default for most sites.** The docs and the API share one navigation tree, so the reference reads as part of the documentation rather than a separate destination, and there is no second sidebar competing with Starlight's.
 
-`/api/embedded/` is kept because the trade is real: it keeps the docs sidebar on screen, so the reference reads as one more docs page instead of a separate destination. If your API is small, that continuity may be worth more than operation-level navigation.
+`/api/` is worth keeping if your spec is very large or you want Scalar's search over operations: Scalar owns the full width there, and its sidebar is virtualised, which handles hundreds of operations more gracefully than a fully-expanded Starlight tree.
 
-**To ship only one**, delete the other route file and its sidebar entry in `astro.config.mjs`.
+**To ship only one**, delete the other route file and its entry in `astro.config.mjs`. If you drop `/api/embedded/`, also point `openApiSidebarGroup`'s `base` at `/api/` — the generated links follow whichever route you keep.
 
 ## Things worth knowing before you change the component
 

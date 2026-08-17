@@ -32,6 +32,123 @@ import ScalarApiReference from '../../components/ScalarApiReference.astro';
 	<ScalarApiReference showSidebar={false} hideSearch={true} layout="embedded" />
 </StarlightPage>
 
+<script>
+	/**
+	 * Keep the sidebar's highlight on the operation currently in view.
+	 *
+	 * Starlight decides which sidebar link is current by comparing pathnames, so
+	 * every generated operation link — all of which share this route and differ
+	 * only by hash — resolves to "not current", and the highlight sits on
+	 * "Overview" no matter how far you have scrolled.
+	 *
+	 * Scalar rewrites `location.hash` as you scroll or click, so mirroring that
+	 * onto `aria-current` gives the sidebar a live position. `aria-current` is
+	 * also what the sidebar's own styling already keys off, so the active row
+	 * looks the same here as anywhere else in the site — and it stays correct
+	 * for assistive tech, which is what the attribute is actually for.
+	 */
+	const SIDEBAR_LINKS = '.sidebar-content a[href*="#"]';
+	/** The plain link to the top of the reference, current only when no operation is. */
+	const OVERVIEW_LINK = `.sidebar-content a[href="${location.pathname}"]`;
+
+	/**
+	 * Compare hashes by their decoded form.
+	 *
+	 * Operation anchors contain path templates like `/payments/{payment_id}`, and
+	 * the two sides spell those braces differently: `HTMLAnchorElement.hash`
+	 * percent-encodes them, while `location.hash` — which Scalar writes directly
+	 * — keeps them literal. Raw string comparison therefore misses every
+	 * parameterised operation, which is most of a real API.
+	 */
+	const decodedHash = (value: string) => {
+		try {
+			return decodeURIComponent(value);
+		} catch {
+			return value;
+		}
+	};
+
+	function syncActiveOperation() {
+		const hash = decodedHash(location.hash);
+
+		const match = [...document.querySelectorAll<HTMLAnchorElement>(SIDEBAR_LINKS)].find(
+			(link) => link.pathname === location.pathname && decodedHash(link.hash) === hash
+		);
+
+		for (const link of document.querySelectorAll<HTMLAnchorElement>(SIDEBAR_LINKS)) {
+			link.toggleAttribute('aria-current', false);
+			if (link === match) link.setAttribute('aria-current', 'page');
+		}
+
+		// Hand "Overview" back the highlight when we are above the first operation,
+		// and take it away once one is in view — otherwise two rows look current.
+		const overview = document.querySelector<HTMLAnchorElement>(OVERVIEW_LINK);
+		if (overview) {
+			if (match) overview.removeAttribute('aria-current');
+			else overview.setAttribute('aria-current', 'page');
+		}
+
+		// Reveal the active row: its tag group is collapsed by default, so without
+		// this the highlight lands inside a closed <details>.
+		if (match) {
+			const group = match.closest('details');
+			if (group && !group.open) group.open = true;
+		}
+	}
+
+	/**
+	 * Re-check on scroll as well as on `hashchange`.
+	 *
+	 * `hashchange` alone misses almost everything that matters here: Scalar moves
+	 * the location with `history.pushState`, both when a link is followed and
+	 * when its scroll-spy notices a new operation coming into view, and
+	 * `pushState` fires no event at all. Watching the scroll position catches
+	 * both cases, and turns the highlight into a live indicator that follows the
+	 * reader down the page rather than only updating on clicks.
+	 *
+	 * Throttled to one check per animation frame, and the DOM is only touched
+	 * when the hash actually changed, so this stays cheap on a long document.
+	 */
+	let lastHash: string | null = null;
+	let queued = false;
+	let settleTimer: ReturnType<typeof setTimeout>;
+
+	function check() {
+		if (location.hash === lastHash) return;
+		lastHash = location.hash;
+		syncActiveOperation();
+	}
+
+	function scheduleSync() {
+		if (!queued) {
+			queued = true;
+			requestAnimationFrame(() => {
+				queued = false;
+				check();
+			});
+		}
+
+		// Trailing check once scrolling stops.
+		//
+		// Scalar writes the final hash *after* the last scroll event of a smooth
+		// scroll, so a frame-coalesced check alone always settles one operation
+		// behind: it reads the hash mid-flight, and nothing fires again to
+		// correct it. This catches the value Scalar lands on.
+		clearTimeout(settleTimer);
+		settleTimer = setTimeout(check, 200);
+	}
+
+	function start() {
+		lastHash = null;
+		scheduleSync();
+	}
+
+	start();
+	addEventListener('hashchange', scheduleSync);
+	addEventListener('scroll', scheduleSync, { passive: true });
+	document.addEventListener('astro:page-load', start);
+</script>
+
 <style is:global>
 	/*
 	 * Reclaim the reading-column width cap for this route.
