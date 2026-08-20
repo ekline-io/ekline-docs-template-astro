@@ -187,6 +187,20 @@ static directory instead of hardcoding `dist/`. Public pages remain
 prerendered and CDN-served on Vercel; only `/private/**` and `/auth/**`
 execute server-side.
 
+## Local development loop (must keep working, zero config)
+
+- `npm run dev` with no env vars: public docs behave exactly as today;
+  `/private/**` renders the dev-only setup page. No configuration required
+  to start working on the template.
+- To exercise login locally, the mock SSO server (built for the Playwright
+  suite) doubles as the dev login: run it and set `DOCS_SSO_URL` plus the
+  test secrets in `.env`. This is a supported, documented workflow, not a
+  test-only tool.
+- `npm run preview`, `npm test`, and Playwright all run against the Node
+  adapter locally, which is why the adapter is env-selected.
+- Unchanged pre-existing quirk: search does not work under `astro dev`
+  (Pagefind indexes at build time only).
+
 ## Error handling summary
 
 | Condition | Behavior |
