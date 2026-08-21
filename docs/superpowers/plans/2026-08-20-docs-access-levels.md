@@ -555,8 +555,8 @@ export const collections = {
 	// docsSchema() so frontmatter is identical to public docs.
 	privateDocs: defineCollection({
 		// `orgs/` is reserved: /private/orgs/** is the org-docs URL space, so a
-		// same-named folder here would be unreachable. Excluded to fail loudly
-		// in `npm test` (leak tests) rather than silently 404.
+		// same-named folder here would be unreachable. Content placed there is
+		// dropped from this collection rather than shadowing a real org route.
 		loader: glob({ pattern: ['**/[^_]*.{md,mdx}', '!orgs/**'], base: './src/content/private-docs' }),
 		schema: docsSchema(),
 	}),
@@ -751,32 +751,47 @@ git commit -m "refactor: extract the public sidebar into shared config, add logi
 - Create: `src/lib/sidebar-items.mjs`
 - Test: `tests/sidebar-items.test.mjs`
 
-**Scope note — read this first.** An earlier draft of this plan had these
-builders also expanding `slug` shorthand and `autogenerate` into explicit
-links, on the belief that `<StarlightPage>`'s `sidebar` prop accepted only
-`{ label, link }` objects. **That is wrong.** Verified against the installed
-Starlight 0.39 source on 2026-08-20:
+**Scope note — read this first.** An earlier draft had these builders also
+expanding `slug` shorthand and `autogenerate` into explicit links, believing
+`<StarlightPage>`'s `sidebar` prop accepted only `{ label, link }` objects.
+**That is wrong.** Verified against the installed Starlight 0.39 source:
 
 - `utils/starlight-page.ts:89` types the prop as `StarlightUserConfig['sidebar']`
-  — the exact same type as `astro.config.mjs`'s `sidebar`.
+  — the same type as `astro.config.mjs`'s `sidebar`.
 - `utils/starlight-page.ts:114` passes it through `validateSidebarProp` →
   `SidebarItemSchema.array()`, then `getSidebarFromConfig`.
 - `schemas/sidebar.ts:127-140` shows `SidebarItemSchema` is a union of
-  `SidebarLinkItemSchema` (`{label, link}`), `ManualSidebarGroupSchema`
-  (`{label, items}`, nested), `AutoSidebarEntriesSchema` (`{autogenerate}`),
-  `InternalSidebarLinkItemSchema` (`{label, slug}`) and
-  `InternalSidebarLinkItemShorthandSchema` (a bare slug string).
+  `{label, link}`, `{label, items}` (nested), `{autogenerate}`,
+  `{label, slug}` and a bare slug string.
 
-So config-shaped sidebar data can be handed to `<StarlightPage>` untouched,
-and Starlight expands `autogenerate` with its own tree walker — which handles
+So config-shaped sidebar data goes to `<StarlightPage>` untouched, and
+Starlight expands `autogenerate` with its own tree walker — which handles
 nested directories, `sidebar.order`, index pages and badges correctly. A
-hand-rolled expander would be ~50 lines of duplicated logic that silently
-drifts from Starlight's on upgrade. **Do not write one.**
+hand-rolled expander would duplicate that logic and drift from it on upgrade.
+**Do not write one.**
 
 What still needs building: private and org docs are **not** in the `docs`
 collection, so neither `slug` shorthand nor `autogenerate` can reach them.
-Their groups must be built as explicit `{ label, link }` items. That is all
-this module does.
+Their groups must be built as explicit `{ label, link }` items.
+
+**Entry ids — measured in Task 5, not assumed.** Astro derives a collection
+entry id by stripping the extension and then applying
+`.replace(/\/index$/, '')` (`astro/dist/content/utils.js:264-278`). The regex
+needs a *leading* slash, which produces one asymmetry worth pinning down:
+
+| File | id |
+| --- | --- |
+| `private-docs/index.mdx` | `index` ← collection root keeps it |
+| `private-docs/example-private-guide.mdx` | `example-private-guide` |
+| `private-docs/guides/index.mdx` | `guides` |
+| `org-docs/acme/index.mdx` | **`acme`** ← not `acme/index` |
+| `org-docs/acme/setup.mdx` | `acme/setup` |
+| `org-docs/acme/deep/index.mdx` | `acme/deep` |
+
+Two consequences the code below depends on: ids never end in `/index`, so
+nothing needs to strip that suffix; and an org's landing page id is the org
+slug exactly, so a filter of `id.startsWith(org + '/')` would **miss the
+landing page of every org**. Match `id === org` as well.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -792,6 +807,9 @@ import {
 } from '../src/lib/sidebar-items.mjs';
 
 // Minimal shape of an astro:content entry, as the real code consumes it.
+// Ids follow the real derivation rule measured in Task 5: a collection-root
+// `index.mdx` keeps the id `index`; a nested `index.mdx` collapses to its
+// parent directory, so `org-docs/acme/index.mdx` is `acme`.
 const entry = (id, title, sidebar = {}) => ({ id, data: { title, sidebar } });
 
 test('entriesToItems sorts by order then id, honours sidebar.label, skips hidden', () => {
@@ -814,23 +832,24 @@ test('entries without an order sort by id, after ordered ones', () => {
 	);
 });
 
-test('privateLinkFor maps index to the section root', () => {
+test('privateLinkFor maps the collection-root index to the section root', () => {
 	assert.equal(privateLinkFor(entry('index', 'X')), '/private/');
 	assert.equal(privateLinkFor(entry('guide', 'X')), '/private/guide/');
-	assert.equal(privateLinkFor(entry('deep/nested/index', 'X')), '/private/deep/nested/');
+	// Astro already collapsed `guides/index.mdx` to `guides`.
+	assert.equal(privateLinkFor(entry('guides', 'X')), '/private/guides/');
 });
 
-test('orgLinkFor strips the org prefix and maps index to the org root', () => {
-	assert.equal(orgLinkFor('acme')(entry('acme/index', 'Acme docs')), '/private/orgs/acme/');
+test('orgLinkFor maps the org landing page to the org root', () => {
+	assert.equal(orgLinkFor('acme')(entry('acme', 'Acme docs')), '/private/orgs/acme/');
 	assert.equal(orgLinkFor('acme')(entry('acme/workflow', 'W')), '/private/orgs/acme/workflow/');
-	assert.equal(orgLinkFor('acme')(entry('acme/a/index', 'W')), '/private/orgs/acme/a/');
+	assert.equal(orgLinkFor('acme')(entry('acme/deep', 'W')), '/private/orgs/acme/deep/');
 });
 
-test('orgGroup builds a group from the org subtree, labelled by its index page', () => {
+test('orgGroup includes the landing page and is labelled by it', () => {
 	const orgEntries = [
-		entry('acme/index', 'Acme docs'),
+		entry('acme', 'Acme docs'),
 		entry('acme/workflow', 'Custom workflow'),
-		entry('globex/index', 'Globex docs'),
+		entry('globex', 'Globex docs'),
 	];
 	assert.deepEqual(orgGroup('acme', orgEntries), {
 		label: 'Acme docs',
@@ -841,7 +860,7 @@ test('orgGroup builds a group from the org subtree, labelled by its index page',
 	});
 });
 
-test('orgGroup falls back to the slug when the org has no index page', () => {
+test('orgGroup falls back to the slug when the org has no landing page', () => {
 	assert.deepEqual(orgGroup('acme', [entry('acme/workflow', 'Custom workflow')]), {
 		label: 'acme',
 		items: [{ label: 'Custom workflow', link: '/private/orgs/acme/workflow/' }],
@@ -850,11 +869,17 @@ test('orgGroup falls back to the slug when the org has no index page', () => {
 
 test('orgGroup returns null when the org has no content', () => {
 	assert.equal(orgGroup('nonexistent', []), null);
-	assert.equal(orgGroup('acme', [entry('globex/index', 'Globex docs')]), null);
+	assert.equal(orgGroup('acme', [entry('globex', 'Globex docs')]), null);
 });
 
 test('orgGroup does not match an org whose slug is a prefix of another', () => {
-	const entries = [entry('acme-labs/index', 'Acme Labs'), entry('acme/index', 'Acme')];
+	// The bug this guards: `acme-labs`.startsWith('acme') is true, so a naive
+	// prefix test would put one customer's pages in another's sidebar.
+	const entries = [
+		entry('acme-labs', 'Acme Labs'),
+		entry('acme-labs/secret', 'Labs secret'),
+		entry('acme', 'Acme'),
+	];
 	assert.deepEqual(orgGroup('acme', entries), {
 		label: 'Acme',
 		items: [{ label: 'Acme', link: '/private/orgs/acme/' }],
@@ -878,14 +903,22 @@ Expected: FAIL — cannot find module `src/lib/sidebar-items.mjs`.
  * sidebar is handed to `<StarlightPage>` in the same config shape
  * `astro.config.mjs` uses — the prop is typed `StarlightUserConfig['sidebar']`
  * and validated by Starlight's own `SidebarItemSchema`, so `slug` shorthand
- * and `autogenerate` work there untouched, expanded by Starlight's tree
- * walker. Re-implementing that walk here would duplicate ordering, nesting
- * and index-page rules that are Starlight's to define.
+ * and `autogenerate` work there untouched. Re-implementing that walk here
+ * would duplicate ordering, nesting and index-page rules that are
+ * Starlight's to define.
  *
  * Private and org docs are the exception, and the reason this file exists:
  * they live outside the `docs` collection (that is the security boundary —
  * see wiki/private-docs.md), so nothing Starlight autogenerates can reach
  * them and their links must be built explicitly.
+ *
+ * ## Entry ids
+ *
+ * Astro strips the extension and then applies `.replace(/\/index$/, '')`.
+ * The leading slash in that regex is why a collection-root `index.mdx` keeps
+ * the id `index` while a nested one collapses to its parent directory. So
+ * `org-docs/acme/index.mdx` is `acme`, not `acme/index`, and no id ever ends
+ * in `/index`. Both facts are load-bearing below.
  *
  * Everything here takes entries as arguments rather than importing
  * `astro:content`, so it runs under `node --test`.
@@ -899,9 +932,6 @@ const byOrderThenId = (a, b) =>
 
 const labelOf = (entry) => entry.data.sidebar?.label ?? entry.data.title;
 
-/** `'a/b/index'` → `'a/b'`; `'index'` → `''`. */
-const withoutIndex = (id) => (id === 'index' ? '' : id.replace(/(^|\/)index$/, ''));
-
 /** Sorted `{ label, link }` items for a list of collection entries. */
 export function entriesToItems(entries, linkFor) {
 	return entries
@@ -910,32 +940,38 @@ export function entriesToItems(entries, linkFor) {
 		.map((entry) => ({ label: labelOf(entry), link: linkFor(entry) }));
 }
 
-/** Link for a `privateDocs` entry. */
-export const privateLinkFor = (entry) => {
-	const rest = withoutIndex(entry.id);
-	return rest ? `/private/${rest}/` : '/private/';
-};
+/** Link for a `privateDocs` entry. `index` is the section landing page. */
+export const privateLinkFor = (entry) =>
+	entry.id === 'index' ? '/private/' : `/private/${entry.id}/`;
 
-/** Link builder for one org's `orgDocs` entries (ids look like `acme/workflow`). */
-export const orgLinkFor = (org) => (entry) => {
-	const rest = withoutIndex(entry.id.slice(org.length + 1));
-	return rest ? `/private/orgs/${org}/${rest}/` : `/private/orgs/${org}/`;
-};
+/**
+ * Link builder for one org's `orgDocs` entries.
+ *
+ * The org's landing page has the org slug as its whole id; everything else
+ * is prefixed with `<org>/`.
+ */
+export const orgLinkFor = (org) => (entry) =>
+	entry.id === org
+		? `/private/orgs/${org}/`
+		: `/private/orgs/${org}/${entry.id.slice(org.length + 1)}/`;
 
 /**
  * Sidebar group for one org, or null if it has no content.
  *
- * Labelled by the org's index page title, so the folder name `acme` can
- * display as "Acme docs" without a separate slug→name mapping to maintain.
+ * Labelled by the org's landing page title, so the folder name `acme` can
+ * display as "Acme docs" without a separate slug-to-name mapping.
  */
 export function orgGroup(org, orgEntries) {
-	// The trailing slash matters: without it, org `acme` would also match
-	// `acme-labs/`, and one customer's sidebar would list another's pages.
-	const entries = orgEntries.filter((entry) => entry.id.startsWith(`${org}/`));
+	// `id === org` catches the landing page; the trailing slash on the prefix
+	// keeps org `acme` from swallowing `acme-labs/`, which would put one
+	// customer's pages in another customer's sidebar.
+	const entries = orgEntries.filter(
+		(entry) => entry.id === org || entry.id.startsWith(`${org}/`)
+	);
 	if (entries.length === 0) return null;
-	const index = entries.find((entry) => entry.id === `${org}/index`);
+	const landing = entries.find((entry) => entry.id === org);
 	return {
-		label: index ? index.data.title : org,
+		label: landing ? landing.data.title : org,
 		items: entriesToItems(entries, orgLinkFor(org)),
 	};
 }
@@ -1295,7 +1331,11 @@ import { buildPrivateSidebar } from '../../lib/private-sidebar.mjs';
 
 export const prerender = false;
 
-const id = Astro.params.slug ?? 'index';
+// `/private/` gives an empty rest-param, and the collection-root entry's id
+// is the literal `index` — Astro only collapses `/index` with a leading
+// slash, so the root page keeps it (measured in Task 5). Falsy, not `??`:
+// the rest param is `''` here, not undefined.
+const id = Astro.params.slug || 'index';
 const entries = await getCollection('privateDocs');
 const entry = entries.find((candidate) => candidate.id === id);
 if (!entry) {
@@ -1334,7 +1374,11 @@ import { buildPrivateSidebar } from '../../../../lib/private-sidebar.mjs';
 export const prerender = false;
 
 const { org } = Astro.params;
-const id = `${org}/${Astro.params.slug ?? 'index'}`;
+// Note the asymmetry with the private route above: an org's landing page
+// lives at `org-docs/<org>/index.mdx`, which Astro collapses to the id
+// `<org>` — so `/private/orgs/acme/` maps to `acme`, NOT `acme/index`.
+// Deeper pages join naturally: `/private/orgs/acme/setup/` → `acme/setup`.
+const id = [org, Astro.params.slug].filter(Boolean).join('/');
 const entries = await getCollection('orgDocs');
 const entry = entries.find((candidate) => candidate.id === id);
 if (!entry) {
@@ -1520,11 +1564,19 @@ test('the sentinel exists in the private source content (guards the guard)', () 
 });
 
 test('no private content anywhere in the static output', () => {
-	const leaked = walk(STATIC).filter((file) =>
-		readFileSync(file, 'utf8').includes(SENTINEL)
-	);
+	// Search bytes, not decoded text. Pagefind's index and fragments under
+	// `pagefind/` are binary; reading them as UTF-8 can mangle or skip
+	// content and pass vacuously, which is the worst possible outcome for
+	// the one test that proves the security model.
+	const needle = Buffer.from(SENTINEL);
+	const leaked = walk(STATIC).filter((file) => readFileSync(file).includes(needle));
 	assert.deepEqual(leaked, [], `private content leaked into: ${leaked.join(', ')}`);
 });
+
+// Deliberately scoped to STATIC, not all of `dist/`. Private content IS
+// present in `dist/server/` — that bundle is what renders private pages at
+// request time, and it is never served as a static asset. A test that
+// walked the whole of `dist/` would fail on correct behaviour.
 
 test('no prerendered files under /private/', () => {
 	assert.ok(!existsSync(join(STATIC, 'private')), 'static output contains a private/ directory');
