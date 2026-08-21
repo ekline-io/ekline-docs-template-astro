@@ -85,9 +85,10 @@ export default defineConfig({
 	adapter: process.env.VERCEL ? vercel() : node({ mode: 'standalone' }),
 	env: {
 		schema: {
-			// All three are read at runtime (access: 'secret'), so the same build
-			// works across environments and no secret is inlined into the bundle.
-			// Unset means auth is not configured: /private/** fails closed (404).
+			// Every entry here is read at runtime (access: 'secret'), so the same
+			// build works across environments and no secret is inlined into the
+			// bundle. Unset means auth is not configured: /private/** fails
+			// closed (404).
 			DOCS_SSO_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
 			DOCS_SSO_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
 			DOCS_SESSION_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
@@ -95,6 +96,16 @@ export default defineConfig({
 			// template's own demo deployment and for staging sites evaluating the
 			// feature — never for a site with real private content. The name is the
 			// warning; the attack it abbreviates is in wiki/private-docs.md.
+			//
+			// `string`, not `boolean`, and that is load-bearing in both directions.
+			// Only `1` and `true` count (`isDemoFlagEnabled` in
+			// `src/lib/demo-login.mjs`), so `TRUE`, `yes` and `on` stay off rather
+			// than being helpfully coerced on. Astro's boolean field would make
+			// this worse, not simpler: it accepts only `true`/`false`, so the `1`
+			// the deploy config uses becomes an *invalid* value and throws
+			// `EnvInvalidVariables` at `astro:env/server` module init — and a
+			// literal `true` would arrive as a boolean, which `isDemoFlagEnabled`
+			// rejects, taking the demo silently dark with the flag set.
 			DOCS_UNSAFE_DEMO_LOGIN: envField.string({ context: 'server', access: 'secret', optional: true }),
 		},
 	},

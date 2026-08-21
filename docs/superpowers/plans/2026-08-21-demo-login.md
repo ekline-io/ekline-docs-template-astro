@@ -372,6 +372,15 @@ git commit -m "feat: env gate for the demo login (EK-2373)"
 - Create: `src/pages/demo-login.astro`
 - Modify: `.env.test` (add the flag, so dev/preview servers started from it have the route live)
 
+> **Carried in from the Task 2 review.** `demoLoginConfigured()` returning true
+> means *configured*, not *signing will succeed*: `authConfigured()` only checks
+> that `DOCS_SSO_SECRET` is a non-empty string, so a truncated or
+> whitespace-only secret passes the gate and then fails inside `jose`. Wrap the
+> `SignJWT(...).sign()` call in a try/catch and treat a failure as a refusal —
+> log at error level and fall through to the explanation page with a 500-free
+> response. An unhandled throw here is a stack trace on the sign-in path, which
+> is precisely the failure mode `src/config/auth.mjs` argues against.
+
 - [ ] **Step 1: Add the flag to `.env.test`**
 
 Append to `.env.test`:
@@ -466,6 +475,11 @@ const state = Astro.url.searchParams.get('state');
 // into an ERR_INVALID_CHAR 500 instead of the clean refusal below.
 // A request that fails this gets the explanation page whether or not it
 // carries `?as=`; a token is only ever signed when every check passes.
+// Set when the persona and round trip were both valid but `jose` refused the
+// key, so the page below can say so instead of silently offering the picker
+// again as though nothing had happened.
+let signingFailed = false;
+
 const redirectTarget = parseDemoRedirectUri(redirectUri, Astro.url.origin);
 const roundTrip =
 	redirectTarget && typeof state === 'string' && state !== ''
@@ -480,29 +494,47 @@ if (roundTrip) {
 		// reason is worth keeping: `state` binds the token to this round trip
 		// but does not stop a stolen token being replayed; the short exp is
 		// what limits that (wiki/private-docs.md, "The SSO handoff").
-		const token = await new SignJWT({
-			email: persona.email,
-			name: persona.name,
-			orgs: persona.orgs,
-			state: roundTrip.state,
-		})
-			.setProtectedHeader({ alg: 'HS256' })
-			.setSubject(`demo-${persona.id}`)
-			.setIssuedAt()
-			.setExpirationTime('5m')
-			.sign(new TextEncoder().encode(ssoSecret));
+		// `demoLoginConfigured()` established the secret is a non-empty string,
+		// not that it is a usable key — a truncated or whitespace-only
+		// `DOCS_SSO_SECRET` passes the gate and fails here. Refuse rather than
+		// throw: an unhandled rejection on the sign-in path is a stack trace
+		// where the design calls for a clean refusal.
+		let token;
+		try {
+			token = await new SignJWT({
+				email: persona.email,
+				name: persona.name,
+				orgs: persona.orgs,
+				state: roundTrip.state,
+			})
+				.setProtectedHeader({ alg: 'HS256' })
+				.setSubject(`demo-${persona.id}`)
+				.setIssuedAt()
+				.setExpirationTime('5m')
+				.sign(new TextEncoder().encode(ssoSecret));
+		} catch (error) {
+			console.error('[demo-login] could not sign the handoff token:', error);
+			token = null;
+		}
+		if (token) {
 		// Error level on purpose: if this flag is ever on where it should not
 		// be, this line is how production logs say so.
 		console.error(
 			`[demo-login] UNSAFE demo sign-in issued a handoff token for persona "${persona.id}". ` +
 				'If this is not a demo or staging deployment, unset DOCS_UNSAFE_DEMO_LOGIN now.'
 		);
-		// A copy: `searchParams.set` mutates, and `roundTrip.redirectTarget` is
-		// read again below if this branch is ever refactored. `roundTrip`
-		// established same-origin http(s), so this cannot leave the site.
-		const target = new URL(roundTrip.redirectTarget);
-		target.searchParams.set('token', token);
-		return Astro.redirect(target.href);
+			// A copy: `searchParams.set` mutates, and `roundTrip.redirectTarget`
+			// is read again below if this branch is ever refactored.
+			// `roundTrip` established same-origin http(s), so this cannot leave
+			// the site.
+			const target = new URL(roundTrip.redirectTarget);
+			target.searchParams.set('token', token);
+			return Astro.redirect(target.href);
+		}
+		// Signing failed. Fall through to the page below, which explains the
+		// round trip — the reader sees a dead end rather than a stack trace,
+		// and the error log above names the cause.
+		signingFailed = true;
 	}
 }
 
