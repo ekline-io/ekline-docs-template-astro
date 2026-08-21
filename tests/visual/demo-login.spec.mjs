@@ -29,8 +29,6 @@
  * here too: nothing is `@screenshot`, and Playwright's `.hover()` dispatches
  * real pointer events even under mobile's touch emulation, so the prefetch
  * tests mean the same thing on both projects.
- *
- * Nothing here is tagged `@screenshot`, so all of it runs in CI.
  */
 import { test, expect } from '@playwright/test';
 
@@ -87,11 +85,37 @@ async function beginRoundTrip(page) {
 		parsed = JSON.parse(decodeURIComponent(cookie.value));
 	} catch (error) {
 		throw new Error(
-			`the state cookie is no longer JSON — see StateCookie in src/middleware.ts (${error.message})`
+			`the state cookie is no longer JSON — see StateCookie in src/middleware.ts`,
+			{ cause: error }
 		);
 	}
 	expect(parsed.state, 'the state cookie did not carry a usable nonce').toBeTruthy();
 	return parsed.state;
+}
+
+/**
+ * Collect any request that would constitute a sign-in, from now until the test
+ * stops looking. Register it *before* the hover: this observes the first
+ * effect of a prefetch rather than the last, which is the whole point — a
+ * fixed sleep waiting on a session cookie has to outlast sign → 302 → callback
+ * → `Set-Cookie`, and when it does not, it passes because nothing has happened
+ * *yet* rather than because nothing will.
+ *
+ * Parsed rather than substring-matched. `url.includes('as=')` also matches
+ * `canvas=` and `alias=`, and `includes('/auth/callback')` misses the
+ * percent-encoded `%2Fauth%2Fcallback` that appears inside the persona hrefs.
+ * Neither is reachable on this page today; parsing means neither has to be
+ * re-checked when it changes.
+ */
+function watchForSignIn(page) {
+	const leaks = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (url.searchParams.has('as') || url.pathname.endsWith('/auth/callback')) {
+			leaks.push(request.url());
+		}
+	});
+	return leaks;
 }
 
 function demoLoginUrl(params) {
@@ -120,8 +144,13 @@ test.describe('the picker', () => {
 		// `.env.test` the mock SSO endpoint auto-signs, so hovering it for real
 		// would run the whole round trip and sign the reader in with no click
 		// at all.
+		const leaks = watchForSignIn(page);
 		await privateLink.hover();
 		await page.waitForTimeout(1200);
+		// Same instrument as the persona hover below, for the same reason: the
+		// cookie check alone has to outlast the whole chain, and passes early
+		// when it does not.
+		expect(leaks, 'hovering the "private docs" link must not fire a sign-in').toEqual([]);
 		expect(
 			await sessionCookie(page),
 			'hovering the "private docs" link must not sign anyone in'
@@ -158,11 +187,7 @@ test.describe('the picker', () => {
 		// `/demo-login?as=acme&…` (the prefetch itself), then
 		// `/auth/callback?token=…` moments later — well within this test's
 		// 1200ms budget.
-		const leaks = [];
-		page.on('request', (request) => {
-			const url = request.url();
-			if (url.includes('as=') || url.includes('/auth/callback')) leaks.push(url);
-		});
+		const leaks = watchForSignIn(page);
 
 		await page.locator('a.persona').first().hover();
 		await page.waitForTimeout(1200);
@@ -208,7 +233,7 @@ test.describe('the round trip', () => {
 			// a configured `base` would leave a hand-built-URL version of this
 			// test green while every real reader clicking the real link got a
 			// 400.
-			await page.getByRole('link', { name: new RegExp(name) }).click();
+			await page.getByRole('link', { name, exact: false }).click();
 
 			// Through /auth/callback and back to the page the round trip started
 			// at. The trailing `$` is deliberate, not incidental: it also pins
@@ -241,7 +266,11 @@ test.describe('the round trip', () => {
 		// works, this proves membership in *none* is handled as its own case
 		// rather than an org name that just happens not to match.
 		const state = await beginRoundTrip(page);
-		await page.goto(demoLoginUrl({ as: 'no-org', redirect_uri: CALLBACK, state }));
+		// Clicked, not hand-built, like the org tests above — `no-org` is the
+		// one persona id carrying a hyphen, so it is the one most likely to be
+		// mangled by a future change to how the hrefs are assembled.
+		await page.goto(demoLoginUrl({ redirect_uri: CALLBACK, state }));
+		await page.getByRole('link', { name: 'Alex Kim', exact: false }).click();
 		await expect(page).toHaveURL(/\/private\/$/); // see the note on this pattern above
 		await expect(page.locator('body')).toContainText(SENTINEL);
 		expect(await sessionCookie(page), 'sign-in did not issue a session').toBeDefined();
@@ -259,6 +288,14 @@ test.describe('the round trip', () => {
 			// `src/lib/private-sidebar.mjs` only emits an org section when
 			// `session.orgs` is non-empty, so this reader's sidebar should carry
 			// neither org.
+			//
+			// The positive first, and it is not decoration: both counts below
+			// are zero if `nav()` matches nothing at all — a Starlight class
+			// rename, or the sidebar simply failing to render, would make them
+			// silently vacuous. "Log out" is emitted for every signed-in reader
+			// (src/lib/private-sidebar.mjs), so it proves the locator is
+			// pointed at a real sidebar before the absences mean anything.
+			await expect(nav(page).getByRole('link', { name: 'Log out' })).toBeVisible();
 			await expect(nav(page).getByText('Acme docs')).toHaveCount(0);
 			await expect(nav(page).getByText('Globex')).toHaveCount(0);
 		}
