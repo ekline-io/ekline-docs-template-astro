@@ -2044,6 +2044,15 @@ suggest more than they deliver:
 The middleware guards a URL prefix. These are the non-obvious ways a request
 can render without passing through it:
 
+- **`public/private/**` is served straight past the guard.** Astro copies
+  `public/` to the static output verbatim and the static handler runs *before*
+  the middleware, so `public/private/leak.txt` is world-readable at
+  `/private/leak.txt` with `Cache-Control: public, max-age=0` — measured, not
+  inferred. This is the most likely way to leak in practice: `public/` is
+  where a PDF, diagram or `.json` goes, and filing it under `private/` to keep
+  it with the private docs is the natural instinct. **Private assets do not
+  belong in `public/` at all.** `tests/private-leaks.test.mjs` asserts nothing
+  lands under a `private/` path in the static output, which is what catches it.
 - **Unmatched routes never enter the middleware at all** on the Node adapter.
   Harmless — there is nothing to render — but it means "no `[auth]` log line"
   does not prove a request was allowed.
@@ -2054,13 +2063,20 @@ can render without passing through it:
 
 ## Reverse proxies and `redirect_uri`
 
-On `@astrojs/node`, `context.url.origin` comes from the server's own `HOST`
-and `PORT`, **not** the `Host` header — Astro 6 ignores `Host` and
-`X-Forwarded-Host` unless they match `security.allowedDomains`. That is good
-news for security (nobody can poison `redirect_uri` with a forged `Host`), but
-it means a self-hosted deployment behind a reverse proxy must set
-`security.allowedDomains` or the SSO round trip will send readers to
-`http://localhost:<port>/auth/callback`.
+On `@astrojs/node`, `context.url.origin` is **`http://localhost:<port>`** and
+nothing you can set at the network layer changes it. Astro ignores `Host` and
+`X-Forwarded-Host` unless they match `security.allowedDomains`
+(`astro/dist/core/app/node.js:28-35` — `validateHost()` returns undefined when
+that list is empty, and the host falls back to the literal `"localhost"`).
+Measured with `Host: docs.example.com` and with `X-Forwarded-Host` +
+`X-Forwarded-Proto: https`: identical `localhost` output every time. Note only
+`PORT` is honoured — running with `HOST=127.0.0.1` still produces `localhost`.
+
+Good news for security: nobody can poison `redirect_uri` with a forged `Host`.
+But **a self-hosted deployment behind a reverse proxy must set
+`security.allowedDomains`**, or the SSO round trip sends every reader to
+`http://localhost:<port>/auth/callback` and sign-in can never complete. This
+survives local testing precisely because `astro dev` *does* use the real Host.
 
 One related quirk worth knowing when debugging: under `astro preview --port N`,
 `url.origin` always reports `http://localhost:4321` whatever `N` is. `astro dev`
