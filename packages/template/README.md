@@ -204,11 +204,13 @@ Run all commands from the project root in a terminal.
 | `npm run test:visual` | Browser tests for the API reference and the SSO round trip — needs `npx playwright install chromium`. Serves on port 4331; set `DOCS_TEST_PORT` to move it |
 | `npm run astro ...` | Run Astro CLI commands |
 
-All of these run on every pull request via [`.github/workflows/ci.yml`](.github/workflows/ci.yml), except the screenshot comparisons — those are macOS-only baselines and stay a local check. See [`wiki/api-reference.md`](./wiki/api-reference.md).
+All of these run on every pull request in the template's own repository, via [its CI workflow](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/.github/workflows/ci.yml) — that file lives at the monorepo root, so your copy does not include it and you are free to wire these commands into whatever CI you use. The screenshot comparisons are the exception — those are macOS-only baselines and stay a local check. See [`wiki/api-reference.md`](./wiki/api-reference.md).
 
 ## Changelog
 
-Notable changes are recorded in [`CHANGELOG.md`](./CHANGELOG.md). The template is something you fork rather than install, so use it to decide whether a change is worth pulling across into a site you have already customised.
+Notable changes are recorded in [the template's CHANGELOG](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/packages/template/CHANGELOG.md). The template is something you fork rather than install, so use it to decide whether a change is worth pulling across into a site you have already customised.
+
+It is linked rather than local on purpose: `npm create astro` strips `CHANGELOG.md` from a fetched template, so your copy does not have one — which is right, since the file records the *template's* history, not your site's.
 
 ## Learn more
 
