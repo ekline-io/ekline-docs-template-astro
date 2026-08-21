@@ -169,7 +169,7 @@ test('nothing is published under /private/ — no prerendered page, no public/ a
 	assert.ok(!existsSync(dir), 'static output contains an empty private/ directory');
 });
 
-test('the sitemap does not reference /private/', () => {
+test('the sitemap does not reference /private/ or /demo-login', () => {
 	// `@astrojs/sitemap` never consults `isPrerendered` — its only filters are
 	// `r.type !== 'page'` and `if (r.pathname)`, and `pathname` is undefined
 	// for `[dynamic]` and `[...spread]` routes. So the private routes stay out
@@ -177,13 +177,19 @@ test('the sitemap does not reference /private/', () => {
 	// and a non-dynamic on-demand page under `src/pages/private/` would be
 	// advertised to crawlers. `astro.config.mjs` passes a `filter` so that the
 	// absence is deliberate; this asserts the absence either way.
+	//
+	// `/demo-login` is exactly that non-dynamic on-demand shape: a *static*
+	// pathname with `prerender = false`, unlike the `/private/**` routes above
+	// which are dynamic/spread and so excluded by shape alone. Without the
+	// same filter entry, `@astrojs/sitemap` would advertise it to crawlers.
+	// (This assertion is vacuous until a later task adds the `/demo-login`
+	// route and its filter entry — there is nothing to advertise yet.)
 	const files = walk(STATIC).filter((file) => /sitemap.*\.xml$/.test(file));
 	assert.ok(files.length > 0, 'no sitemap files found');
 	for (const file of files) {
-		assert.ok(
-			!readFileSync(file, 'utf8').includes('/private/'),
-			`${rel(file)} references /private/`
-		);
+		const xml = readFileSync(file, 'utf8');
+		assert.ok(!xml.includes('/private/'), `${rel(file)} references /private/`);
+		assert.ok(!xml.includes('demo-login'), `${rel(file)} references /demo-login`);
 	}
 });
 

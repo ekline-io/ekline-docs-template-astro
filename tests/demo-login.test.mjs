@@ -8,11 +8,10 @@
  * flag must not answer to creative spellings.
  *
  * Run:  node --test tests/demo-login.test.mjs
- * (The sitemap test at the end needs a build; `npm test` provides one.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,9 +19,8 @@ import {
 	personas,
 	findPersona,
 	isDemoFlagEnabled,
-	isDemoRedirectUri,
+	parseDemoRedirectUri,
 } from '../src/lib/demo-login.mjs';
-import { staticDir } from './helpers/static-dir.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -37,7 +35,23 @@ test('every persona id resolves to itself', () => {
 });
 
 test('unknown, empty and non-string ids resolve to null', () => {
-	for (const id of ['initech', 'ACME', ' acme', '', undefined, null, 7, ['acme']]) {
+	for (const id of [
+		'initech',
+		'ACME',
+		' acme',
+		'',
+		undefined,
+		null,
+		7,
+		['acme'],
+		// Not live bugs today — `findPersona` walks the array with `.find`, not
+		// a property lookup — but a future refactor to an object keyed by id is
+		// an easy one to reach for, and that is exactly where these two turn
+		// into prototype pollution / arbitrary-method access. Pinning the
+		// refusal now stops that refactor from shipping quietly.
+		'__proto__',
+		'constructor',
+	]) {
 		assert.equal(findPersona(id), null, String(id));
 	}
 });
@@ -82,45 +96,76 @@ test('the flag answers only to its two documented spellings', () => {
 
 const ORIGIN = 'http://localhost:4321';
 
-test('a same-origin absolute redirect_uri is accepted', () => {
-	assert.equal(isDemoRedirectUri('http://localhost:4321/auth/callback', ORIGIN), true);
+test('parses a same-origin absolute redirect_uri', () => {
+	assert.equal(
+		parseDemoRedirectUri('http://localhost:4321/auth/callback', ORIGIN)?.href,
+		'http://localhost:4321/auth/callback'
+	);
 	// The base path rides in the path, not the origin, so a subpath deployment
 	// passes the same check.
-	assert.equal(isDemoRedirectUri('http://localhost:4321/docs/auth/callback', ORIGIN), true);
+	assert.equal(
+		parseDemoRedirectUri('http://localhost:4321/docs/auth/callback', ORIGIN)?.href,
+		'http://localhost:4321/docs/auth/callback'
+	);
 });
 
-test('anything not same-origin is refused', () => {
+test('refuses anything not same-origin', () => {
 	for (const value of [
 		'https://evil.example/auth/callback', // wrong host
 		'http://localhost:9999/auth/callback', // wrong port
 		'https://localhost:4321/auth/callback', // wrong scheme, so wrong origin
 		'//evil.example/auth/callback', // protocol-relative: not absolute, URL() throws
 		'/auth/callback', // relative: URL() throws
-		'javascript:alert(1)', // no origin to match
+		'javascript:alert(1)', // opaque origin ("null"), never equal to a real one
 		'not a url',
 		'',
 		undefined,
 		null,
 		7,
 	]) {
-		assert.equal(isDemoRedirectUri(value, ORIGIN), false, String(value));
+		assert.equal(parseDemoRedirectUri(value, ORIGIN), null, String(value));
 	}
 });
 
-// ---------------------------------------------------------------------------
-// Build output (needs `npm run build` first; `npm test` runs one)
-// ---------------------------------------------------------------------------
+test('redirect_uri: adversarial cases from URL parsing quirks', () => {
+	// Measured on Node v22 — each comment states the actual behaviour, not an
+	// assumption about it.
 
-test('the sitemap does not reference /demo-login', () => {
-	// `/demo-login` is a *static* pathname with `prerender = false` — exactly
-	// the shape `@astrojs/sitemap` advertises unless filtered, because it never
-	// consults `isPrerendered` (measured; see wiki/private-docs.md). The filter
-	// lives in `astro.config.mjs`; this pins it.
-	const STATIC = staticDir(ROOT);
-	const files = readdirSync(STATIC).filter((file) => /^sitemap.*\.xml$/.test(file));
-	assert.ok(files.length > 0, 'no sitemap files found');
-	for (const file of files) {
-		const xml = readFileSync(join(STATIC, file), 'utf8');
-		assert.ok(!xml.includes('demo-login'), `${file} advertises /demo-login`);
-	}
+	// Userinfo does not participate in `origin` at all, so it rides along
+	// unchanged and the URL is accepted.
+	assert.equal(
+		parseDemoRedirectUri('http://user:pass@localhost:4321/auth/callback', ORIGIN)?.href,
+		'http://user:pass@localhost:4321/auth/callback'
+	);
+
+	// Looks like a same-origin bypass smuggling "evil.example" into the host —
+	// it is not. With no `:` before the `@`, "evil.example" parses as a bare
+	// username and the host is still `localhost:4321`, so this is accepted too.
+	// Worth pinning precisely because it looks like it should be refused.
+	assert.equal(
+		parseDemoRedirectUri('http://evil.example@localhost:4321/auth/callback', ORIGIN)?.href,
+		'http://evil.example@localhost:4321/auth/callback'
+	);
+
+	// `http` is a "special scheme" per the WHATWG URL spec, so backslashes are
+	// treated as path separators exactly like forward slashes — this parses to
+	// the same URL as the forward-slash spelling and is accepted.
+	assert.equal(
+		parseDemoRedirectUri('http:\\\\localhost:4321\\auth\\callback', ORIGIN)?.href,
+		'http://localhost:4321/auth/callback'
+	);
+
+	// Looks like a subdomain-suffix attack (`localhost:4321.evil.example`
+	// reading as host `localhost`, port `4321.evil.example`). It never gets
+	// that far: a port must be all digits, so `URL()` itself throws Invalid
+	// URL and this is refused by the catch branch — not by an origin
+	// mismatch, which is the outcome one might expect from the shape of the
+	// attack, but the refusal lands either way.
+	assert.equal(parseDemoRedirectUri('http://localhost:4321.evil.example/', ORIGIN), null);
+
+	// The Fix 1 regression pin: `URL#origin` alone says this is same-origin
+	// (`new URL('blob:http://localhost:4321/x').origin === 'http://localhost:4321'`),
+	// but `blob:` is not a scheme a browser can be redirected to, and the
+	// scheme check refuses it before origin is ever compared.
+	assert.equal(parseDemoRedirectUri('blob:http://localhost:4321/x', ORIGIN), null);
 });
