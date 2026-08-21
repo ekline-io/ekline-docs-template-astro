@@ -132,6 +132,23 @@ test.describe('the picker', () => {
 		await expect(page.locator('a.persona')).toHaveCount(3);
 	});
 
+	test('no maintainer comment leaks into the rendered page', async ({ page }) => {
+		// This page carries `{/* … */}` notes in its markup, and one of them once
+		// quoted a comment-closing delimiter as an example — which ended the
+		// expression early and spilled the rest onto the page as visible text,
+		// above the heading, for every reader. The delimiters are the general
+		// check: any future nesting mistake produces one of them in the output,
+		// whatever the prose happens to say.
+		//
+		// Asserted on `textContent`, not the HTML source, so an ordinary HTML
+		// comment (which is in the source but not visible) does not trip it.
+		const state = await beginRoundTrip(page);
+		await page.goto(demoLoginUrl({ redirect_uri: CALLBACK, state }));
+		const text = await page.locator('body').textContent();
+		expect(text, 'a comment fragment reached the rendered page').not.toContain('*/');
+		expect(text, 'a comment fragment reached the rendered page').not.toContain('{/*');
+	});
+
 	test('a direct visit with no parameters gets directions, not an error', async ({ page }) => {
 		const response = await page.goto('/demo-login');
 		expect(response.status()).toBe(200);

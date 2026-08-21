@@ -200,8 +200,13 @@ const pickerLinks =
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		{/* Belt to the sitemap filter's braces: this page must not be indexed.
-		    `{/* */}` rather than an HTML comment so the note stays out of the
-		    shipped page — it is for maintainers, not readers. */}
+		    A JSX-style comment rather than an HTML one, so this note stays out
+		    of the shipped page — it is for maintainers, not readers.
+
+		    Never write a comment-closing delimiter inside one of these, not
+		    even quoted as an example: it ends the expression early and the
+		    remainder spills into the rendered page as visible text. That is
+		    measured, from this very comment, which said so while doing it. */}
 		<meta name="robots" content="noindex" />
 		<title>Demo sign-in</title>
 		<style>
