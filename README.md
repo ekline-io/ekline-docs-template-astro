@@ -120,9 +120,26 @@ res.redirect(`/login?next=${encodeURIComponent(returnTo)}`);
 
 Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md) — the constraints there are what keep private content out of the public build, and several of them are easy to undo by accident.
 
+### Deploying somewhere private docs aren't configured?
+
+A staging site, a public demo, a preview build — anywhere the `DOCS_*` variables
+aren't set. Set `showLoginLink` to `false` in
+[`src/config/sidebar.mjs`](./src/config/sidebar.mjs) for that deployment.
+
+The guard fails closed without those variables, so `/private/**` answers a bare
+404 — correct, and exactly what makes the sidebar's "Private docs" link a dead
+link on every page rather than merely an unhelpful one. The flag drops the link;
+the routes and the guard are untouched, so nothing becomes reachable.
+
+It is a flag rather than something detected automatically because it cannot be
+detected: the sidebar is built at build time, the SSO settings are read at
+request time (deliberately, so one build can serve a configured environment and
+an unconfigured one), and Astro does not load `.env` early enough for a
+build-time check to see your local configuration anyway.
+
 ### Don't need private docs?
 
-Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`, `src/middleware.ts`, `src/config/auth.mjs`, `src/lib/auth/`, `src/lib/private-sidebar.mjs` and `src/lib/sidebar-items.mjs`. Then drop the `privateDocs` and `orgDocs` collections from `src/content.config.ts`, and the `loginLink` entry from `src/config/sidebar.mjs` along with its use in `astro.config.mjs`. Their tests go too (`tests/auth-*.test.mjs`, `tests/private-leaks.test.mjs`, `tests/sidebar-items.test.mjs`, `tests/visual/auth.spec.mjs`, `tests/mock-sso/`), as do the `dev:sso` script in `package.json` and the mock-SSO `webServer` entry in `playwright.config.mjs`.
+Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`, `src/middleware.ts`, `src/config/auth.mjs`, `src/lib/auth/`, `src/lib/private-sidebar.mjs` and `src/lib/sidebar-items.mjs`. Then drop the `privateDocs` and `orgDocs` collections from `src/content.config.ts`, and the `loginLink` entry and `showLoginLink` flag from `src/config/sidebar.mjs` along with their use in `astro.config.mjs`. Their tests go too (`tests/auth-*.test.mjs`, `tests/private-leaks.test.mjs`, `tests/sidebar-items.test.mjs`, `tests/visual/auth.spec.mjs`, `tests/mock-sso/`), as do the `dev:sso` script in `package.json` and the mock-SSO `webServer` entry in `playwright.config.mjs`.
 
 **Then get the plain static build back**, or the site still ships a server it does not need. In `astro.config.mjs`, remove the `adapter:` line, the `env:` block, the two adapter imports and the sitemap `filter`; then uninstall `@astrojs/node`, `@astrojs/vercel` and `jose`. Skip this second half and the build keeps emitting a `dist/server/` bundle with no root `dist/index.html` — which silently breaks the deploy instructions below.
 

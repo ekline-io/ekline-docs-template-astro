@@ -13,7 +13,12 @@ import {
 	listsOperationsInSidebar,
 	routeFor,
 } from './src/config/api-reference.mjs';
-import { docsSidebarGroups, changelogEntry, loginLink } from './src/config/sidebar.mjs';
+import {
+	docsSidebarGroups,
+	changelogEntry,
+	loginLink,
+	showLoginLink,
+} from './src/config/sidebar.mjs';
 
 // One sidebar entry per API reference, generated from its OpenAPI document.
 // Regenerated on every build, so swapping in your own document updates the
@@ -128,7 +133,9 @@ export default defineConfig({
 				// file), so they need no maintenance when a document changes.
 				...apiReferenceSidebar,
 				changelogEntry,
-				loginLink,
+				// Dropped entirely when private docs are not configured for this
+				// deployment — see `showLoginLink` in src/config/sidebar.mjs.
+				...(showLoginLink ? [loginLink] : []),
 			],
 		}),
 	],
