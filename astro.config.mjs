@@ -30,7 +30,7 @@ import { docsSidebarGroups, changelogEntry, privateDocsLink } from './src/config
 // imports `astro:env/server`, which this file cannot. The components use that
 // one. The two can only disagree on a deployment that is misconfigured rather
 // than unconfigured, and both fail towards hiding the affordance.
-const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET } = loadEnv(
+const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET, SITE_URL } = loadEnv(
 	process.env.NODE_ENV ?? 'production',
 	process.cwd(),
 	''
@@ -63,9 +63,9 @@ const apiReferenceSidebar = await Promise.all(
 
 // https://astro.build/config
 export default defineConfig({
-	// TODO: replace with your deployed site URL. Required for sitemap and llms-txt
-	// to emit absolute URLs.
-	site: 'https://example.com',
+	// TODO: replace with your deployed site URL (or set SITE_URL in the build
+	// environment). Required for sitemap and llms-txt to emit absolute URLs.
+	site: SITE_URL || 'https://example.com',
 	// The logged-in experience needs a server runtime for /private/** and
 	// /auth/**. Public pages stay prerendered either way (CDN-served on Vercel;
 	// served from disk by the standalone Node server otherwise).
@@ -122,7 +122,12 @@ export default defineConfig({
 		// route, which is why nothing leaked before this line existed; adding one
 		// plain `src/pages/private/welcome.astro` would publish it. Measured twice
 		// on real builds, not inferred. See wiki/private-docs.md.
-		sitemap({ filter: (page) => !page.includes('/private/') }),
+		//
+		// /demo-login is filtered for the same reason with one difference: it is a
+		// *static* pathname (`src/pages/demo-login.astro`), exactly the shape the
+		// sitemap advertises unless told otherwise — the route-shape defence the
+		// /private/ routes get for free does not exist here.
+		sitemap({ filter: (page) => !page.includes('/private/') && !page.includes('/demo-login') }),
 		starlight({
 			title: 'My Docs',
 			// TODO: point this at your own repository. It ships aimed at the
