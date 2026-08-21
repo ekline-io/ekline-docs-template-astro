@@ -65,6 +65,9 @@ export async function buildPrivateSidebar(session, loadedPrivateEntries) {
 		// Deliberately no `loginLink`: it exists to send public-page readers into
 		// the SSO round trip. On a private page the reader is already signed in,
 		// and "Log out" takes its place.
-		{ label: 'Log out', link: '/auth/logout' },
+		// Never prefetched: Starlight enables `prefetchAll`, and a prefetch is a
+		// real GET, so hovering this entry would end the reader's session
+		// without a click. Measured.
+		{ label: 'Log out', link: '/auth/logout', attrs: { 'data-astro-prefetch': 'false' } },
 	];
 }

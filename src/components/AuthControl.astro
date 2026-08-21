@@ -22,6 +22,16 @@
  *
  * Rendered only when `showAuthControls` is on — see `src/config/sidebar.mjs`.
  *
+ * **Both links opt out of prefetching, and must stay that way.** Starlight
+ * enables `prefetchAll`, so Astro prefetches every link on hover — and a
+ * prefetch is a real GET with the reader's cookies. That turns both of these
+ * into state changes on hover: prefetching "Log out" destroys the session
+ * without a click, and prefetching "Log in" runs the entire SSO round trip
+ * (guard → the product → `/auth/callback`) and issues a session nobody asked
+ * for. Both were measured, not reasoned about; the second is how a reader who
+ * clicks "Log out" and leaves the mouse where it is gets silently signed back
+ * in, because "Log in" then occupies the same pixel.
+ *
  * Both hrefs go through `withBase`. Astro does not apply the configured `base`
  * to a plain `<a href>` in a component — only Starlight does, and only for the
  * sidebar items it builds. So the "Private docs" entry beside this one comes
@@ -33,8 +43,8 @@ import { withBase } from '../lib/auth/http.mjs';
 ---
 
 <div class="auth-control print:hidden">
-	<a class="auth-in" href={withBase('/private/')}>Log in</a>
-	<a class="auth-out" href={withBase('/auth/logout')}>Log out</a>
+	<a class="auth-in" href={withBase('/private/')} data-astro-prefetch="false">Log in</a>
+	<a class="auth-out" href={withBase('/auth/logout')} data-astro-prefetch="false">Log out</a>
 </div>
 
 <style>

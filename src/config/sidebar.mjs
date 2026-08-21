@@ -66,7 +66,11 @@ export const privateDocsLink = {
 	// nothing, and following it just starts the SSO round trip. What must NOT be
 	// done here is listing org sections the same way — those names are customer
 	// names, and static HTML would hand every one of them to every visitor.
-	attrs: { 'data-auth-only': 'true' },
+	// `data-astro-prefetch="false"` is load-bearing, not tidiness. Starlight
+	// sets `prefetchAll`, so hovering this link would issue a real GET for
+	// `/private/` with the reader's cookies — which the guard answers with the
+	// full SSO round trip, ending in a session the reader never asked for.
+	attrs: { 'data-auth-only': 'true', 'data-astro-prefetch': 'false' },
 };
 
 /**

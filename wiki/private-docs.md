@@ -129,6 +129,31 @@ login flow that parks the reader somewhere for longer — an email verification
 step, say — will find the cookie gone on return and start a fresh round trip,
 which is correct but means the reader loses the page they originally wanted.
 
+## Links that change state must opt out of prefetching
+
+Starlight turns on `prefetchAll`, so Astro prefetches **every** link on hover,
+and a prefetch is an ordinary GET carrying the reader's cookies. Any link whose
+GET does something therefore does that thing on hover. Measured on this
+template before it was fixed:
+
+- Hovering **Log out** ended the session. No click.
+- Hovering **Log in** ran the entire SSO round trip — guard, the customer's
+  product, `/auth/callback` — and issued a session the reader never asked for.
+  This is how logging out appeared not to work: click "Log out", leave the
+  mouse still, and "Log in" occupies the same pixel, so the reader was signed
+  back in about a second later.
+
+Every such link therefore carries `data-astro-prefetch="false"`:
+`src/components/AuthControl.astro` (both), `privateDocsLink` in
+`src/config/sidebar.mjs`, and the "Log out" entry built in
+`src/lib/private-sidebar.mjs`. `tests/visual/auth.spec.mjs` hovers both
+controls and asserts nothing changes, so the attributes cannot be quietly
+tidied away.
+
+If you add a link that signs in, signs out, or otherwise changes something,
+add the attribute. Ordinary private content links are fine to prefetch — they
+only render a page.
+
 ## Things that are outside the guard
 
 The middleware guards a URL prefix. These are the non-obvious ways a request can render without passing through it:

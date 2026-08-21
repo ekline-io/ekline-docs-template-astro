@@ -357,6 +357,43 @@ test.describe('the header auth control', () => {
 		expect(await sessionCookie(page)).toBeUndefined();
 	});
 
+	test('hovering a control does not change anything', async ({ page, isMobile }) => {
+		// Starlight enables `prefetchAll`, so Astro prefetches every link on
+		// hover — and a prefetch is a real GET carrying the reader's cookies.
+		// That made both controls state changes on hover, measured before the
+		// fix: hovering "Log out" ended the session with no click, and hovering
+		// "Log in" ran the whole SSO round trip and issued a session nobody
+		// asked for. The second is worse than it sounds — click "Log out",
+		// leave the mouse still, and "Log in" lands under the same pixel, so
+		// readers were silently signed back in a second later.
+		//
+		// `data-astro-prefetch="false"` on those links is the fix. This test is
+		// what stops it being "tidied away" as a stray attribute.
+		await page.goto('/private/');
+		expect(await sessionCookie(page)).toBeDefined();
+
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+		await control.locator('.auth-out').hover();
+		await page.waitForTimeout(1200);
+
+		expect(await sessionCookie(page), 'hovering Log out must not sign anyone out').toBeDefined();
+	});
+
+	test('hovering Log in does not sign a reader in', async ({ page, isMobile }) => {
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+		expect(await sessionCookie(page)).toBeUndefined();
+
+		await control.locator('.auth-in').hover();
+		await page.waitForTimeout(1200);
+
+		expect(
+			await sessionCookie(page),
+			'hovering Log in must not run the SSO round trip'
+		).toBeUndefined();
+	});
+
 	test('a forged hint changes the control and grants nothing', async ({ page, isMobile }) => {
 		// The trade this design makes on purpose. Anyone can set the hint, so
 		// the control can lie; the guard reads the signed session and does not
