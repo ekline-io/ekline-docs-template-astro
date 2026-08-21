@@ -16,7 +16,7 @@ pulling across into a site you have already customised.
 handshake, so the logged-in experience can be demonstrated and evaluated with
 no real SSO endpoint behind it. Off unless `DOCS_UNSAFE_DEMO_LOGIN=1` *and*
 the three `DOCS_*` variables are set; a deployment that does not opt in is
-byte-for-byte unaffected, and the route answers 404. The name is the warning:
+unaffected in every reachable way, and the route answers 404. The name is the warning:
 it accepts anyone, so it is for demo and staging deployments only — never a
 site with real private content. See *The demo login* in `wiki/private-docs.md`.
 

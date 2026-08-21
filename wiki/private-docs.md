@@ -118,8 +118,11 @@ at error level on every token it issues.
 
 What the route does defend, it defends as a model for your real endpoint:
 
-- **`redirect_uri` must be same-origin with the request**, or the page refuses
-  (400). Without that check the route is an open redirector that hands a
+- **`redirect_uri` must be an http(s) URL, same-origin with the request**, or
+  the page refuses (400). The scheme half is the more surprising one, and the
+  reason `parseDemoRedirectUri` returns a parsed `URL` rather than a boolean:
+  `new URL('blob:http://your-origin/x').origin` *is* your origin, so an
+  origin test alone lets it through. Without that check the route is an open redirector that hands a
   freshly signed token to any site named in the query string. The mock SSO
   server deliberately skips this and says why; a deployed endpoint must not —
   yours should check `redirect_uri` against an allowlist too.
@@ -197,8 +200,9 @@ reader in as whichever persona their mouse happened to cross — not the one
 they meant to click. The page's other link, to "the private docs" on the
 explanation screen shown with no round trip in progress, is prefetch-off for
 the ordinary reason: it would run the full SSO round trip on hover, same as
-**Log in** above. `tests/visual/demo-login.spec.mjs` pins the persona-link
-case.
+**Log in** above. `tests/visual/demo-login.spec.mjs` pins both: it
+asserts all three persona links carry the attribute in markup, and hovers one
+of each kind while watching for the sign-in request.
 
 If you add a link that signs in, signs out, or otherwise changes something,
 add the attribute. Ordinary private content links are fine to prefetch — they
