@@ -2,9 +2,17 @@
 /**
  * The guard on `/private/**`.
  *
- * This is the entire enforcement point. Every private and per-org page in this
- * template is protected here and nowhere else; the pages themselves render
- * whatever they are asked for. Read `wiki/private-docs.md` before changing it.
+ * This is the entire enforcement point for the routes it can see: every private
+ * and per-org *page* is protected here and nowhere else, and the pages
+ * themselves render whatever they are asked for. Read `wiki/private-docs.md`
+ * before changing it.
+ *
+ * What it cannot see is `public/`. Files there are copied verbatim into the
+ * build output and served by the static handler, which runs ahead of this file:
+ * measured on Astro 6.3.1, `public/private/leak.txt` answers an anonymous
+ * request with `200` and `Cache-Control: public, max-age=0` on a fully
+ * configured site. The URL prefix is not the boundary — the *route table* is.
+ * Nothing under `public/` is private, whatever it is named.
  *
  * It runs on every on-demand request — all of `/private/**` and `/auth/**`,
  * which is everything this template renders on demand — and, at build time,
@@ -14,15 +22,22 @@
  * configuration or session work: `astro build` must not require SSO to be
  * configured.
  *
- * ## Nothing this file returns may be cached by anything but the reader
+ * ## What leaves here uncacheable, and what deliberately does not
  *
  * The obvious case is the private HTML: a CDN or corporate proxy that
  * heuristically caches a 200 carrying no cache headers would serve it to
- * whoever asks next, which defeats the whole design in one hop. The less
- * obvious case is the SSO redirect, which carries a `Set-Cookie` with a
- * single-use `state` nonce — a cached copy hands every later reader the same
- * nonce. So every response that leaves here, including the ones from `next()`,
- * is marked `no-store`.
+ * whoever asks next, which defeats the whole design in one hop. Two less
+ * obvious ones sit under `/auth/**`. The SSO redirect carries a `Set-Cookie`
+ * with a single-use `state` nonce, and `/auth/callback` mints the session JWT
+ * itself and returns it as `Set-Cookie` on a 302 — a status and shape some
+ * shared caches store heuristically when no cache headers are present. A cached
+ * copy of either hands the next reader someone else's credentials. So both
+ * prefixes are marked `no-store`, including the responses that come back
+ * through `next()`.
+ *
+ * Public pages are deliberately left alone. They are prerendered static files
+ * carrying nothing reader-specific, they already leave with
+ * `Cache-Control: public, max-age=0`, and a CDN holding them is the point.
  */
 import type { APIContext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
@@ -83,7 +98,42 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const kind = classifyPath(context.originPathname);
 	const routeIsPrivate = routeIsUnderPrivate(context.routePattern);
 
-	if ((kind.type === 'public' || kind.type === 'auth') && !routeIsPrivate) return next();
+	// `/auth/**` is never guarded — the callback could not run to create a
+	// session if it were — but it is the one unguarded prefix whose responses
+	// carry credentials, so it goes out `no-store`. Public pages take the bare
+	// return: they are static, shared by everyone, and meant to be cached.
+	if (kind.type === 'auth' && !routeIsPrivate) return noStore(await next());
+	if (kind.type === 'public' && !routeIsPrivate) return next();
+
+	// Everything below is the guarded branch.
+	//
+	// A guarded route that is *prerendered* is a configuration error, and a
+	// silent one: it is rendered once at build time and then served from disk by
+	// the static handler, which never calls this middleware. Measured on Astro
+	// 6.3.1 with SSO configured at build time, a `src/pages/private/oops.astro`
+	// missing its `prerender` export produced a static
+	// `dist/client/private/oops/index.html` — a `<meta http-equiv="refresh">` to
+	// the SSO endpoint with `state=fe02703d-…` baked in, served anonymously with
+	// `Cache-Control: public, max-age=0` and no `Set-Cookie`. So the single-use
+	// nonce becomes a public asset shipped to every visitor, and the round trip
+	// can never complete because no cookie matches it.
+	//
+	// `isPrerendered` is documented public API on `APIContext`, a non-optional
+	// `boolean` (astro/dist/types/public/context.d.ts:455). Refusing here turns
+	// that into a named, loud failure at the first build or request.
+	//
+	// It does not cover `/auth/**`, which returns above: a prerendered callback
+	// leaks no nonce, it just bakes its own failure page and breaks sign-in.
+	if (context.isPrerendered) {
+		console.error(
+			`[auth] ${context.routePattern} is prerendered — add ` +
+				'`export const prerender = false` to it. A prerendered guarded route is ' +
+				'built once and then served as a static file that never reaches this ' +
+				'middleware; with SSO configured at build time it bakes a single-use ' +
+				'`state` nonce into public output. See wiki/private-docs.md.'
+		);
+		return notFound();
+	}
 
 	// A private route reached with a public-looking path means the two signals
 	// disagree — only possible via a rewrite. Refuse rather than guess which org
@@ -124,6 +174,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// is the right answer: that prefix is the org namespace (`orgs/` is reserved
 	// inside `private-docs/` for the same reason), and a page there would answer
 	// to an org name without ever checking membership of it.
+	//
+	// The one coupling worth knowing about: this reads `params.org` by name, so
+	// renaming the `[org]` directory to `[organization]` makes it `undefined`
+	// and 404s every org page. That fails closed and says so in the log, but the
+	// fix is to rename it back rather than to loosen this.
 	const routeIsOrg = context.routePattern.startsWith('/private/orgs/');
 	if (routeIsOrg && (kind.type !== 'org' || kind.org !== context.params.org)) {
 		console.error(
@@ -202,7 +257,15 @@ function redirectToSso(context: APIContext) {
 	// otherwise redirect forever, and a redirect loop is a much worse failure to
 	// debug than a page that says what broke.
 	if (attempts > MAX_SSO_ATTEMPTS) {
-		context.cookies.delete(auth.stateCookie, { path: '/' });
+		// Same attributes as the `set` below. A browser matches a deletion on
+		// name and path alone, so this works either way, but two spellings of one
+		// cookie invite a future edit that changes `path` in one place only.
+		context.cookies.delete(auth.stateCookie, {
+			path: '/',
+			httpOnly: true,
+			sameSite: 'lax',
+			secure: !import.meta.env.DEV,
+		});
 		return errorPage(
 			'Sign-in did not complete',
 			'The sign-in service redirected back without a valid token twice. ' +
@@ -253,6 +316,20 @@ function redirectToSso(context: APIContext) {
  * the subpath deployments the guard above is hardened for. `BASE_URL` is `/`
  * when no base is set, and may or may not carry a trailing slash depending on
  * `trailingSlash`, so the join normalises rather than assuming.
+ *
+ * **The host half is not this function's to get right, and is not always
+ * right.** On `@astrojs/node`, `context.url.origin` is `http://localhost:<port>`
+ * regardless of `Host` *or* `X-Forwarded-Host`: Astro 6 only trusts either when
+ * it matches `security.allowedDomains`, and with that unset `validateHost()`
+ * returns undefined and the hostname falls back to the literal `"localhost"`
+ * (astro/dist/core/app/node.js:28-35). Only the adapter's `PORT` is carried
+ * across — `HOST` is never read, so `HOST=127.0.0.1` still yields `localhost`.
+ * That is deliberate hardening, and it does mean Host-header poisoning of
+ * `redirect_uri` is not possible here. But a self-hosted deployment behind a
+ * reverse proxy must set `security.allowedDomains` in `astro.config.mjs` or its
+ * SSO endpoint is handed a `redirect_uri` pointing at the server's own
+ * loopback. `astro dev` uses the real `Host`, which is why local testing never
+ * shows this.
  */
 function callbackUrl(context: APIContext): string {
 	const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -349,11 +426,34 @@ function notFound() {
 	});
 }
 
+/**
+ * Both arguments are literals at the only call site today, so the escaping is
+ * not fixing a live hole — it is making the boundary the safe one, so that the
+ * next call site cannot pass something from a cookie or a URL and reintroduce
+ * the XSS that `/auth/callback`'s error page already had to have fixed.
+ */
 function errorPage(title: string, body: string) {
-	return new Response(`<!doctype html><title>${title}</title><h1>${title}</h1><p>${body}</p>`, {
-		status: 502,
-		headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
-	});
+	const safeTitle = escapeHtml(title);
+	return new Response(
+		`<!doctype html><title>${safeTitle}</title><h1>${safeTitle}</h1><p>${escapeHtml(body)}</p>`,
+		{
+			status: 502,
+			headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
+		}
+	);
+}
+
+/**
+ * Escapes the five characters that can break out of text content or a quoted
+ * attribute. `&` first, or it would double-escape the entities added after it.
+ */
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 }
 
 /** Dev-only. In production an unconfigured site 404s instead (fail closed). */
