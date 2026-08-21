@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
-/** The three `DOCS_*` values from `.env.test`, the one place they are written. */
+/** The `DOCS_*` values from `.env.test`, the one place they are written. */
 const testEnv = Object.fromEntries(
 	readFileSync(new URL('.env.test', import.meta.url), 'utf8')
 		.split('\n')
@@ -137,7 +137,7 @@ export default defineConfig({
 			timeout: 120_000,
 			// Read from `.env.test` rather than written out here.
 			//
-			// The same three values configure the *build* — the auth controls are
+			// The same `DOCS_*` values configure the *build* — the auth controls are
 			// derived from configuration, so a build without them correctly omits
 			// them and every header test would fail for the right reason and the
 			// wrong purpose. That build runs via `node --env-file=.env.test` in

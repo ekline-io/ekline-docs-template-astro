@@ -141,7 +141,19 @@ if (roundTrip) {
 			// same-origin http(s), so this cannot leave the site.
 			const target = new URL(roundTrip.redirectTarget);
 			target.searchParams.set('token', token);
-			return Astro.redirect(target.href);
+			// Not `Astro.redirect()`: it builds its own `Response`, which drops
+			// the `cache-control` set on `Astro.response` above — and this is the
+			// one response that carries the credential, in `Location`. A
+			// conformant shared cache would not store a bare 302 anyway (RFC 9111
+			// does not list 302 as heuristically cacheable without explicit
+			// freshness), so the realistic exposure is a CDN or proxy that caches
+			// by path+query regardless of status, not a spec-following cache —
+			// but this file states the no-store invariant for every response
+			// leaving this route, so it should hold it rather than lean on that.
+			return new Response(null, {
+				status: 302,
+				headers: { location: target.href, 'cache-control': NO_STORE },
+			});
 		}
 	}
 }
@@ -184,6 +196,10 @@ const pickerLinks =
 		<title>Demo sign-in</title>
 		<style>
 			body {
+				/* Lets the UA paint scrollbars, form controls and focus rings to
+				   match the scheme below, instead of defaulting to light chrome
+				   on a dark page. */
+				color-scheme: light dark;
 				font-family: ui-sans-serif, system-ui, sans-serif;
 				max-width: 34rem;
 				margin: 4rem auto;
@@ -191,19 +207,6 @@ const pickerLinks =
 				line-height: 1.6;
 				color: #1c1c1c;
 				background: #fff;
-			}
-			@media (prefers-color-scheme: dark) {
-				body {
-					color: #e6e6e6;
-					background: #17181c;
-				}
-				.warning {
-					background: #3a2c14;
-					border-color: #8a6d3b;
-				}
-				.persona {
-					border-color: #3a3d45;
-				}
 			}
 			.warning {
 				background: #fdf3d7;
@@ -231,6 +234,28 @@ const pickerLinks =
 				font-size: 0.85rem;
 				opacity: 0.75;
 			}
+			/* Kept last on purpose: `@media` adds no specificity, so at equal
+			   specificity the later rule in source order wins. `.persona`'s base
+			   rule above sets `border` as a shorthand, which resets
+			   `border-color` — if this block came first, the base rule's later
+			   `border-color: #3a3d45` would be overridden right back to the
+			   light value. Measured: with the media block first, `.warning`
+			   background computed to the light `#fdf3d7` and `.persona`
+			   border-color to the light `#d5d8de` even under a dark-scheme
+			   browser. */
+			@media (prefers-color-scheme: dark) {
+				body {
+					color: #e6e6e6;
+					background: #17181c;
+				}
+				.warning {
+					background: #3a2c14;
+					border-color: #8a6d3b;
+				}
+				.persona {
+					border-color: #3a3d45;
+				}
+			}
 		</style>
 	</head>
 	<body>
@@ -251,6 +276,10 @@ const pickerLinks =
 				<>
 					<p>Pick a reader. Each one shows a different slice of the private docs:</p>
 					{pickerLinks.map((persona) => (
+						// Never prefetched: Starlight enables `prefetchAll`, and a prefetch
+						// is a real GET, so hovering this would mint a token and complete
+						// the SSO round trip before any click — see wiki/private-docs.md §
+						// "Links that change state must opt out of prefetching".
 						<a class="persona" href={persona.href} data-astro-prefetch="false">
 							<strong>
 								{persona.name} ({persona.email})
@@ -264,6 +293,10 @@ const pickerLinks =
 					This sign-in only works as part of a round trip that starts at the
 					docs site, so it needs parameters this request did not carry (or
 					carried pointing somewhere else). Start from{' '}
+					{/* Never prefetched: hovering would GET /private/ with the reader's
+					cookies, running the full SSO round trip — see
+					wiki/private-docs.md § "Links that change state must opt out of
+					prefetching". */}
 					<a href={withBase('/private/')} data-astro-prefetch="false">
 						the private docs
 					</a>{' '}
