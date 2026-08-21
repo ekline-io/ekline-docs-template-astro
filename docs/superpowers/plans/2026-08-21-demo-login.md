@@ -1094,6 +1094,17 @@ the personas live in `src/lib/demo-login.mjs` if your staging site's org
 folders differ from the shipped examples.
 ````
 
+- [ ] **Step 3b: `wiki/private-docs.md` — add the demo-login links to the prefetch list**
+
+The § "Links that change state must opt out of prefetching" section enumerates
+every link carrying `data-astro-prefetch="false"` — `AuthControl.astro` (both),
+`privateDocsLink` in `src/config/sidebar.mjs`, and the "Log out" entry in
+`src/lib/private-sidebar.mjs`. That list is the thing stopping the attributes
+being tidied away, and it is now incomplete: `src/pages/demo-login.astro`
+carries two more (each persona link, and the "the private docs" link on the
+explanation page). Add them, noting that on the persona links the consequence
+is signing the reader in as whichever persona their mouse crossed.
+
 - [ ] **Step 4: `wiki/private-docs.md` — the demo-login section**
 
 Insert a new section after the `## The SSO handoff` section (after its final
