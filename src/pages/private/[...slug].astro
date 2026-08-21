@@ -1,0 +1,47 @@
+---
+/**
+ * Renders `privateDocs` entries on demand. Never prerendered — that is the
+ * security model (see wiki/private-docs.md). `src/middleware.ts` has already
+ * verified the session before this runs; this file makes no access decision of
+ * its own and must not start making one.
+ *
+ * Keep every route under `src/pages/private/` a dynamic or spread route.
+ * `@astrojs/sitemap` never consults `isPrerendered` — it skips endpoints and
+ * routes with no static `pathname` — so a plain `src/pages/private/welcome.astro`
+ * would be advertised to crawlers even while returning 302s. `astro.config.mjs`
+ * also filters `/private/` out of the sitemap, but the route shape is the part
+ * that does not depend on anyone remembering the filter.
+ */
+import { getCollection, render } from 'astro:content';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { buildPrivateSidebar } from '../../lib/private-sidebar.mjs';
+
+export const prerender = false;
+
+// `/private/` gives an empty rest-param, and the collection-root entry's id is
+// the literal `index` — Astro only collapses `/index` with a leading slash, so
+// the root page keeps it (measured in Task 5). Falsy, not `??`: the rest param
+// is `''` here, not undefined.
+const id = Astro.params.slug || 'index';
+const entries = await getCollection('privateDocs');
+const entry = entries.find((candidate) => candidate.id === id);
+if (!entry) {
+	// The same bare 404 the middleware serves, for the same reason: a reader who
+	// is signed in but asking for a page that does not exist must not be able to
+	// tell that apart from a page they are not entitled to.
+	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
+		status: 404,
+		headers: { 'content-type': 'text/html; charset=utf-8' },
+	});
+}
+const { Content, headings } = await render(entry);
+const sidebar = await buildPrivateSidebar(Astro.locals.session);
+---
+
+<StarlightPage
+	frontmatter={{ title: entry.data.title, description: entry.data.description }}
+	sidebar={sidebar}
+	headings={headings}
+>
+	<Content />
+</StarlightPage>
