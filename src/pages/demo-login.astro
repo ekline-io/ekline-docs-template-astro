@@ -191,15 +191,24 @@ const pickerLinks =
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<!-- Belt to the sitemap filter's braces: this page must not be indexed. -->
+		{/* Belt to the sitemap filter's braces: this page must not be indexed.
+		    `{/* */}` rather than an HTML comment so the note stays out of the
+		    shipped page — it is for maintainers, not readers. */}
 		<meta name="robots" content="noindex" />
 		<title>Demo sign-in</title>
 		<style>
-			body {
-				/* Lets the UA paint scrollbars, form controls and focus rings to
-				   match the scheme below, instead of defaulting to light chrome
-				   on a dark page. */
+			/* On the root, not on `body`, and that is measured rather than
+			   stylistic: the viewport's UA chrome is governed by the root element
+			   and `color-scheme` does not propagate body-to-root the way
+			   `background-color` does. With it on `body`, controls and focus
+			   rings inside the page picked up the dark scheme but the viewport
+			   scrollbar stayed light — `getComputedStyle(html).colorScheme` read
+			   `normal` and the root's used `Canvas` stayed white. */
+			:root {
 				color-scheme: light dark;
+			}
+
+			body {
 				font-family: ui-sans-serif, system-ui, sans-serif;
 				max-width: 34rem;
 				margin: 4rem auto;
