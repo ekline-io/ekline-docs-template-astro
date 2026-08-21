@@ -1594,7 +1594,13 @@ git commit -m "test: assert private content never enters the static build"
 import { createServer } from 'node:http';
 import { SignJWT } from 'jose';
 
-const secret = new TextEncoder().encode(process.env.MOCK_SSO_SECRET ?? 'test-sso-secret');
+// Default matches `.env.example`, so `cp .env.example .env` plus
+// `npm run dev:sso` is a working local login with nothing else to configure.
+// The Playwright config passes the same value explicitly rather than relying
+// on this default, so the suite does not depend on a developer's `.env`.
+const secret = new TextEncoder().encode(
+	process.env.MOCK_SSO_SECRET ?? 'dev-only-sso-not-a-secret'
+);
 const port = Number(process.env.MOCK_SSO_PORT ?? 4545);
 
 createServer(async (req, res) => {
@@ -1655,8 +1661,13 @@ existing comment about preview-not-build; add the auth servers:
 			env: {
 				PORT: '4331',
 				DOCS_SSO_URL: 'http://localhost:4545/docs-sso',
-				DOCS_SSO_SECRET: 'test-sso-secret',
-				DOCS_SESSION_SECRET: 'test-session-secret',
+				// Must match tests/mock-sso/server.mjs. Two distinct values, as
+				// in .env.example — the session token's `aud` claim means a
+				// handoff token cannot be replayed as a session cookie even
+				// when both secrets match, and the suite should exercise the
+				// configuration customers are told to use.
+				DOCS_SSO_SECRET: 'dev-only-sso-not-a-secret',
+				DOCS_SESSION_SECRET: 'dev-only-session-not-a-secret',
 			},
 		},
 		{
@@ -1826,6 +1837,28 @@ phrase; keep the sentinel in at least one private and one org example page.
 
 A loop guard stops the redirect cycle after two failed round trips. The
 README has a copy-paste endpoint implementation for customers.
+
+Two properties of this handshake worth stating plainly, because their names
+suggest more than they deliver:
+
+- **`state` is CSRF binding, not anti-theft.** JWTs are signed, not
+  encrypted, so anyone holding a stolen handoff token can read its `state`
+  claim and set a matching cookie in their own browser — `HttpOnly` stops
+  other sites reading the cookie, not the browser's owner writing one. What
+  actually limits theft is the short `exp`. Keep it at five minutes or less.
+- **The session token carries an `aud` claim and verification requires it.**
+  Both tokens are HS256 JWTs, so if a customer sets `DOCS_SSO_SECRET` and
+  `DOCS_SESSION_SECRET` to the same value — the ordinary slip — then without
+  `aud` *any* token their product signs with that secret (an API token, a
+  password-reset link) would verify as an 8-hour docs session. Only the
+  session side is marked, so the customer's SSO endpoint contract is
+  unchanged; a session token carries no `state`, so it was never usable as a
+  handoff token in the other direction.
+- **No maximum handoff lifetime is enforced.** A product that signs a
+  ten-year handoff token silently voids the five-minute mitigation above.
+  The template does not cap it, because that would mean overruling the
+  customer's own token policy — but the README's sample endpoint uses `5m`
+  and the reason is worth keeping when adapting it.
 
 ## Adapters and output paths
 
