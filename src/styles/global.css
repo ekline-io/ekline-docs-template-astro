@@ -581,5 +581,11 @@ header.header > div.header {
 }
 
 html[data-signed-in] .sidebar-content li:has(> a[data-auth-only]) {
-	display: revert;
+	/* `revert-layer`, not `revert`: `revert` rolls back to the user-agent
+	 * origin, so if Starlight ever sets `display` on sidebar list items the
+	 * revealed entry alone would drop to `list-item` while its siblings did
+	 * something else — a misalignment only signed-in readers would see.
+	 * `revert-layer` rolls back to whatever the cascade would otherwise have
+	 * applied, which is what "undo the rule above" actually means here. */
+	display: revert-layer;
 }

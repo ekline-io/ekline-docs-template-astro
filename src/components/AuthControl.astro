@@ -21,12 +21,20 @@
  * at `DOCS_SSO_URL` would skip the `state` nonce and the `returnTo` it stores.
  *
  * Rendered only when `showAuthControls` is on — see `src/config/sidebar.mjs`.
+ *
+ * Both hrefs go through `withBase`. Astro does not apply the configured `base`
+ * to a plain `<a href>` in a component — only Starlight does, and only for the
+ * sidebar items it builds. So the "Private docs" entry beside this one comes
+ * out as `/docs/private/` on a subpath deployment while a raw href here would
+ * stay `/private/` and 404, which is precisely how this went unnoticed the
+ * first time.
  */
+import { withBase } from '../lib/auth/http.mjs';
 ---
 
 <div class="auth-control print:hidden">
-	<a class="auth-in" href="/private/">Log in</a>
-	<a class="auth-out" href="/auth/logout">Log out</a>
+	<a class="auth-in" href={withBase('/private/')}>Log in</a>
+	<a class="auth-out" href={withBase('/auth/logout')}>Log out</a>
 </div>
 
 <style>

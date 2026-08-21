@@ -32,7 +32,7 @@ import { SIGNED_IN_HINT_COOKIE, SIGNED_IN_HINT_VALUE } from '../lib/auth/http.mj
 
 <script
 	is:inline
-	define:vars={{ cookie: SIGNED_IN_HINT_COOKIE, value: SIGNED_IN_HINT_VALUE }}
+	define:vars={{ hintCookieName: SIGNED_IN_HINT_COOKIE, hintCookieValue: SIGNED_IN_HINT_VALUE }}
 >
 	// Marks `<html>` when the reader has a session, so the header can show
 	// "Log out" and the sidebar can reveal its "Private docs" entry. Public
@@ -47,11 +47,18 @@ import { SIGNED_IN_HINT_COOKIE, SIGNED_IN_HINT_VALUE } from '../lib/auth/http.mj
 	// HttpOnly and must stay unreadable. Forging the hint changes what this
 	// header says and nothing else — every private URL still goes through the
 	// guard.
+	//
+	// The `define:vars` names are prefixed deliberately. They become `const`
+	// declarations at global scope, which classic inline scripts share, so a
+	// generic `cookie` or `value` would throw "already been declared" against
+	// any analytics or consent snippet a customer adds — and a parse error
+	// takes this whole script with it, silently signing everyone out of the
+	// header.
 	(() => {
 		const apply = () => {
 			const signedIn = document.cookie
 				.split('; ')
-				.some((entry) => entry === `${cookie}=${value}`);
+				.some((entry) => entry === `${hintCookieName}=${hintCookieValue}`);
 			document.documentElement.toggleAttribute('data-signed-in', signedIn);
 		};
 		apply();

@@ -361,11 +361,14 @@ test.describe('the header auth control', () => {
 		// The trade this design makes on purpose. Anyone can set the hint, so
 		// the control can lie; the guard reads the signed session and does not
 		// care what the control says.
-		await page.context().addCookies([
-			{ name: HINT_COOKIE, value: '1', url: 'http://localhost:4321' },
-		]);
-
+		// Navigate first so the origin comes from `baseURL` rather than being
+		// written out here — the port is the config's to decide, and a literal
+		// one fails as "the control is missing" when it moves.
 		await page.goto(PUBLIC_PAGE);
+		await page.context().addCookies([
+			{ name: HINT_COOKIE, value: '1', url: new URL(page.url()).origin },
+		]);
+		await page.reload();
 		const control = await authControl(page, isMobile);
 		await expect(control.locator('.auth-out'), 'the lie is cosmetic').toBeVisible();
 
