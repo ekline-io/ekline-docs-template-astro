@@ -211,12 +211,32 @@ test('the sitemap does not reference /private/ or /demo-login', () => {
 	// pathname with `prerender = false`, unlike the `/private/**` routes above
 	// which are dynamic/spread and so excluded by shape alone. Without the
 	// same filter entry, `@astrojs/sitemap` would advertise it to crawlers.
+	// Anchored the same way `astro.config.mjs`'s filter is, and for the same
+	// reason: `/private/` is a directory prefix, `/demo-login` is a leaf route.
+	// A bare `xml.includes('demo-login')` would fail on a customer page at
+	// /guides/demo-login-setup/ — which the filter correctly *keeps* in the
+	// sitemap — and `vercel.json` runs `npm test` as its build command, so
+	// that false failure is a red deploy on a legitimate page. Measured, not
+	// imagined: adding that page turns this test red under the substring form.
+	//
+	// So compare `<loc>` values as URLs, exactly as the filter sees them.
+	// Anything a filter change lets through, this catches; nothing else.
 	const files = walk(STATIC).filter((file) => /sitemap.*\.xml$/.test(file));
 	assert.ok(files.length > 0, 'no sitemap files found');
 	for (const file of files) {
-		const xml = readFileSync(file, 'utf8');
-		assert.ok(!xml.includes('/private/'), `${rel(file)} references /private/`);
-		assert.ok(!xml.includes('demo-login'), `${rel(file)} references /demo-login`);
+		const locs = [...readFileSync(file, 'utf8').matchAll(/<loc>([^<]*)<\/loc>/g)].map(
+			(match) => new URL(match[1]).pathname
+		);
+		assert.deepEqual(
+			locs.filter((pathname) => pathname.includes('/private/')),
+			[],
+			`${rel(file)} references /private/`
+		);
+		assert.deepEqual(
+			locs.filter((pathname) => /\/demo-login\/?$/.test(pathname)),
+			[],
+			`${rel(file)} references /demo-login`
+		);
 	}
 });
 

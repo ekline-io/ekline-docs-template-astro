@@ -76,7 +76,15 @@ const state = Astro.url.searchParams.get('state');
 //
 // A request that fails this gets the explanation page whether or not it
 // carries `?as=`; a token is only ever signed when every check passes.
-const redirectTarget = parseDemoRedirectUri(redirectUri, Astro.url.origin);
+// The callback path is passed in rather than known to the lib, so `withBase`
+// stays the one place the configured `base` is applied. On a subpath
+// deployment the middleware sends `/docs/auth/callback`, and this compares
+// against the same string.
+const redirectTarget = parseDemoRedirectUri(
+	redirectUri,
+	Astro.url.origin,
+	withBase('/auth/callback')
+);
 const roundTrip =
 	redirectTarget && typeof state === 'string' && state !== ''
 		? { redirectTarget, state }

@@ -105,13 +105,29 @@ export function isDemoFlagEnabled(value) {
  * reason: this value exists only to be handed to a browser as somewhere to
  * go, so http(s) is the whole of what it can usefully be.
  *
+ * Same origin is necessary but not sufficient, and the path check is the
+ * cheap half of the allowlist this is modelling. The middleware only ever
+ * sends one `redirect_uri` — `/auth/callback`, base included — so accepting
+ * any same-origin path buys nothing and costs a class of leak: the signed
+ * token is appended as a query parameter, so a target of, say,
+ * `/guides/example/` lands a live handoff token in a public page's URL, where
+ * any analytics that records the full URL (PostHog's `$current_url` among
+ * them) ships it to a third party. Not an escalation — whoever crafted that
+ * request already held the token, and this route mints tokens for anyone by
+ * design when enabled — but there is no reason to allow a destination the
+ * flow never uses.
+ *
  * @param {unknown} value
  * @param {string} requestOrigin `Astro.url.origin` — the same origin the
  *   middleware built the `redirect_uri` from, so a legitimate round trip
  *   always matches, localhost quirks and all.
+ * @param {string} callbackPath The one path this flow redirects to, base
+ *   included — `withBase('/auth/callback')` at the call site, so a subpath
+ *   deployment compares against `/docs/auth/callback` rather than failing
+ *   every legitimate round trip.
  * @returns {URL | null}
  */
-export function parseDemoRedirectUri(value, requestOrigin) {
+export function parseDemoRedirectUri(value, requestOrigin, callbackPath) {
 	if (typeof value !== 'string' || value === '') return null;
 	let parsed;
 	try {
@@ -121,5 +137,10 @@ export function parseDemoRedirectUri(value, requestOrigin) {
 	}
 	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
 	if (parsed.origin !== requestOrigin) return null;
+	// Trailing slash tolerated on both sides: whether one is emitted depends on
+	// `build.format` / `trailingSlash`, and the middleware builds this URL with
+	// `new URL()`, which does not add one. Compared after `URL` has decoded the
+	// path once, so `%2Fauth%2Fcallback` is not a way past it.
+	if (parsed.pathname.replace(/\/$/, '') !== callbackPath.replace(/\/$/, '')) return null;
 	return parsed;
 }

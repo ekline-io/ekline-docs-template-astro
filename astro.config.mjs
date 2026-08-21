@@ -63,9 +63,16 @@ const apiReferenceSidebar = await Promise.all(
 
 // https://astro.build/config
 export default defineConfig({
-	// TODO: replace with your deployed site URL (or set DOCS_SITE_URL in the
-	// build environment; it comes from the same `loadEnv` above, so a local
-	// `.env` works too). Required for sitemap and llms-txt to emit absolute URLs.
+	// TODO: replace the `https://example.com` fallback below with your deployed
+	// site URL — the string only, leaving `DOCS_SITE_URL ||` in place — or set
+	// `DOCS_SITE_URL` in the build environment and leave this line alone. It
+	// comes from the same `loadEnv` above, so a local `.env` works too.
+	// Required for sitemap and llms-txt to emit absolute URLs.
+	//
+	// Replacing the whole expression with a bare string also works, but it
+	// silently stops `DOCS_SITE_URL` doing anything — which is how a preview
+	// deployment ends up emitting production URLs in its sitemap with no error
+	// to notice.
 	//
 	// `||`, not `??`: `loadEnv` returns `''` for a bare `DOCS_SITE_URL=`, and
 	// Astro rejects an empty `site` outright (its schema is `z.string().url()`).

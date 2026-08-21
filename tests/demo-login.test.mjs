@@ -95,17 +95,52 @@ test('the flag answers only to its two documented spellings', () => {
 // ---------------------------------------------------------------------------
 
 const ORIGIN = 'http://localhost:4321';
+const CALLBACK = '/auth/callback';
 
-test('parses a same-origin absolute redirect_uri', () => {
+test('parses the site\'s own callback URL', () => {
 	assert.equal(
-		parseDemoRedirectUri('http://localhost:4321/auth/callback', ORIGIN)?.href,
+		parseDemoRedirectUri('http://localhost:4321/auth/callback', ORIGIN, CALLBACK)?.href,
 		'http://localhost:4321/auth/callback'
 	);
-	// The base path rides in the path, not the origin, so a subpath deployment
-	// passes the same check.
+	// Trailing slash tolerated on both sides: whether one is emitted depends on
+	// `build.format` / `trailingSlash`, and neither side is authoritative.
 	assert.equal(
-		parseDemoRedirectUri('http://localhost:4321/docs/auth/callback', ORIGIN)?.href,
+		parseDemoRedirectUri('http://localhost:4321/auth/callback/', ORIGIN, CALLBACK)?.href,
+		'http://localhost:4321/auth/callback/'
+	);
+	// A subpath deployment: `withBase` hands in the base-prefixed path, and the
+	// middleware builds the same one, so the two agree.
+	assert.equal(
+		parseDemoRedirectUri(
+			'http://localhost:4321/docs/auth/callback',
+			ORIGIN,
+			'/docs/auth/callback'
+		)?.href,
 		'http://localhost:4321/docs/auth/callback'
+	);
+});
+
+test('refuses a same-origin URL that is not the callback', () => {
+	// Same origin is necessary but not sufficient. The signed token is appended
+	// as a query parameter, so any other destination lands a live handoff token
+	// in that page's URL — where analytics recording the full URL would ship it
+	// onward. The flow only ever redirects to one path, so only that path is
+	// accepted.
+	for (const value of [
+		'http://localhost:4321/', // the site root
+		'http://localhost:4321/guides/example/', // a public docs page
+		'http://localhost:4321/demo-login', // this route, back at itself
+		'http://localhost:4321/auth/logout', // a sibling auth route
+		'http://localhost:4321/auth/callback/extra', // deeper than the callback
+		'http://localhost:4321/docs/auth/callback', // right shape, wrong base
+	]) {
+		assert.equal(parseDemoRedirectUri(value, ORIGIN, CALLBACK), null, value);
+	}
+	// Percent-encoding is not a way past it: `URL` decodes the path once, and
+	// the comparison happens after that.
+	assert.equal(
+		parseDemoRedirectUri('http://localhost:4321/auth%2Fcallback', ORIGIN, CALLBACK),
+		null
 	);
 });
 
@@ -126,7 +161,7 @@ test('refuses anything not same-origin', () => {
 		null,
 		7,
 	]) {
-		assert.equal(parseDemoRedirectUri(value, ORIGIN), null, String(value));
+		assert.equal(parseDemoRedirectUri(value, ORIGIN, CALLBACK), null, String(value));
 	}
 });
 
@@ -137,7 +172,7 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// Userinfo does not participate in `origin` at all, so it rides along
 	// unchanged and the URL is accepted.
 	assert.equal(
-		parseDemoRedirectUri('http://user:pass@localhost:4321/auth/callback', ORIGIN)?.href,
+		parseDemoRedirectUri('http://user:pass@localhost:4321/auth/callback', ORIGIN, CALLBACK)?.href,
 		'http://user:pass@localhost:4321/auth/callback'
 	);
 
@@ -146,7 +181,7 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// username and the host is still `localhost:4321`, so this is accepted too.
 	// Worth pinning precisely because it looks like it should be refused.
 	assert.equal(
-		parseDemoRedirectUri('http://evil.example@localhost:4321/auth/callback', ORIGIN)?.href,
+		parseDemoRedirectUri('http://evil.example@localhost:4321/auth/callback', ORIGIN, CALLBACK)?.href,
 		'http://evil.example@localhost:4321/auth/callback'
 	);
 
@@ -154,7 +189,7 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// treated as path separators exactly like forward slashes — this parses to
 	// the same URL as the forward-slash spelling and is accepted.
 	assert.equal(
-		parseDemoRedirectUri('http:\\\\localhost:4321\\auth\\callback', ORIGIN)?.href,
+		parseDemoRedirectUri('http:\\\\localhost:4321\\auth\\callback', ORIGIN, CALLBACK)?.href,
 		'http://localhost:4321/auth/callback'
 	);
 
@@ -164,7 +199,7 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// URL and this is refused by the catch branch — not by an origin
 	// mismatch, which is the outcome one might expect from the shape of the
 	// attack, but the refusal lands either way.
-	assert.equal(parseDemoRedirectUri('http://localhost:4321.evil.example/', ORIGIN), null);
+	assert.equal(parseDemoRedirectUri('http://localhost:4321.evil.example/', ORIGIN, CALLBACK), null);
 
 	// Pins the scheme check as a defense in its own right, not just a side
 	// effect of the origin comparison: `URL#origin` alone says this is
@@ -172,5 +207,5 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// 'http://localhost:4321'`), but `blob:` is not a scheme a browser can be
 	// redirected to, and the scheme check refuses it before origin is ever
 	// compared.
-	assert.equal(parseDemoRedirectUri('blob:http://localhost:4321/x', ORIGIN), null);
+	assert.equal(parseDemoRedirectUri('blob:http://localhost:4321/x', ORIGIN, CALLBACK), null);
 });
