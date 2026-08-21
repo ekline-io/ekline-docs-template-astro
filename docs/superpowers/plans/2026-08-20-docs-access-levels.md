@@ -146,10 +146,29 @@ git commit -m "test: resolve the static output dir instead of hardcoding dist/"
 
 - [ ] **Step 1: Install dependencies**
 
-Run: `npm install @astrojs/node @astrojs/vercel jose`
-Expected: installs without peer-dependency errors. (If `@astrojs/vercel` or
-`@astrojs/node` complain about the Astro major, install the major documented
-for Astro 6 at https://docs.astro.build/en/guides/on-demand-rendering/.)
+**Do not install these at `@latest`.** Verified against the registry on
+2026-08-20: the adapters' v11 lines declare `astro: ^7`, and this project runs
+Astro 6.3.1. The v10 lines are the Astro 6 majors:
+
+| Package | Version | Peer |
+| --- | --- | --- |
+| `@astrojs/node` | `^10.1.4` | `astro: ^6.3.0` ✓ (6.3.1 installed) |
+| `@astrojs/vercel` | `^10.0.8` | `astro: ^6.0.0` ✓ |
+| `jose` | `^6.2.9` | none |
+
+Run: `npm install @astrojs/node@^10.1.4 @astrojs/vercel@^10.0.8 jose@^6.2.9`
+Expected: installs with no `ERESOLVE` / peer-dependency errors.
+
+Verify the peers actually resolved rather than trusting the install:
+
+```bash
+npm ls @astrojs/node @astrojs/vercel jose astro
+```
+Expected: no `invalid` or `UNMET PEER DEPENDENCY` markers.
+
+If a peer error does appear, **stop and report** rather than passing
+`--force` or `--legacy-peer-deps`: a mismatched adapter is exactly the kind of
+breakage that surfaces only at deploy time.
 
 - [ ] **Step 2: Wire the env-selected adapter and env schema**
 
@@ -185,7 +204,20 @@ Inside `defineConfig({ ... })`, directly after the `site:` entry, add:
 	},
 ```
 
-- [ ] **Step 3: Create `.env.example`**
+- [ ] **Step 3: Ignore the Vercel adapter's output**
+
+`.gitignore` covers `dist/` and `.astro/` but has no `.vercel/` entry. A local
+`VERCEL=1` build now drops a large untracked tree into the working copy. Add
+it under the existing `# build output` heading, directly after `dist/`:
+
+```gitignore
+# build output
+dist/
+# Vercel adapter output (`VERCEL=1` builds); see wiki/private-docs.md
+.vercel/
+```
+
+- [ ] **Step 4: Create `.env.example`**
 
 ```bash
 # Private docs SSO — see wiki/private-docs.md.
@@ -198,16 +230,25 @@ DOCS_SSO_SECRET=test-sso-secret
 DOCS_SESSION_SECRET=test-session-secret
 ```
 
-- [ ] **Step 4: Verify the build and tests**
+- [ ] **Step 5: Verify the build and tests**
 
 Run: `npm run check && npm test`
 Expected: zero type errors; build now emits `dist/client/` + `dist/server/`;
 all tests PASS (Task 1's helper resolves `dist/client`).
 
-- [ ] **Step 5: Commit**
+Confirm the adapter actually engaged, rather than inferring it from a green
+suite:
 
 ```bash
-git add package.json package-lock.json astro.config.mjs .env.example
+ls dist
+```
+Expected: both `client` and `server` present. If only a flat `dist/` appeared,
+the adapter is not wired — stop and report.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json astro.config.mjs .env.example .gitignore
 git commit -m "feat: env-selected SSR adapter (Vercel on Vercel, Node elsewhere) and auth env schema"
 ```
 
@@ -683,11 +724,38 @@ git commit -m "refactor: extract the public sidebar into shared config, add logi
 
 ---
 
-### Task 7: Pure sidebar-item builders (TDD)
+### Task 7: Private/org sidebar item builders (TDD)
 
 **Files:**
 - Create: `src/lib/sidebar-items.mjs`
 - Test: `tests/sidebar-items.test.mjs`
+
+**Scope note — read this first.** An earlier draft of this plan had these
+builders also expanding `slug` shorthand and `autogenerate` into explicit
+links, on the belief that `<StarlightPage>`'s `sidebar` prop accepted only
+`{ label, link }` objects. **That is wrong.** Verified against the installed
+Starlight 0.39 source on 2026-08-20:
+
+- `utils/starlight-page.ts:89` types the prop as `StarlightUserConfig['sidebar']`
+  — the exact same type as `astro.config.mjs`'s `sidebar`.
+- `utils/starlight-page.ts:114` passes it through `validateSidebarProp` →
+  `SidebarItemSchema.array()`, then `getSidebarFromConfig`.
+- `schemas/sidebar.ts:127-140` shows `SidebarItemSchema` is a union of
+  `SidebarLinkItemSchema` (`{label, link}`), `ManualSidebarGroupSchema`
+  (`{label, items}`, nested), `AutoSidebarEntriesSchema` (`{autogenerate}`),
+  `InternalSidebarLinkItemSchema` (`{label, slug}`) and
+  `InternalSidebarLinkItemShorthandSchema` (a bare slug string).
+
+So config-shaped sidebar data can be handed to `<StarlightPage>` untouched,
+and Starlight expands `autogenerate` with its own tree walker — which handles
+nested directories, `sidebar.order`, index pages and badges correctly. A
+hand-rolled expander would be ~50 lines of duplicated logic that silently
+drifts from Starlight's on upgrade. **Do not write one.**
+
+What still needs building: private and org docs are **not** in the `docs`
+collection, so neither `slug` shorthand nor `autogenerate` can reach them.
+Their groups must be built as explicit `{ label, link }` items. That is all
+this module does.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -696,7 +764,6 @@ git commit -m "refactor: extract the public sidebar into shared config, add logi
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-	linksFromConfigItems,
 	entriesToItems,
 	orgGroup,
 	privateLinkFor,
@@ -706,48 +773,7 @@ import {
 // Minimal shape of an astro:content entry, as the real code consumes it.
 const entry = (id, title, sidebar = {}) => ({ id, data: { title, sidebar } });
 
-test('slug shorthand becomes an explicit link', () => {
-	const items = linksFromConfigItems(
-		[{ label: 'Guides', items: [{ label: 'Example', slug: 'guides/example' }] }],
-		{ docsEntries: [] }
-	);
-	assert.deepEqual(items, [
-		{ label: 'Guides', items: [{ label: 'Example', link: '/guides/example/' }] },
-	]);
-});
-
-test('autogenerate expands from docs entries, sorted by sidebar.order then id', () => {
-	const docsEntries = [
-		entry('reference/zeta', 'Zeta'),
-		entry('reference/alpha', 'Alpha', { order: 2 }),
-		entry('reference/beta', 'Beta', { order: 1 }),
-		entry('guides/other', 'Elsewhere'),
-	];
-	const items = linksFromConfigItems(
-		[{ label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] }],
-		{ docsEntries }
-	);
-	assert.deepEqual(items, [
-		{
-			label: 'Reference',
-			items: [
-				{ label: 'Beta', link: '/reference/beta/' },
-				{ label: 'Alpha', link: '/reference/alpha/' },
-				{ label: 'Zeta', link: '/reference/zeta/' },
-			],
-		},
-	]);
-});
-
-test('explicit links pass through', () => {
-	const items = linksFromConfigItems([{ label: 'Changelog', slug: 'changelog' }, { label: 'X', link: '/x/' }], { docsEntries: [] });
-	assert.deepEqual(items, [
-		{ label: 'Changelog', link: '/changelog/' },
-		{ label: 'X', link: '/x/' },
-	]);
-});
-
-test('entriesToItems sorts, honours sidebar.label, skips hidden, links index to root', () => {
+test('entriesToItems sorts by order then id, honours sidebar.label, skips hidden', () => {
 	const entries = [
 		entry('example-private-guide', 'Example private guide', { order: 1, label: 'Example guide' }),
 		entry('index', 'Private documentation'),
@@ -757,6 +783,26 @@ test('entriesToItems sorts, honours sidebar.label, skips hidden, links index to 
 		{ label: 'Example guide', link: '/private/example-private-guide/' },
 		{ label: 'Private documentation', link: '/private/' },
 	]);
+});
+
+test('entries without an order sort by id, after ordered ones', () => {
+	const entries = [entry('zeta', 'Zeta'), entry('alpha', 'Alpha'), entry('beta', 'Beta', { order: 5 })];
+	assert.deepEqual(
+		entriesToItems(entries, privateLinkFor).map((item) => item.label),
+		['Beta', 'Alpha', 'Zeta']
+	);
+});
+
+test('privateLinkFor maps index to the section root', () => {
+	assert.equal(privateLinkFor(entry('index', 'X')), '/private/');
+	assert.equal(privateLinkFor(entry('guide', 'X')), '/private/guide/');
+	assert.equal(privateLinkFor(entry('deep/nested/index', 'X')), '/private/deep/nested/');
+});
+
+test('orgLinkFor strips the org prefix and maps index to the org root', () => {
+	assert.equal(orgLinkFor('acme')(entry('acme/index', 'Acme docs')), '/private/orgs/acme/');
+	assert.equal(orgLinkFor('acme')(entry('acme/workflow', 'W')), '/private/orgs/acme/workflow/');
+	assert.equal(orgLinkFor('acme')(entry('acme/a/index', 'W')), '/private/orgs/acme/a/');
 });
 
 test('orgGroup builds a group from the org subtree, labelled by its index page', () => {
@@ -774,13 +820,24 @@ test('orgGroup builds a group from the org subtree, labelled by its index page',
 	});
 });
 
-test('orgGroup returns null when the org has no content', () => {
-	assert.equal(orgGroup('nonexistent', []), null);
+test('orgGroup falls back to the slug when the org has no index page', () => {
+	assert.deepEqual(orgGroup('acme', [entry('acme/workflow', 'Custom workflow')]), {
+		label: 'acme',
+		items: [{ label: 'Custom workflow', link: '/private/orgs/acme/workflow/' }],
+	});
 });
 
-test('org link helper', () => {
-	assert.equal(orgLinkFor('acme')(entry('acme/index', 'Acme docs')), '/private/orgs/acme/');
-	assert.equal(orgLinkFor('acme')(entry('acme/workflow', 'W')), '/private/orgs/acme/workflow/');
+test('orgGroup returns null when the org has no content', () => {
+	assert.equal(orgGroup('nonexistent', []), null);
+	assert.equal(orgGroup('acme', [entry('globex/index', 'Globex docs')]), null);
+});
+
+test('orgGroup does not match an org whose slug is a prefix of another', () => {
+	const entries = [entry('acme-labs/index', 'Acme Labs'), entry('acme/index', 'Acme')];
+	assert.deepEqual(orgGroup('acme', entries), {
+		label: 'Acme',
+		items: [{ label: 'Acme', link: '/private/orgs/acme/' }],
+	});
 });
 ```
 
@@ -794,47 +851,35 @@ Expected: FAIL — cannot find module `src/lib/sidebar-items.mjs`.
 ```js
 // src/lib/sidebar-items.mjs
 /**
- * Pure builders for the sidebar shown on private (on-demand) pages.
+ * Sidebar items for the private and per-org groups.
  *
- * `<StarlightPage>`'s `sidebar` prop accepts only explicit `{ label, link }`
- * and `{ label, items }` objects — no `slug` shorthand, no `autogenerate` —
- * so the config-style sidebar data must be expanded into links here.
+ * Only these two groups need building. The public part of a private page's
+ * sidebar is handed to `<StarlightPage>` in the same config shape
+ * `astro.config.mjs` uses — the prop is typed `StarlightUserConfig['sidebar']`
+ * and validated by Starlight's own `SidebarItemSchema`, so `slug` shorthand
+ * and `autogenerate` work there untouched, expanded by Starlight's tree
+ * walker. Re-implementing that walk here would duplicate ordering, nesting
+ * and index-page rules that are Starlight's to define.
  *
- * Everything takes entries as arguments (no `astro:content` import) so it
- * runs under `node --test`. `src/lib/private-sidebar.mjs` is the glue that
- * feeds it real collections.
+ * Private and org docs are the exception, and the reason this file exists:
+ * they live outside the `docs` collection (that is the security boundary —
+ * see wiki/private-docs.md), so nothing Starlight autogenerates can reach
+ * them and their links must be built explicitly.
+ *
+ * Everything here takes entries as arguments rather than importing
+ * `astro:content`, so it runs under `node --test`.
+ * `src/lib/private-sidebar.mjs` is the glue that feeds it real collections.
  */
 
+/** Ordered entries first (by `sidebar.order`), then the rest alphabetically. */
 const byOrderThenId = (a, b) =>
 	(a.data.sidebar?.order ?? Infinity) - (b.data.sidebar?.order ?? Infinity) ||
 	a.id.localeCompare(b.id);
 
 const labelOf = (entry) => entry.data.sidebar?.label ?? entry.data.title;
 
-/** '/guides/example/' for docs id or slug 'guides/example'; '/' for 'index'. */
-function docsLink(idOrSlug) {
-	const clean = idOrSlug.replace(/\/index$/, '');
-	return clean === '' || clean === 'index' ? '/' : `/${clean}/`;
-}
-
-/** Expand config-style sidebar items (slug shorthand, autogenerate) to links. */
-export function linksFromConfigItems(items, { docsEntries }) {
-	return items.flatMap((item) => {
-		if (item.autogenerate) {
-			const prefix = item.autogenerate.directory.replace(/\/+$/, '') + '/';
-			return docsEntries
-				.filter((entry) => entry.id.startsWith(prefix))
-				.sort(byOrderThenId)
-				.map((entry) => ({ label: labelOf(entry), link: docsLink(entry.id) }));
-		}
-		if (item.items) {
-			return [{ label: item.label, items: linksFromConfigItems(item.items, { docsEntries }) }];
-		}
-		if (item.slug !== undefined) return [{ label: item.label, link: docsLink(item.slug) }];
-		if (item.link) return [{ label: item.label, link: item.link }];
-		return [];
-	});
-}
+/** `'a/b/index'` → `'a/b'`; `'index'` → `''`. */
+const withoutIndex = (id) => (id === 'index' ? '' : id.replace(/(^|\/)index$/, ''));
 
 /** Sorted `{ label, link }` items for a list of collection entries. */
 export function entriesToItems(entries, linkFor) {
@@ -844,24 +889,27 @@ export function entriesToItems(entries, linkFor) {
 		.map((entry) => ({ label: labelOf(entry), link: linkFor(entry) }));
 }
 
-/** Link for a privateDocs entry. */
-export const privateLinkFor = (entry) =>
-	entry.id === 'index' ? '/private/' : `/private/${entry.id.replace(/\/index$/, '')}/`;
+/** Link for a `privateDocs` entry. */
+export const privateLinkFor = (entry) => {
+	const rest = withoutIndex(entry.id);
+	return rest ? `/private/${rest}/` : '/private/';
+};
 
-/** Link builder for an orgDocs entry of one org (ids look like 'acme/workflow'). */
+/** Link builder for one org's `orgDocs` entries (ids look like `acme/workflow`). */
 export const orgLinkFor = (org) => (entry) => {
-	const rest = entry.id.slice(org.length + 1).replace(/\/index$/, '');
-	return rest === '' || rest === 'index'
-		? `/private/orgs/${org}/`
-		: `/private/orgs/${org}/${rest}/`;
+	const rest = withoutIndex(entry.id.slice(org.length + 1));
+	return rest ? `/private/orgs/${org}/${rest}/` : `/private/orgs/${org}/`;
 };
 
 /**
- * Sidebar group for one org, or null if it has no content. Labelled by the
- * org's index page title so "acme" can display as "Acme docs" without a
- * separate mapping file.
+ * Sidebar group for one org, or null if it has no content.
+ *
+ * Labelled by the org's index page title, so the folder name `acme` can
+ * display as "Acme docs" without a separate slug→name mapping to maintain.
  */
 export function orgGroup(org, orgEntries) {
+	// The trailing slash matters: without it, org `acme` would also match
+	// `acme-labs/`, and one customer's sidebar would list another's pages.
 	const entries = orgEntries.filter((entry) => entry.id.startsWith(`${org}/`));
 	if (entries.length === 0) return null;
 	const index = entries.find((entry) => entry.id === `${org}/index`);
@@ -875,14 +923,13 @@ export function orgGroup(org, orgEntries) {
 - [ ] **Step 4: Run to verify pass**
 
 Run: `node --test tests/sidebar-items.test.mjs`
-Expected: PASS (7 tests). Note `orgLinkFor('acme')(entry('acme/index', …))`:
-`rest` computes to `'index'` → the `rest === 'index'` branch covers it.
+Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/lib/sidebar-items.mjs tests/sidebar-items.test.mjs
-git commit -m "feat: pure sidebar builders for private pages"
+git commit -m "feat: sidebar item builders for the private and org groups"
 ```
 
 ---
@@ -1105,6 +1152,12 @@ git commit -m "feat: auth config and fail-closed middleware for /private/**"
  * The sidebar for logged-in pages: the public navigation, plus the private
  * group, plus one group per org in the reader's session.
  *
+ * The public part is passed through in the same shape `astro.config.mjs`
+ * declares it — `<StarlightPage>`'s `sidebar` prop takes
+ * `StarlightUserConfig['sidebar']`, so `slug` shorthand and `autogenerate`
+ * are expanded by Starlight itself. Only the private and org groups are
+ * built by hand, because those collections are invisible to `autogenerate`.
+ *
  * API references appear as plain links (not per-operation groups): expanding
  * them means running Scalar's navigation builder against the spec file at
  * request time, and the spec on disk is not guaranteed to exist inside a
@@ -1113,25 +1166,19 @@ git commit -m "feat: auth config and fail-closed middleware for /private/**"
 import { getCollection } from 'astro:content';
 import { docsSidebarGroups, changelogEntry } from '../config/sidebar.mjs';
 import { enabledReferences, routeFor } from '../config/api-reference.mjs';
-import {
-	linksFromConfigItems,
-	entriesToItems,
-	privateLinkFor,
-	orgGroup,
-} from './sidebar-items.mjs';
+import { entriesToItems, privateLinkFor, orgGroup } from './sidebar-items.mjs';
 
 /** @param {App.Locals['session']} session */
 export async function buildPrivateSidebar(session) {
-	const docsEntries = await getCollection('docs');
 	const privateEntries = await getCollection('privateDocs');
 	const orgEntries = await getCollection('orgDocs');
 	return [
-		...linksFromConfigItems(docsSidebarGroups, { docsEntries }),
+		...docsSidebarGroups,
 		...enabledReferences.map((reference) => ({
 			label: reference.label,
 			link: routeFor(reference),
 		})),
-		...linksFromConfigItems([changelogEntry], { docsEntries }),
+		changelogEntry,
 		{ label: 'Private docs', items: entriesToItems(privateEntries, privateLinkFor) },
 		...(session?.orgs ?? [])
 			.map((org) => orgGroup(org, orgEntries))
@@ -1140,6 +1187,11 @@ export async function buildPrivateSidebar(session) {
 	];
 }
 ```
+
+Note the deliberate omission: `loginLink` from `src/config/sidebar.mjs` is
+**not** included. It exists to send public-page readers into the login flow;
+on a private page the reader is already logged in, and "Log out" takes its
+place.
 
 - [ ] **Step 2: Create the shared-private route**
 
