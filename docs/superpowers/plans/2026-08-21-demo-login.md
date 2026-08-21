@@ -497,9 +497,17 @@ if (roundTrip) {
 		// but does not stop a stolen token being replayed; the short exp is
 		// what limits that (wiki/private-docs.md, "The SSO handoff").
 		//
-		// Wrapped, because `demoLoginConfigured()` established the secret is a
-		// non-empty string, not that it is a usable key: a truncated or
-		// whitespace-only `DOCS_SSO_SECRET` passes the gate and fails here. An
+		// Wrapped as defence in depth, not because a known input reaches the
+		// catch. `demoLoginConfigured()` establishes only that the secret is a
+		// non-empty string, so the worry was that a truncated or
+		// whitespace-only `DOCS_SSO_SECRET` would fail here — measured against
+		// jose 6, it does not: HS256 accepts a key of any non-zero length, and
+		// no non-empty JS string encodes to zero bytes, so a single space
+		// signs happily. The branch was reached in testing only by handing
+		// `.sign()` an empty `Uint8Array` directly.
+		//
+		// It stays because that is a property of this jose version rather than
+		// a guarantee, and because the cost of being wrong is asymmetric: an
 		// unhandled rejection on the sign-in path is a stack trace where the
 		// design calls for a stated failure.
 		let token = null;
@@ -698,8 +706,12 @@ curl -s http://localhost:4321/demo-login | grep -c "round trip"
 # → 1 (explanation branch rendered)
 
 # Params present and valid, no persona → 200 picker with three personas
-curl -s "http://localhost:4321/demo-login?redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fcallback&state=teststate" | grep -c 'class="persona"'
-# → 3
+curl -s "http://localhost:4321/demo-login?redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fcallback&state=teststate" | grep -c 'class="persona'
+# → 3 — note the unterminated quote in the pattern. Astro appends a scoped
+#   style hash to every class attribute in the file, so the rendered markup is
+#   `class="persona astro-dtbjepfk"` and an exact `class="persona"` matches
+#   nothing. (Playwright's `.persona` selector is unaffected — a CSS class
+#   selector matches one class among several.)
 
 # Valid persona → 302 with a token, back to the callback
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" "http://localhost:4321/demo-login?as=acme&redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fcallback&state=teststate"
@@ -715,28 +727,29 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4321/demo-login?as=ac
 ```
 
 Then prove the signing-failure branch, which is the one the Task 2 review
-added and the one no ordinary request reaches. Stop the dev server, restart it
-with a deliberately unusable secret, and repeat the valid-persona request:
+added. **It has no reachable input**, and that was measured rather than
+assumed: `jose` 6 accepts an HS256 key of any non-zero length, and every
+non-empty JS string encodes to at least one UTF-8 byte, so no value that
+passes `authConfigured()` can make `.sign()` throw. A single space signs
+happily.
+
+Demonstrate the branch by temporarily handing `.sign()` an empty key, then
+revert:
 
 ```bash
-DOCS_SSO_SECRET= DOCS_SSO_URL=http://localhost:4545/docs-sso DOCS_SESSION_SECRET=x DOCS_UNSAFE_DEMO_LOGIN=1 npx astro dev --port 4321
-```
-
-An empty `DOCS_SSO_SECRET` makes `authConfigured()` false, so that spelling
-404s — which is itself worth seeing once. To reach the signing branch the
-secret must be non-empty but unusable by `jose`; a single space is the
-smallest such value:
-
-```bash
-DOCS_SSO_SECRET=" " DOCS_SSO_URL=http://localhost:4545/docs-sso DOCS_SESSION_SECRET=x DOCS_UNSAFE_DEMO_LOGIN=1 npx astro dev --port 4321
+# In src/pages/demo-login.astro, temporarily replace
+#   .sign(new TextEncoder().encode(ssoSecret));
+# with
+#   .sign(new Uint8Array(0));
+node --env-file=.env.test ./node_modules/.bin/astro dev --port 4321
 curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4321/demo-login?as=acme&redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fcallback&state=teststate"
-# → 500, page says "misconfigured", server log names DOCS_SSO_SECRET, no stack trace to the client
+# → 500, page says "misconfigured", server log carries
+#   "Zero-length key is not supported", client gets no stack trace
 ```
 
-If a single space turns out to be a *valid* HMAC key (verify — `jose` accepts
-short keys for HS256), find a value that genuinely throws, or induce the
-failure another way. What must be demonstrated is the branch, not a particular
-input: **a signing failure renders the page and logs, rather than throwing.**
+Revert the edit and re-run the valid-persona request to confirm 302 is back.
+What must be demonstrated is the branch, not a particular input: **a signing
+failure renders the page and logs, rather than throwing.**
 
 Also confirm the off-state: stop the server, start it *without* the env file
 (`npx astro dev --port 4321`), and:
