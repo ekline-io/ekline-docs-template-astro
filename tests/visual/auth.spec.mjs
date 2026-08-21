@@ -10,9 +10,9 @@
  * SSO endpoint a `redirect_uri` that points back at this site.
  *
  * The other half of the round trip is `tests/mock-sso/server.mjs`, started by
- * `playwright.config.mjs` alongside the preview server. Read the note on
- * `webServer` there before changing ports: the preview server has to run on
- * 4321 or the callback URL it advertises points at nothing.
+ * `playwright.config.mjs` alongside the site server. Both ports come from
+ * `tests/helpers/test-servers.mjs`; read the note there before hardcoding one
+ * back, because they were hardcoded for a real reason until recently.
  *
  * Nothing here is tagged `@screenshot`, so all of it runs in CI
  * (`test:visual:ci` is `--grep-invert @screenshot`). Each test gets a fresh
@@ -20,6 +20,8 @@
  * which is what lets the logged-out tests below mean anything.
  */
 import { test, expect } from '@playwright/test';
+
+import { CALLBACK_URL, MOCK_SSO_URL } from '../helpers/test-servers.mjs';
 
 /**
  * The phrase every example private and org page carries. `npm test` asserts it
@@ -78,7 +80,7 @@ test.describe('the guard', () => {
 
 			expect(await response.text(), 'the guard served private content').not.toContain(SENTINEL);
 			expect(response.status(), 'expected a redirect to SSO').toBe(302);
-			expect(response.headers()['location']).toContain('localhost:4545/docs-sso');
+			expect(response.headers()['location']).toContain(MOCK_SSO_URL.href);
 		});
 	}
 
@@ -90,14 +92,13 @@ test.describe('the guard', () => {
 		const response = await page.request.get('/private/', { maxRedirects: 0 });
 		const target = new URL(response.headers()['location']);
 
-		// Written out rather than derived from `baseURL`, on purpose. `astro
-		// preview` reports `http://localhost:4321` as the request origin whatever
-		// port it was told to listen on, so moving the preview server is exactly
-		// the change that breaks this handshake — and deriving the expectation
-		// from the config would make the suite move quietly along with it.
-		expect(target.searchParams.get('redirect_uri')).toBe(
-			'http://localhost:4321/auth/callback'
-		);
+		// Derived from the port the server was actually started on, which is safe
+		// now and was not before: `astro preview` reported a fixed origin whatever
+		// port it listened on, so deriving this expectation would have made the
+		// suite move quietly along with a broken handshake. The standalone server
+		// reports the real port, so the two agree or this fails. See
+		// `tests/helpers/test-servers.mjs`.
+		expect(target.searchParams.get('redirect_uri')).toBe(CALLBACK_URL);
 		// The nonce that binds the token to this browser. Its absence would not
 		// break sign-in — `verifyHandoffToken` refuses an empty expected state —
 		// but it would turn the CSRF check into a formality.

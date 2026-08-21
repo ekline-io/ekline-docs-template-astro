@@ -201,7 +201,7 @@ Run all commands from the project root in a terminal.
 | `npm run dev:sso` | Mock SSO server, for developing the logged-in experience locally |
 | `npm run check` | Type-check the project (`astro check`) |
 | `npm test` | Build, then check the output (no browser needed) |
-| `npm run test:visual` | Browser tests for the API reference and the SSO round trip — needs `npx playwright install chromium` |
+| `npm run test:visual` | Browser tests for the API reference and the SSO round trip — needs `npx playwright install chromium`. Serves on port 4331; set `DOCS_TEST_PORT` to move it |
 | `npm run astro ...` | Run Astro CLI commands |
 
 All of these run on every pull request via [`.github/workflows/ci.yml`](.github/workflows/ci.yml), except the screenshot comparisons — those are macOS-only baselines and stay a local check. See [`wiki/api-reference.md`](./wiki/api-reference.md).

@@ -223,7 +223,7 @@ On `@astrojs/node`, `context.url.origin` is **`http://localhost:<port>`** and no
 
 Good news for security: nobody can poison `redirect_uri` with a forged `Host`. But **a self-hosted deployment behind a reverse proxy must set `security.allowedDomains`** in `astro.config.mjs`, or the SSO round trip hands the customer's endpoint a `redirect_uri` pointing at the server's own loopback and sign-in can never complete. This survives local testing precisely because `astro dev` *does* use the real `Host`.
 
-One related quirk, and the reason a test port is not a matter of taste: under `astro preview --port N`, `url.origin` always reports `http://localhost:4321` whatever `N` is — measured at four different ports. `astro dev` and the standalone Node server both report the real port; only `preview` is wrong.
+One related quirk: under `astro preview --port N`, `url.origin` always reports `http://localhost:4321` whatever `N` is — measured at four different ports. `astro dev` and the standalone Node server both report the real port; only `preview` is wrong. This used to pin the browser suite to 4321, because a preview anywhere else advertised a `redirect_uri` pointing at a port nothing was listening on. The suite now runs the adapter's standalone entry point instead and the pin is gone — but the quirk is still there, so **do not reach for `astro preview` to test anything that reads `url.origin`.**
 
 ## Adapters and output paths
 
@@ -257,8 +257,8 @@ The mock redirects to the `redirect_uri` it was given rather than to a hardcoded
 
 Two traps in the browser suite, both worth knowing before you touch `playwright.config.mjs`:
 
-- **The preview server must run on 4321.** Because of the `astro preview` origin quirk above, a preview on any other port tells the SSO endpoint to send readers back to a port nothing is listening on, and the round trip dies on connection refused. Someone will otherwise "tidy" the port and get an unexplainable failure. The fix is not to make the mock ignore `redirect_uri`.
-- **`reuseExistingServer` will reuse a preview you started by hand.** A server from `npm run preview` lacks the `DOCS_*` env (those are read at runtime, `access: 'secret'`), so `/private/**` serves 404s instead of the SSO redirect and the auth specs fail with "expected 302, got 404" rather than "stop your other server". Stop it and let the config start its own.
+- **The site server is the adapter's standalone entry point, not `astro preview`,** and that is what makes the port configurable (`DOCS_TEST_PORT`, default 4331 — not 4321, so a running `astro dev` does not collide). Measured on `PORT=4500 node ./dist/server/entry.mjs`: the redirect carries the real port, and `dist/client/` including the Pagefind index is served, which is the reason the suite needs a built site rather than `astro dev`. Ports live in `tests/helpers/test-servers.mjs`; the mock SSO port is derived from `DOCS_SSO_URL` in `.env.test` so the site's configuration and the server the suite starts cannot disagree. If you hardcode a port back into a spec, read that file first. What has not changed: the fix is still not to make the mock ignore `redirect_uri`.
+- **`reuseExistingServer` will reuse a server you started by hand.** One started without the `DOCS_*` env (those are read at runtime, `access: 'secret'`) serves 404s from `/private/**` instead of the SSO redirect, and the auth specs fail with "expected 302, got 404" rather than "stop your other server". Stop it and let the config start its own.
 
 ## Known v1 limits
 

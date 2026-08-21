@@ -1,16 +1,12 @@
-import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
-/** The `DOCS_*` values from `.env.test`, the one place they are written. */
-const testEnv = Object.fromEntries(
-	readFileSync(new URL('.env.test', import.meta.url), 'utf8')
-		.split('\n')
-		.filter((line) => line.trim() && !line.startsWith('#'))
-		.map((line) => {
-			const eq = line.indexOf('=');
-			return [line.slice(0, eq).trim(), line.slice(eq + 1).trim()];
-		})
-);
+import {
+	testEnv,
+	SITE_PORT,
+	SITE_ORIGIN,
+	MOCK_SSO_PORT,
+	MOCK_SSO_URL,
+} from './tests/helpers/test-servers.mjs';
 
 /**
  * Visual regression tests for the API reference.
@@ -68,11 +64,11 @@ export default defineConfig({
 	reporter: process.env.CI ? 'github' : 'list',
 
 	use: {
-		// 4321, not an out-of-the-way port, and not a matter of taste — see the
-		// note on `webServer` below. Both suites share it: the auth suite needs
-		// this exact port to work at all, and running the API reference suite
-		// somewhere else would mean two preview servers for one `dist/`.
-		baseURL: 'http://localhost:4321',
+		// Both suites share one server: running the API reference suite somewhere
+		// else would mean two servers for one `dist/`. The port is a preference
+		// now rather than a constraint — see `tests/helpers/test-servers.mjs`
+		// for why it used to be neither.
+		baseURL: SITE_ORIGIN,
 		// Only kept for failures — a passing run should leave nothing behind.
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
@@ -100,30 +96,37 @@ export default defineConfig({
 	 * Two servers: the docs site, and the mock SSO endpoint it hands readers off
 	 * to. `tests/visual/auth.spec.mjs` drives the round trip between them.
 	 *
-	 * ## The preview server must run on 4321
+	 * ## Not `astro preview`
 	 *
-	 * Under `astro preview --port N`, `context.url.origin` is always
-	 * `http://localhost:4321` regardless of `N` — measured at four different
-	 * ports. The middleware builds the `redirect_uri` it sends to the SSO
-	 * endpoint out of that origin, so a preview on any other port tells the SSO
-	 * server to send the reader back to a port nothing is listening on, and the
-	 * round trip dies on connection refused. `astro dev` and the standalone Node
-	 * server both report the real port; only `preview` is wrong.
+	 * The site runs from the adapter's own standalone entry point rather than
+	 * `astro preview`, and that is what makes the port configurable. Under
+	 * `astro preview --port N`, `context.url.origin` reports
+	 * `http://localhost:4321` whatever `N` is, so the middleware advertised a
+	 * `redirect_uri` pointing at a port nothing was listening on and the round
+	 * trip died on connection refused. The standalone server reports the real
+	 * port and serves `dist/client/` — including the Pagefind index, the reason
+	 * this suite needs a built site rather than `astro dev`. Measured both ways;
+	 * `tests/helpers/test-servers.mjs` carries the detail.
 	 *
-	 * So 4321 is not a preference, and the fix is not to make the mock SSO server
-	 * ignore `redirect_uri`: that round trip is what these tests prove, and a
+	 * What has *not* changed: the fix is still not to make the mock SSO server
+	 * ignore `redirect_uri`. That round trip is what these tests prove, and a
 	 * mock that ignored the parameter would keep passing if the middleware
 	 * stopped sending one.
 	 */
 	webServer: [
 		{
-			// Preview only — the build runs from the `test:visual` script instead.
+			// Serve only — the build runs from the `test:visual` script instead.
 			//
 			// Building here would be skipped whenever `reuseExistingServer` finds a
 			// server already listening, and the suite would then quietly test the
 			// previous build. That is how a real fix can look like a persistent
-			// failure. `astro preview` serves `dist/` from disk, so a server left
-			// running from an earlier run picks the fresh build up either way.
+			// failure. This entry point reads `dist/` from disk at startup, so a
+			// server left running from an earlier run picks the fresh build up on
+			// restart either way.
+			//
+			// If `dist/server/entry.mjs` is missing, the build did not run: the
+			// script does it, so run the suite through `npm run test:visual`
+			// rather than `npx playwright test`.
 			//
 			// Env is the one thing a reused server does *not* pick up: these values
 			// are read at runtime (`astro:env` `access: 'secret'`), so a preview
@@ -131,8 +134,8 @@ export default defineConfig({
 			// the SSO redirect. The logged-out specs fail loudly when that happens,
 			// which is the intended outcome — stop the server and let this config
 			// start its own.
-			command: 'npx astro preview --port 4321',
-			url: 'http://localhost:4321',
+			command: 'node ./dist/server/entry.mjs',
+			url: SITE_ORIGIN,
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
 			// Read from `.env.test` rather than written out here.
@@ -150,7 +153,7 @@ export default defineConfig({
 			// the session token's `aud` claim means a handoff token cannot be
 			// replayed as a session cookie even when both match, and the suite
 			// should exercise the configuration customers are told to use.
-			env: { PORT: '4321', ...testEnv },
+			env: { PORT: String(SITE_PORT), ...testEnv },
 		},
 		{
 			// The readiness probe is deliberately a request the endpoint refuses:
@@ -159,7 +162,8 @@ export default defineConfig({
 			// — and Playwright *follows* redirects when polling, which would send it
 			// to a docs site that may not be listening yet.
 			command: 'node tests/mock-sso/server.mjs',
-			url: 'http://localhost:4545/docs-sso?redirect_uri=probe&state=probe',
+			env: { MOCK_SSO_PORT: String(MOCK_SSO_PORT), MOCK_SSO_SECRET: testEnv.DOCS_SSO_SECRET },
+			url: `${MOCK_SSO_URL.href}?redirect_uri=probe&state=probe`,
 			reuseExistingServer: !process.env.CI,
 			timeout: 30_000,
 		},

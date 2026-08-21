@@ -29,6 +29,13 @@ org folders), so org isolation is visible in two clicks. Edit them in
 - `site` in `astro.config.mjs` can now come from a `DOCS_SITE_URL` env var, so one
   config serves deployments at different URLs. The placeholder default is
   unchanged.
+- **`npm run test:visual` no longer needs port 4321.** It ran the site under
+  `astro preview`, which reports a fixed `http://localhost:4321` origin whatever
+  port it listens on — so the SSO round trip only worked on that one port, and a
+  developer with anything else there could not run the suite. It now runs the
+  Node adapter's standalone entry point, which reports the real port. Set
+  `DOCS_TEST_PORT` to move it (default 4331); the mock SSO port follows
+  `DOCS_SSO_URL` in `.env.test`. Ports live in `tests/helpers/test-servers.mjs`.
 
 ## 2.0.0
 

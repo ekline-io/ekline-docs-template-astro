@@ -32,19 +32,18 @@
  */
 import { test, expect } from '@playwright/test';
 
+import { CALLBACK_URL, SITE_ORIGIN } from '../helpers/test-servers.mjs';
+
 /** See tests/visual/auth.spec.mjs — the marker for "private content rendered". */
 const SENTINEL = 'EKLINE-PRIVATE-SENTINEL';
 
 /**
- * Written out rather than derived from `baseURL`. See the note on
- * `tests/visual/auth.spec.mjs`'s "the redirect tells the SSO endpoint where
- * to send the reader back" test (around line 93): `astro preview` reports
- * `http://localhost:4321` as the request origin whatever port it was told to
- * listen on, so this must NOT be "cleaned up" into
- * `new URL('/auth/callback', baseURL)` — that refactor silently breaks the
- * moment the preview server moves ports.
+ * The one destination this flow redirects to — `parseDemoRedirectUri` refuses
+ * every other same-origin path, so this is not an arbitrary same-origin URL.
+ * Shared with `playwright.config.mjs` so the port the server is started on and
+ * the port asserted here cannot drift; see `tests/helpers/test-servers.mjs`.
  */
-const CALLBACK = 'http://localhost:4321/auth/callback';
+const CALLBACK = CALLBACK_URL;
 
 /** Set by `/auth/callback`; named in `src/config/auth.mjs` (`auth.sessionCookie`). */
 const SESSION_COOKIE = 'docs_session';
@@ -336,7 +335,7 @@ test.describe('the round trip', () => {
 		expect(response.status()).toBe(302);
 		expect(response.headers()['cache-control']).toContain('no-store');
 		const location = new URL(response.headers()['location']);
-		expect(location.origin).toBe('http://localhost:4321');
+		expect(location.origin).toBe(SITE_ORIGIN);
 		expect(location.searchParams.get('token')).toBeTruthy();
 	});
 });
