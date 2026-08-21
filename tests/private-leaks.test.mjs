@@ -5,6 +5,11 @@
  * up anywhere in the static output — HTML, Pagefind fragments, llms*.txt,
  * sitemap, .md twins — a route or plugin started prerendering private content.
  *
+ * Content collections and routes are not the only way in. `public/` is copied
+ * to the static output verbatim, and the static handler runs before the
+ * middleware, so a file placed there is served to anyone regardless of what
+ * the guard says. The `/private/` test below is what covers that.
+ *
  * Why a sentinel rather than checking each surface's own exclusion rules: the
  * claim being defended is structural, not a list of opt-outs. Private content
  * lives outside the `docs` collection and renders only from routes marked
@@ -122,15 +127,46 @@ test('the gzip branch above is actually exercised', () => {
 	);
 });
 
-test('no prerendered files under /private/', () => {
-	// The sentinel search above catches leaked private *prose*. This catches
-	// the shape of the mistake directly: a route under `src/pages/private/`
-	// that forgot `export const prerender = false` emits HTML here, whether or
-	// not the page it renders happens to contain the sentinel.
-	assert.ok(
-		!existsSync(join(STATIC, 'private')),
-		'static output contains a private/ directory'
+test('nothing is published under /private/ — no prerendered page, no public/ asset', () => {
+	// Two different mistakes land files here, and the second is both more
+	// likely and impossible to fix in the guard.
+	//
+	// 1. A route under `src/pages/private/` that forgot
+	//    `export const prerender = false` gets prerendered and emits HTML.
+	//
+	// 2. Anything under `public/private/` is copied into the static output
+	//    verbatim. Astro's static handler runs BEFORE the middleware, so
+	//    nothing in `src/middleware.ts` can prevent this — not a bug in the
+	//    guard, a hole beside it, by construction. Measured with SSO fully
+	//    configured: an anonymous request for a file dropped at
+	//    `public/private/` answered `200` with `cache-control: public`, while
+	//    `/private/` itself correctly answered `302` with `no-store`.
+	//
+	// `public/` is exactly where a customer puts the PDF, diagram or `.json`
+	// that belongs with their private docs, and `public/private/` is the
+	// obvious place to keep it "with" them — which publishes it to the world,
+	// CDN-cacheable, at a URL that looks protected.
+	//
+	// This test is the only thing that notices. The sentinel search above
+	// cannot help, because a customer's private roadmap PDF does not contain
+	// our sentinel — measured too: with a sentinel-free file at
+	// `/private/orgs/roadmap.pdf` and nothing else wrong, this was the sole
+	// failing test in the file.
+	//
+	// Hence a check on the whole directory rather than on named paths: it
+	// covers nested cases like `public/private/orgs/**` and any file type,
+	// whatever the bytes inside say.
+	const dir = join(STATIC, 'private');
+	const published = existsSync(dir) ? walk(dir).map(rel) : [];
+	assert.deepEqual(
+		published,
+		[],
+		`served at /private/** to anyone, no session required:\n  ${published.join('\n  ')}`
 	);
+	// A `private/` directory with no files in it serves nothing, but nothing
+	// should be creating one either — asserted separately so the file list
+	// above cannot pass by being empty.
+	assert.ok(!existsSync(dir), 'static output contains an empty private/ directory');
 });
 
 test('the sitemap does not reference /private/', () => {
