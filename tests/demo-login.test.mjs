@@ -116,7 +116,10 @@ test('refuses anything not same-origin', () => {
 		'https://localhost:4321/auth/callback', // wrong scheme, so wrong origin
 		'//evil.example/auth/callback', // protocol-relative: not absolute, URL() throws
 		'/auth/callback', // relative: URL() throws
-		'javascript:alert(1)', // opaque origin ("null"), never equal to a real one
+		// Non-http(s), so the scheme check refuses it before origin is compared.
+		// (Its origin is the opaque "null", which would also fail — but that is no
+		// longer the branch it takes.)
+		'javascript:alert(1)',
 		'not a url',
 		'',
 		undefined,

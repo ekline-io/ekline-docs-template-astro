@@ -80,9 +80,11 @@ export function isDemoFlagEnabled(value) {
  * `http`), so the input string and `parsed.href` can differ. A caller that
  * validates a raw string here and then redirects to that *same raw string*
  * is redirecting to something this function never actually checked, and on
- * a value containing what `URL` silently stripped, Node's redirect throws
- * `ERR_INVALID_CHAR` — a 500 with a stack trace where the design calls for a
- * clean refusal. `src/config/auth.mjs` documents the identical failure mode
+ * a value containing what `URL` silently stripped, the redirect cannot be
+ * written at all: `Astro.redirect()` builds a `Response`, so undici's header
+ * validation throws first (`Headers.append`), and Node's own `setHeader`
+ * would throw `ERR_INVALID_CHAR` behind it. Either way a 500 with a stack
+ * trace, where the design calls for a clean refusal. `src/config/auth.mjs` documents the identical failure mode
  * as its reason for `parseSsoUrl` to parse once and hand back a `URL`
  * instead of a boolean; the caller here must redirect to the returned
  * `URL`'s `href`, never to the original `value`.

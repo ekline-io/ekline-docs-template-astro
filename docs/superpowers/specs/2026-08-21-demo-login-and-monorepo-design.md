@@ -63,11 +63,17 @@ which only exists for local dev.
 
 - `findPersona(id)` — lookup; unknown ids return `null`, and the raw `?as=`
   value is never placed into a JWT.
-- `isDemoRedirectUri(value, requestOrigin)` — `redirect_uri` must parse and be
-  same-origin with the request. The mock SSO server deliberately skips this
-  (documented there); a deployed endpoint must not: without it `/demo-login` is
-  an open redirector that hands a signed handoff token to an arbitrary site.
-  This also models what a customer's real endpoint should do.
+- `parseDemoRedirectUri(value, requestOrigin)` — `redirect_uri` must parse, use
+  an http(s) scheme and be same-origin with the request. The mock SSO server
+  deliberately skips this (documented there); a deployed endpoint must not:
+  without it `/demo-login` is an open redirector that hands a signed handoff
+  token to an arbitrary site. This also models what a customer's real endpoint
+  should do. It returns the parsed `URL` rather than a boolean — amended after
+  code review, because `URL` normalises what it parses (CR/LF stripped, scheme
+  and host lowered), so a caller redirecting to the *raw* string would be
+  redirecting to something never checked, and to a value Node refuses to write
+  as a header. The scheme check is the same amendment: `URL#origin` reports a
+  real origin for `blob:http://origin/x`, so origin alone is not enough.
 
 **`src/pages/demo-login.astro`** — `export const prerender = false`.
 
@@ -129,11 +135,13 @@ the template carries the leak-test sentinel and exists to be seen.
 ### Tests
 
 - **Unit (`tests/demo-login.test.mjs`)**: persona lookup returns `null` for
-  unknown/empty ids; `isDemoRedirectUri` rejects cross-origin, protocol-relative
-  and unparseable values; the gate helper is off unless both conditions hold.
-- **Build assertions**: `/demo-login` absent from the sitemap; existing
-  `private-leaks` suite stays green (the route is server-rendered, so it never
-  enters the static output).
+  unknown/empty ids; `parseDemoRedirectUri` rejects cross-origin,
+  protocol-relative, non-http(s) and unparseable values; the gate helper is off
+  unless both conditions hold.
+- **Build assertions**: `/demo-login` absent from the sitemap — asserted in
+  `tests/private-leaks.test.mjs` beside the `/private/` one, which is where
+  this suite's build-output tests live; the rest of that suite stays green (the
+  route is server-rendered, so it never enters the static output).
 - **Playwright (`tests/visual/demo-login.spec.mjs`)**: drive the picker
   directly against the existing preview server — block the redirect to the mock
   SSO, read the state cookie via `context.cookies()`, request
