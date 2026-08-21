@@ -140,6 +140,39 @@ test.describe('the SSO round trip', () => {
 		expect(await refused.text()).toBe(await fictional.text());
 	});
 
+	test('a missing page 404s identically to a refused org', async ({ page }) => {
+		// The routes under `src/pages/private/` build their own 404 rather than
+		// importing the middleware's `notFound()`, because `astro check` cannot
+		// analyse a top-level early return in Astro frontmatter — an imported
+		// helper there reads as an unused import and the branch goes untyped.
+		// The comments in those files point at this test as what keeps the three
+		// bodies in step, so this is that test: without it, the duplication is
+		// unguarded and a well-meaning edit to one of them turns the difference
+		// between "does not exist" and "not yours" into an oracle.
+		//
+		// The pairs matter. `globex` is refused by the middleware (the reader is
+		// not a member); the other two are produced by the route files, for a
+		// reader who IS in `acme` asking for pages that are not there.
+		await page.goto('/private/');
+		expect(await sessionCookie(page), 'never signed in; the comparison would be vacuous').toBeDefined();
+
+		const [refusedByGuard, missingOrgPage, missingPrivatePage] = await Promise.all([
+			page.request.get('/private/orgs/globex/'),
+			page.request.get('/private/orgs/acme/no-such-page/'),
+			page.request.get('/private/no-such-page/'),
+		]);
+
+		expect(refusedByGuard.status()).toBe(404);
+		expect(missingOrgPage.status(), 'a member asking for a missing org page').toBe(404);
+		expect(missingPrivatePage.status(), 'a missing shared private page').toBe(404);
+
+		const refusedBody = await refusedByGuard.text();
+		expect(await missingOrgPage.text(), 'org route 404 must match the guard byte for byte').toBe(
+			refusedBody
+		);
+		expect(await missingPrivatePage.text(), 'private route 404 must match too').toBe(refusedBody);
+	});
+
 	test('logout ends the session for real, not just in the cookie jar', async ({ page }) => {
 		await page.goto('/private/');
 		expect(await sessionCookie(page)).toBeDefined();

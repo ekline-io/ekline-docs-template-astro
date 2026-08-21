@@ -28,10 +28,21 @@ import { docsSidebarGroups, changelogEntry } from '../config/sidebar.mjs';
 import { enabledReferences, routeFor } from '../config/api-reference.mjs';
 import { entriesToItems, privateLinkFor, orgGroup } from './sidebar-items.mjs';
 
-/** @param {App.Locals['session']} session */
-export async function buildPrivateSidebar(session) {
-	const privateEntries = await getCollection('privateDocs');
-	const orgEntries = await getCollection('orgDocs');
+/**
+ * @param {App.Locals['session']} session
+ * @param {Awaited<ReturnType<typeof getCollection<'privateDocs'>>>} [loadedPrivateEntries]
+ *   The `privateDocs` collection, when the caller has already loaded it. The
+ *   private route resolves its own entry from that collection before rendering,
+ *   so passing it through saves loading it a second time on every request.
+ */
+export async function buildPrivateSidebar(session, loadedPrivateEntries) {
+	// Independent loads, so `Promise.all` rather than two sequential awaits —
+	// this runs per request, not once at build time.
+	const [privateEntries, orgEntries] = await Promise.all([
+		loadedPrivateEntries ?? getCollection('privateDocs'),
+		getCollection('orgDocs'),
+	]);
+	const privateItems = entriesToItems(privateEntries, privateLinkFor);
 	return [
 		...docsSidebarGroups,
 		...enabledReferences.map((reference) => ({
@@ -39,7 +50,11 @@ export async function buildPrivateSidebar(session) {
 			link: routeFor(reference),
 		})),
 		changelogEntry,
-		{ label: 'Private docs', items: entriesToItems(privateEntries, privateLinkFor) },
+		// Dropped when empty, for the same reason the org groups below are: a
+		// customer who wants only per-org docs deletes `src/content/private-docs/`
+		// (the README treats the two collections separately), and a bare "Private
+		// docs" heading with nothing under it is not what they asked for.
+		...(privateItems.length > 0 ? [{ label: 'Private docs', items: privateItems }] : []),
 		// `orgGroup` returns `null` for an org with no content (and for a slug
 		// containing a slash — see `sidebar-items.mjs`). Those have to be dropped
 		// before Starlight sees them: `SidebarItemSchema` rejects `null` and the

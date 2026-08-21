@@ -41,8 +41,15 @@
  */
 import type { APIContext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
-import { auth, authConfigured, authSecrets, ssoEndpoint } from './config/auth.mjs';
+import {
+	auth,
+	authConfigured,
+	authSecrets,
+	ssoEndpoint,
+	stateCookieAttributes,
+} from './config/auth.mjs';
 import { classifyPath } from './lib/auth/guards.mjs';
+import { escapeHtml, notFound, withBase, NO_STORE } from './lib/auth/http.mjs';
 import { verifySessionToken } from './lib/auth/tokens.mjs';
 
 /**
@@ -83,30 +90,6 @@ export type StateCookie = { state: string; returnTo: string; attempts: number };
  */
 const MAX_SSO_ATTEMPTS = 2;
 
-/**
- * One spelling of the state cookie's attributes, for the write and the
- * deletions alike.
- *
- * A browser keys a cookie on name + domain + path, so a `set` and a `delete`
- * that disagree about `path` do not cancel out — the old cookie stays, holding
- * a stale `attempts`. Two spellings of one cookie invite exactly the edit that
- * changes one of them.
- *
- * Not exported: `/auth/callback` writes this cookie too, but through
- * `writeStateCookie` below, so these attributes have exactly one caller-visible
- * spelling.
- *
- * `secure` is `Secure` everywhere except `astro dev`: Vite compiles
- * `import.meta.env.DEV` to a literal `false` in a production build, and dev
- * needs it off to work over plain http on localhost.
- */
-const stateCookieAttributes = {
-	path: '/',
-	httpOnly: true,
-	sameSite: 'lax',
-	secure: !import.meta.env.DEV,
-} as const;
-
 /** How long one sign-in round trip may stay in flight, in seconds. */
 const STATE_COOKIE_MAX_AGE = 600;
 
@@ -115,7 +98,8 @@ const STATE_COOKIE_MAX_AGE = 600;
  *
  * Exported because `/auth/callback` writes it too — it owns the `attempts`
  * counter (see `MAX_SSO_ATTEMPTS`) and has to hand the incremented value back
- * to the browser.
+ * to the browser. The attributes come from `src/config/auth.mjs` so that this
+ * write, the deletion below, and `/auth/callback`'s deletion cannot disagree.
  */
 export function writeStateCookie(context: APIContext, value: StateCookie): void {
 	context.cookies.set(auth.stateCookie, JSON.stringify(value), {
@@ -124,8 +108,17 @@ export function writeStateCookie(context: APIContext, value: StateCookie): void 
 	});
 }
 
-/** `private` for the intermediaries that only honour that; `no-store` for the rest. */
-const NO_STORE = 'private, no-store';
+/**
+ * Clear the state cookie.
+ *
+ * Exported for the same reason as the write: `/auth/callback` clears it on a
+ * successful sign-in and `/auth/logout` clears it so no half-finished round
+ * trip outlives the session. A delete whose `path` disagrees with the `set`
+ * does not cancel it out, so all four call sites go through here.
+ */
+export function clearStateCookie(context: APIContext): void {
+	context.cookies.delete(auth.stateCookie, stateCookieAttributes);
+}
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	// Two independent signals, and the stricter one wins. Neither is sufficient
@@ -328,7 +321,7 @@ function redirectToSso(context: APIContext) {
 		// trip rather than pinning the reader on this page forever. That is
 		// deliberate: the guard exists to break a *loop*, and one error page is
 		// enough to break one.
-		context.cookies.delete(auth.stateCookie, stateCookieAttributes);
+		clearStateCookie(context);
 		return errorPage(
 			'Sign-in did not complete',
 			`Two sign-in attempts came back from the SSO service without a token this ` +
@@ -389,8 +382,7 @@ function redirectToSso(context: APIContext) {
  * shows this.
  */
 function callbackUrl(context: APIContext): string {
-	const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-	return new URL(`${base}/auth/callback`, context.url.origin).href;
+	return new URL(withBase('/auth/callback'), context.url.origin).href;
 }
 
 /**
@@ -472,18 +464,6 @@ function noStore(response: Response): Response {
 }
 
 /**
- * Deliberately not the site's styled 404: this is served for org names that do
- * not exist *and* for org names the reader may not have, so it has to look
- * identical in both cases and carry nothing from either collection.
- */
-function notFound() {
-	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
-		status: 404,
-		headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
-	});
-}
-
-/**
  * Both arguments are literals at the only call site today, so the escaping is
  * not fixing a live hole — it is making the boundary the safe one, so that the
  * next call site cannot pass something from a cookie or a URL and reintroduce
@@ -498,19 +478,6 @@ function errorPage(title: string, body: string) {
 			headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
 		}
 	);
-}
-
-/**
- * Escapes the five characters that can break out of text content or a quoted
- * attribute. `&` first, or it would double-escape the entities added after it.
- */
-function escapeHtml(value: string): string {
-	return value
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
 }
 
 /** Dev-only. In production an unconfigured site 404s instead (fail closed). */

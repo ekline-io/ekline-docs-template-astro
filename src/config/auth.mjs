@@ -40,6 +40,37 @@ export const authSecrets = {
 };
 
 /**
+ * One spelling of each cookie's attributes, for every write and delete.
+ *
+ * A browser keys a cookie on name + domain + path, so a `set` and a `delete`
+ * that disagree about `path` do not cancel out — the old cookie stays. More to
+ * the point, these are the security attributes of the two credentials this
+ * feature issues, and a review that tightens `sameSite` or fixes `secure` has
+ * to be able to find them in one place. They lived in three literals across
+ * three files before they lived here.
+ *
+ * `secure` is on everywhere except `astro dev`: Vite compiles
+ * `import.meta.env.DEV` to a literal `false` in a production build, and dev
+ * needs it off to work over plain http on localhost.
+ *
+ * `maxAge` is deliberately absent — it differs per cookie and per call (the
+ * session's TTL, the state cookie's in-flight window, and zero for a delete),
+ * so callers spread these and add their own.
+ */
+const cookieDefaults = /** @type {const} */ ({
+	path: '/',
+	httpOnly: true,
+	sameSite: 'lax',
+	secure: !import.meta.env.DEV,
+});
+
+/** Attributes for the docs site's own session cookie. */
+export const sessionCookieAttributes = cookieDefaults;
+
+/** Attributes for the in-flight SSO round trip's state cookie. */
+export const stateCookieAttributes = cookieDefaults;
+
+/**
  * `auth.ssoUrl` parsed, or `null` if it is unset or unusable as a redirect
  * target. Computed once at module load: env vars do not change under a running
  * server, and this must not be able to throw on the request path.

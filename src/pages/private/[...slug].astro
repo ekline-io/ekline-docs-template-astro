@@ -32,17 +32,29 @@ export const prerender = false;
 const id = Astro.params.slug || 'index';
 const entries = await getCollection('privateDocs');
 const entry = entries.find((candidate) => candidate.id === id);
+// The same bare 404 the middleware serves, for the same reason: a reader who is
+// signed in but asking for a page that does not exist must not be able to tell
+// that apart from a page they are not entitled to.
 if (!entry) {
-	// The same bare 404 the middleware serves, for the same reason: a reader who
-	// is signed in but asking for a page that does not exist must not be able to
-	// tell that apart from a page they are not entitled to.
+	// Deliberately inlined rather than imported from `src/lib/auth/http.mjs`,
+	// which has the same response as `notFound()`. `astro check` does not
+	// analyse the body of a top-level early return in Astro frontmatter: a
+	// symbol referenced only there is reported as an unused import, and — worse
+	// — a type error only there is never reported at all. Importing a helper for
+	// this branch buys deduplication and pays for it in a false diagnostic plus
+	// a blind spot. What actually protects the guarantee is
+	// `tests/visual/auth.spec.mjs`, which asserts these bodies are byte-identical
+	// to the middleware's, which is the property that matters and is stronger
+	// than a shared function anyone can bypass.
 	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
 		status: 404,
 		headers: { 'content-type': 'text/html; charset=utf-8' },
 	});
 }
 const { Content, headings } = await render(entry);
-const sidebar = await buildPrivateSidebar(Astro.locals.session);
+// `entries` is handed on so the sidebar does not load `privateDocs` a second
+// time — this route renders on demand, so that cost is per request.
+const sidebar = await buildPrivateSidebar(Astro.locals.session, entries);
 ---
 
 <StarlightPage

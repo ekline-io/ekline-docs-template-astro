@@ -23,7 +23,13 @@ const { org } = Astro.params;
 const id = [org, Astro.params.slug].filter(Boolean).join('/');
 const entries = await getCollection('orgDocs');
 const entry = entries.find((candidate) => candidate.id === id);
+// The same bare 404 the middleware serves: a signed-in reader must not be able
+// to tell a page that does not exist from one they are not entitled to.
 if (!entry) {
+	// Inlined for the reason the sibling route explains: `astro check` cannot
+	// see into a top-level early return, so an imported helper here would read
+	// as unused and this branch would go untyped. The byte-for-byte match with
+	// the middleware's 404 is asserted in `tests/visual/auth.spec.mjs`.
 	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
 		status: 404,
 		headers: { 'content-type': 'text/html; charset=utf-8' },

@@ -11,9 +11,20 @@
  * otherwise.
  */
 import type { APIContext, APIRoute } from 'astro';
-import { auth, authSecrets, authConfigured } from '../../config/auth.mjs';
+import {
+	auth,
+	authSecrets,
+	authConfigured,
+	sessionCookieAttributes,
+} from '../../config/auth.mjs';
+import { escapeHtml, withBase } from '../../lib/auth/http.mjs';
 import { verifyHandoffToken, createSessionToken } from '../../lib/auth/tokens.mjs';
-import { readStateCookie, writeStateCookie, type StateCookie } from '../../middleware';
+import {
+	readStateCookie,
+	writeStateCookie,
+	clearStateCookie,
+	type StateCookie,
+} from '../../middleware';
 
 export const prerender = false;
 
@@ -30,10 +41,15 @@ export const GET: APIRoute = async (context) => {
 		return rejected(context, stored, 'The sign-in link is missing its token or state.', returnTo);
 	}
 
+	// No non-null assertions on the secrets, for the reason `src/middleware.ts`
+	// gives at its own session lookup: `authConfigured()` above has established
+	// both, and `verifyHandoffToken`/`createSessionToken` take the secret as
+	// `unknown` and throw on an empty key. An `!` here would be the thing that
+	// silences the compiler if `authConfigured()` ever stops implying it.
 	let session;
 	try {
 		session = await verifyHandoffToken(token, {
-			secret: authSecrets.sso!,
+			secret: authSecrets.sso,
 			expectedState: stored.state,
 		});
 	} catch (error) {
@@ -42,18 +58,15 @@ export const GET: APIRoute = async (context) => {
 	}
 
 	const value = await createSessionToken(session, {
-		secret: authSecrets.session!,
+		secret: authSecrets.session,
 		ttlSeconds: auth.sessionTtlSeconds,
 	});
 	context.cookies.set(auth.sessionCookie, value, {
-		path: '/',
-		httpOnly: true,
-		sameSite: 'lax',
-		secure: !import.meta.env.DEV,
+		...sessionCookieAttributes,
 		maxAge: auth.sessionTtlSeconds,
 	});
 	// Success clears the state cookie — and with it the loop-guard counter.
-	context.cookies.delete(auth.stateCookie, { path: '/' });
+	clearStateCookie(context);
 	return context.redirect(returnTo);
 };
 
@@ -69,8 +82,15 @@ export const GET: APIRoute = async (context) => {
  * value is always a path this site generated.
  */
 function safeReturnTo(value: string | undefined): string {
-	if (!value || !value.startsWith('/') || value.startsWith('//')) return '/private/';
-	return /^\/[A-Za-z0-9/_\-.~%?=&]*$/.test(value) ? value : '/private/';
+	// `withBase`, not a bare `/private/`. The value being replaced came from
+	// `context.url.pathname` and therefore carries the configured `base`; the
+	// fallback has to as well, or a reader whose state cookie is missing — a
+	// bookmarked callback URL, an expired cookie, a second tab — finishes
+	// signing in and lands on a 404 outside the site. `context.redirect()`
+	// writes `Location` verbatim and applies no base of its own.
+	const fallback = withBase('/private/');
+	if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback;
+	return /^\/[A-Za-z0-9/_\-.~%?=&]*$/.test(value) ? value : fallback;
 }
 
 /**
@@ -124,25 +144,3 @@ function failure(reason: string, returnTo: string) {
 	);
 }
 
-/**
- * The characters that can change the meaning of the HTML in `failure()`.
- *
- * A named `Record<string, string>` rather than an object literal indexed
- * inline: TypeScript narrows a literal's keys to exactly those five, so
- * indexing one with an arbitrary `string` is `string | undefined` and
- * `astro check` refuses to pass it to `String#replace`. Widening the type is
- * the honest fix — the guarantee that every lookup hits is the regex below
- * having no character this table lacks, which is a property of reading the two
- * together, not something the key type was ever proving.
- */
-const HTML_ESCAPES: Record<string, string> = {
-	'&': '&amp;',
-	'<': '&lt;',
-	'>': '&gt;',
-	'"': '&quot;',
-	"'": '&#39;',
-};
-
-function escapeHtml(value: string): string {
-	return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
-}
