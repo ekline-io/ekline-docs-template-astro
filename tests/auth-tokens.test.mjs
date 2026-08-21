@@ -264,9 +264,10 @@ test('state is compared by exact type and value', async () => {
 // ---------------------------------------------------------------------------
 // Cross-token replay
 //
-// `.env.example` ships DOCS_SSO_SECRET and DOCS_SESSION_SECRET with the *same*
-// development value, and one operator secret reused everywhere is the ordinary
-// production mistake. These tests pin the behaviour that makes that survivable.
+// One operator secret reused for both DOCS_SSO_SECRET and DOCS_SESSION_SECRET is
+// the ordinary production slip — `.env.example` ships two deliberately different
+// development values so the template does not model it. Every test below signs
+// with a single secret precisely to stand in for the deployment that did.
 // ---------------------------------------------------------------------------
 
 test('a handoff token cannot be replayed as a session cookie', async () => {
@@ -306,12 +307,12 @@ test('a session cookie cannot be replayed as a handoff token', async () => {
 // ---------------------------------------------------------------------------
 
 test('a missing or unusable secret throws instead of reading as "logged out"', async () => {
-	// The bug this prevents: `new TextEncoder().encode(undefined)` is an empty
-	// key, jose throws "Zero-length key is not supported", and a bare
-	// `catch { return null }` reports that as no session. The middleware would
-	// then redirect an unconfigured site to SSO forever, and the logs would say
-	// nothing about the missing variable. A secret that is not there is a
-	// deployment fault, not a logged-out reader.
+	// Belt and braces for a caller that skips `authConfigured()` — the planned
+	// ones all gate on it, so this is about the next one. Without the check,
+	// `new TextEncoder().encode(undefined)` is an empty key, jose throws
+	// "Zero-length key is not supported", and a bare `catch { return null }`
+	// reports a configuration error as an ordinary logged-out reader. A secret
+	// that is not there is a deployment fault, and should read as one.
 	const token = await createSessionToken(
 		{ sub: 'user-1', email: null, name: null, orgs: [] },
 		{ secret: SECRET, ttlSeconds: 60 }

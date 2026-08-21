@@ -31,16 +31,17 @@
  * ### Why the marker exists at all
  *
  * `DOCS_SSO_SECRET` and `DOCS_SESSION_SECRET` are separate variables, but one
- * operator secret reused everywhere is an ordinary mistake — `.env.example`
- * ships the two with the same development value. Measured with them equal and
- * no marker: a handoff token verifies as a session cookie with its `orgs`
- * intact, so a stolen handoff token could be pasted into the cookie jar
- * directly, skipping the callback and its state check. Worse, *any* token the
- * product signs with that secret for its own purposes — an API token, a
- * password-reset link — verifies as a docs session with `orgs: []`, which is
- * enough to read every shared private page, for as long as that token lives.
- * One `aud` claim ends both. The reverse direction needs nothing: a session
- * token carries no `state`, so it can never satisfy the handoff check.
+ * operator secret reused for both is an ordinary production slip — which is why
+ * `.env.example` deliberately ships two *different* development values rather
+ * than modelling the mistake it warns about. Measured with them equal and no
+ * marker: a handoff token verifies as a session cookie with its `orgs` intact,
+ * so a stolen handoff token could be pasted into the cookie jar directly,
+ * skipping the callback and its state check. Worse, *any* token the product
+ * signs with that secret for its own purposes — an API token, a password-reset
+ * link — verifies as a docs session with `orgs: []`, which is enough to read
+ * every shared private page, for as long as that token lives. One `aud` claim
+ * ends both. The reverse direction needs nothing: a session token carries no
+ * `state`, so it can never satisfy the handoff check.
  *
  * ## Claims are validated, never coerced
  *
@@ -72,6 +73,13 @@
  * the attacker's own browser is whatever they say it is. What limits that is
  * the token's short expiry (and, if the state cookie is ever made
  * tamper-evident, the middleware is where that belongs — not here).
+ *
+ * `expectedState` must be a non-empty *string*, which is stricter than the
+ * truthiness test this function was specified with. Under truthiness a numeric
+ * nonce compares on equal terms — `expectedState: 1` against a token claiming
+ * `state: 1` verified — and the real nonces are `crypto.randomUUID()` strings,
+ * so anything else means the caller did not read a state cookie this site
+ * wrote. Refusing outright is the fail-closed reading of that.
  *
  * ## Clock tolerance
  *
@@ -111,11 +119,15 @@ const isIdentifier = (value) => typeof value === 'string' && value !== '';
  * A missing secret is a deployment fault, not a rejected token, so it fails
  * loudly here rather than deeper in.
  *
- * Without this check `new TextEncoder().encode(undefined)` produces an *empty*
- * key and jose throws `DOMException: Zero-length key is not supported` — which
- * `verifySessionToken`'s catch would report as "no session", turning a missing
- * environment variable into an endless redirect to SSO with nothing in the logs
- * to say why.
+ * This guards a caller that reaches these functions without checking
+ * `authConfigured()` first. The planned call sites — the middleware and
+ * `/auth/callback` — both gate on it and refuse the request while naming the
+ * unset variables, so neither can arrive here empty-handed today. What this
+ * stops is the next call site that forgets: `new TextEncoder().encode(undefined)`
+ * produces an *empty* key, jose throws `DOMException: Zero-length key is not
+ * supported`, and `verifySessionToken`'s catch would report that configuration
+ * error as an ordinary "no session" — a misconfigured site that looks merely
+ * logged out. Throwing keeps the two apart.
  *
  * @param {unknown} secret
  * @param {string} name The env var to name in the error.
