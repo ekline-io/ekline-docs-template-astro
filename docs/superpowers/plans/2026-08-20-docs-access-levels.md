@@ -1859,6 +1859,47 @@ git commit -m "docs: private-docs constraints wiki, customer SSO guide, repo gui
 
 ---
 
+## Open risk to resolve before merging: `vercel.json` rewrites
+
+**Not caused by this plan, but newly relevant because of it.** `vercel.json`
+carries two `rewrites` that serve the markdown twins on an
+`Accept: text/markdown` header. Before Task 2, Vercel did zero-config
+detection on a plain static build and those rewrites applied. Now
+`@astrojs/vercel` emits Build Output API v3, and the generated
+`.vercel/output/config.json` contains only a filesystem handle, an `_astro`
+cache header and a 404 catch-all — no `text/markdown` route.
+
+Vercel's Astro documentation (checked 2026-08-20,
+https://vercel.com/docs/frameworks/frontend/astro#rewrites) says plainly:
+
+> **Rewrites only work for static files with Astro.** You must use Vercel's
+> Routing Middleware for rewrites. You should not use `vercel.json` to
+> rewrite URL paths with astro projects; doing so produces inconsistent
+> behavior, and is not officially supported.
+
+The twins *are* static files, so the rewrites may still work — but "may" is
+not good enough for a template other people deploy. Two things to note:
+
+1. **Astro middleware cannot replace these rewrites.** Middleware runs only
+   on on-demand routes; the pages these rewrites serve are prerendered and
+   handed straight to the CDN, so middleware never sees the request.
+2. **The downside risk is not limited to the twins.** The same Vercel docs
+   warn that a `vercel.json` with conflicting routing config can override
+   the adapter's generated configuration. If that happened it would affect
+   `/private/**` too — the routes this whole feature depends on.
+
+**Required before merge:** verify on a real Vercel preview deployment that
+(a) `curl -H 'Accept: text/markdown' <url>/` still returns markdown, and
+(b) `/private/` still reaches the middleware. If either fails, the fix is to
+drop the `rewrites` from `vercel.json` and accept that the twins are reached
+only at their `.md` URLs on Vercel — the `.md` files themselves are still
+emitted and still linked from the contextual menu, so the feature degrades
+rather than breaks. Record whichever way it goes in `wiki/private-docs.md`.
+
+This cannot be verified locally: `astro preview` does not read `vercel.json`.
+
+---
+
 ## Post-plan checks (execution session)
 
 - Run the three suites one final time from a clean tree: `npm run check`,
