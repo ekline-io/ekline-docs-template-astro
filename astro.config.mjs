@@ -138,12 +138,21 @@ export default defineConfig({
 		// `/demo-login` is a single leaf route, so it is anchored — a customer
 		// page at /guides/demo-login-setup/ is not this route, and neither is a
 		// deployment whose hostname happens to contain the string (both measured:
-		// an unanchored `.includes('/demo-login')` matches both). Not anchored on
-		// a trailing slash either: whether one is emitted depends on
-		// `build.format` / `trailingSlash`, which a fork may change, and that
-		// failure would publish the route instead of merely mis-filtering one.
-		// `page` is always an absolute href built by the integration, so `new
-		// URL` cannot throw here.
+		// an unanchored `.includes('/demo-login')` matches both). A page named
+		// exactly `demo-login` nested anywhere else *is* excluded — the accepted
+		// price of letting a `base` prefix sit in front of the route, since
+		// /docs/demo-login/ and /guides/demo-login/ are indistinguishable without
+		// teaching this filter about `base`.
+		//
+		// Not anchored on a trailing slash either: whether one is emitted depends
+		// on `build.format` / `trailingSlash`, which a fork may change. Measured
+		// under `trailingSlash: 'never'` the build emits `/demo-login` bare, so a
+		// slash-anchored filter would publish the route rather than merely
+		// mis-filter a page.
+		//
+		// `page` is always an absolute, URL-validated href — route and page URLs
+		// are built with `new URL`, and `customPages` is `z.url()`-checked by the
+		// integration before the filter runs — so `new URL` cannot throw here.
 		sitemap({
 			filter: (page) => {
 				const { pathname } = new URL(page);
