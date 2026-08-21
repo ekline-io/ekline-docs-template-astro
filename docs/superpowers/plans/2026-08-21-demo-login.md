@@ -20,6 +20,18 @@ The personas and validation rules, importable by `node --test`. No `astro:env`
 import — that is the whole point of the `src/lib/` vs `src/config/` split
 documented at the top of `src/config/auth.mjs`.
 
+> **Amended after code review.** Four changes landed on top of the code below,
+> and later tasks assume them: the redirect check is
+> **`parseDemoRedirectUri(value, requestOrigin)` returning `URL | null`** (not
+> a boolean — the caller must redirect to the *parsed* href, never the raw
+> input, which is how CR/LF in a query value becomes a 500 instead of a clean
+> refusal); it **rejects non-http(s) schemes**, mirroring `parseSsoUrl` in
+> `src/config/auth.mjs`, because `blob:http://origin/x` shares the origin;
+> the persona field `describes` is renamed **`description`**; and the sitemap
+> assertion moved to `tests/private-leaks.test.mjs`, which already owns
+> build-output tests, so `node --test tests/demo-login.test.mjs` is green
+> without a build.
+
 **Files:**
 - Create: `tests/demo-login.test.mjs`
 - Create: `src/lib/demo-login.mjs`
@@ -403,7 +415,7 @@ Create `src/pages/demo-login.astro`:
  */
 import { authSecrets } from '../config/auth.mjs';
 import { demoLoginConfigured } from '../config/demo-login.mjs';
-import { personas, findPersona, isDemoRedirectUri } from '../lib/demo-login.mjs';
+import { personas, findPersona, parseDemoRedirectUri } from '../lib/demo-login.mjs';
 import { withBase, NO_STORE } from '../lib/auth/http.mjs';
 import { SignJWT } from 'jose';
 
@@ -444,17 +456,20 @@ const redirectUri = Astro.url.searchParams.get('redirect_uri');
 const state = Astro.url.searchParams.get('state');
 
 // Validation order (see the design spec): round-trip parameters first, then
-// the persona. `roundTrip` is null unless `redirect_uri` parses, is
-// same-origin, and `state` is non-empty — and it carries the narrowed values,
-// so the signing branch and the template cannot reach the raw nullable ones.
+// the persona. `roundTrip` is null unless `redirect_uri` parses to a
+// same-origin http(s) URL and `state` is non-empty — and it carries the
+// *parsed* target plus the narrowed state, so neither the signing branch nor
+// the template can reach the raw nullable query values. That is the point of
+// `parseDemoRedirectUri` returning a URL rather than a boolean: redirecting to
+// the raw string would hand `Location:` a value the parser had already
+// normalised (CR/LF stripped, case folded), turning a hostile query parameter
+// into an ERR_INVALID_CHAR 500 instead of the clean refusal below.
 // A request that fails this gets the explanation page whether or not it
 // carries `?as=`; a token is only ever signed when every check passes.
+const redirectTarget = parseDemoRedirectUri(redirectUri, Astro.url.origin);
 const roundTrip =
-	typeof redirectUri === 'string' &&
-	typeof state === 'string' &&
-	state !== '' &&
-	isDemoRedirectUri(redirectUri, Astro.url.origin)
-		? { redirectUri, state }
+	redirectTarget && typeof state === 'string' && state !== ''
+		? { redirectTarget, state }
 		: null;
 
 if (roundTrip) {
@@ -482,8 +497,10 @@ if (roundTrip) {
 			`[demo-login] UNSAFE demo sign-in issued a handoff token for persona "${persona.id}". ` +
 				'If this is not a demo or staging deployment, unset DOCS_UNSAFE_DEMO_LOGIN now.'
 		);
-		// `roundTrip` established same-origin, so this cannot leave the site.
-		const target = new URL(roundTrip.redirectUri);
+		// A copy: `searchParams.set` mutates, and `roundTrip.redirectTarget` is
+		// read again below if this branch is ever refactored. `roundTrip`
+		// established same-origin http(s), so this cannot leave the site.
+		const target = new URL(roundTrip.redirectTarget);
 		target.searchParams.set('token', token);
 		return Astro.redirect(target.href);
 	}
@@ -504,7 +521,7 @@ const pickerLinks = roundTrip
 			...persona,
 			href: `${Astro.url.pathname}?${new URLSearchParams({
 				as: persona.id,
-				redirect_uri: roundTrip.redirectUri,
+				redirect_uri: roundTrip.redirectTarget.href,
 				state: roundTrip.state,
 			})}`,
 		}))
@@ -585,7 +602,7 @@ const pickerLinks = roundTrip
 							<strong>
 								{persona.name} ({persona.email})
 							</strong>
-							<span>{persona.describes}</span>
+							<span>{persona.description}</span>
 						</a>
 					))}
 				</>
@@ -725,13 +742,18 @@ append to it):
 
 ```bash
 npm run build
-node --test tests/demo-login.test.mjs
+node --test tests/private-leaks.test.mjs
 ```
 
-Expected: all PASS, including `the sitemap does not reference /demo-login`.
-To see the filter is doing work rather than passing vacuously, remove
-`&& !page.includes('/demo-login')`, rebuild, and confirm the test FAILS
-(`sitemap-0.xml advertises /demo-login`); then restore it and rebuild.
+Expected: all PASS, including the `/demo-login` sitemap assertion (it lives in
+`tests/private-leaks.test.mjs` alongside the `/private/` one — see the Task 1
+amendment). Until this task it passed vacuously, because there was no route to
+advertise; from here it has something to catch.
+
+To see the filter is doing work, remove `&& !page.includes('/demo-login')`,
+rebuild, and confirm the test FAILS naming `/demo-login`; then restore it and
+rebuild. Do this — a filter that was never observed failing is a filter you do
+not know is wired up.
 
 - [ ] **Step 5: Commit**
 
