@@ -35,11 +35,12 @@ Once the Astro/Starlight project is scaffolded, the standard commands will be:
 
 - `npm install` — install dependencies
 - `npm run dev` — start the dev server (default http://localhost:4321)
-- `npm run build` — production build to `./dist/`
+- `npm run build` — production build; static output to `./dist/client/` and the server bundle to `./dist/server/` (Node adapter), or `.vercel/output/` on Vercel
 - `npm run preview` — preview the production build locally
 - `npm run check` — type-check (`astro check`); must stay at zero errors, CI gates on it
 - `npm test` — build, then assert against the output; no browser required
-- `npm run test:visual` — browser tests for the API reference (`npx playwright install chromium` first)
+- `npm run test:visual` — browser tests for the API reference and the SSO round trip (`npx playwright install chromium` first)
+- `npm run dev:sso` — mock SSO server for developing the logged-in experience locally (pair with `.env` copied from `.env.example`)
 - `npm run astro -- <cmd>` — run Astro CLI commands
 
 CI (`.github/workflows/ci.yml`) runs `check`, `test`, and `test:visual:ci` on every PR. The screenshot comparisons are excluded there because their baselines are macOS-only; run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
@@ -53,6 +54,8 @@ Standard Starlight layout (in place):
 - `astro.config.mjs` — registers the Starlight integration. Title, sidebar, and social links live here. Add Astro integrations and Starlight plugins to the `integrations` array.
 - `src/content.config.ts` — content collection definition. Uses `docsLoader()` + `docsSchema()` from `@astrojs/starlight`. Extend the schema (don't replace it) when adding custom frontmatter fields.
 - `src/content/docs/` — Markdown/MDX content; each file becomes a route. Subdirs (`guides/`, `reference/`) map to URL segments and are referenced by the sidebar config.
+- `src/middleware.ts` + `src/pages/private/` + `src/pages/auth/` — the server-enforced logged-in experience (private and per-org docs), fed by the `privateDocs` / `orgDocs` collections. Read [`wiki/private-docs.md`](wiki/private-docs.md) before changing any of it — the constraints (prerender flags, 404-not-403, the two path signals, reserved folders, fail-closed env handling) are deliberate and tested by `tests/private-leaks.test.mjs` and `tests/visual/auth.spec.mjs`.
+- The build is adapter-based: `@astrojs/vercel` on Vercel (`VERCEL=1`), `@astrojs/node` everywhere else. Static output is `dist/client/` locally and `.vercel/output/static/` on Vercel — never a flat `dist/`. Tests resolve it via `tests/helpers/static-dir.mjs`; don't hardcode a path.
 - `src/assets/` — images imported from MDX (processed by Astro's image pipeline).
 - `public/` — static assets served as-is at the site root.
 - `site` in `astro.config.mjs` is set to `https://example.com` as a placeholder — downstream users must replace it with their deployed URL before publishing (sitemap and llms-txt emit absolute URLs from this).
