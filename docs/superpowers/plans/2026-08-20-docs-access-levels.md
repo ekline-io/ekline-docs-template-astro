@@ -1044,17 +1044,49 @@ import { verifySessionToken } from './lib/auth/tokens.mjs';
 type StateCookie = { state: string; returnTo: string; attempts: number };
 
 export const onRequest = defineMiddleware(async (context, next) => {
-	// `originPathname`, NOT `url.pathname`. Measured against Astro 6.3.1
-	// during Task 3: `url.pathname` still carries the configured `base`, so on
-	// a site built with `base: '/docs'` a request for `/docs/private/secret/`
-	// classifies as PUBLIC — while Astro strips the base and renders the
-	// private page anyway. That is a complete bypass, and it costs a customer
-	// nothing but deploying under a subpath. `originPathname` is base-stripped
-	// and matched what the router actually saw in all 34 adversarial probes,
-	// including the multi-level-encoding cases (`%252e%252e`) where
-	// `url.pathname` and the router disagree about the org segment.
+	// Two independent signals, and the stricter one wins. Neither is
+	// sufficient alone — each fails open in a case the other catches.
+	//
+	// `originPathname`, NOT `url.pathname`: measured against Astro 6.3.1 in
+	// Task 3, `url.pathname` still carries the configured `base`, so on a site
+	// built with `base: '/docs'` a request for `/docs/private/secret/`
+	// classifies as PUBLIC while Astro strips the base and renders the private
+	// page anyway. A complete bypass, costing a customer nothing but deploying
+	// under a subpath. `originPathname` is base-stripped and agreed with the
+	// router in every non-rewrite probe, including the multi-level-encoding
+	// cases (`%252e%252e`) where `url.pathname` and the router disagree about
+	// the org segment.
+	//
+	// `routePattern` covers what `originPathname` cannot: Astro re-enters the
+	// whole middleware chain after ANY `Astro.rewrite()` — including one
+	// issued by a page or a third-party integration — and on that second pass
+	// `originPathname` is still pinned to the pre-rewrite path. So a public
+	// page that rewrites into `/private/**` renders private content with the
+	// guard reporting `public`. Nothing in this template rewrites today, which
+	// is why this is defence in depth rather than a live hole; but "no
+	// integration ever rewrites" is not a property a template can promise on
+	// behalf of its customers. `routePattern` is the route Astro actually
+	// matched (`/private/[...slug]`), and `applyRewriteToState` updates it, so
+	// it cannot drift from what is about to render.
+	// `routePattern` is documented public API on `APIContext`, typed as a
+	// non-optional `string` (verified in
+	// node_modules/astro/dist/types/public/context.d.ts:561). No `?.` — if a
+	// future Astro drops it, `astro check` should fail the build loudly rather
+	// than let an optional-chain quietly turn this guard off.
 	const kind = classifyPath(context.originPathname);
-	if (kind.type === 'public' || kind.type === 'auth') return next();
+	const routeIsPrivate = context.routePattern.startsWith('/private');
+	if ((kind.type === 'public' || kind.type === 'auth') && !routeIsPrivate) return next();
+	// A private route reached with a public-looking path means the two signals
+	// disagree — only possible via a rewrite. Refuse rather than guess which
+	// org it is: there is no trustworthy org slug in that state.
+	if (routeIsPrivate && kind.type !== 'private' && kind.type !== 'org') {
+		console.error(
+			`[auth] refusing ${context.routePattern}: route is private but the ` +
+				`request path (${context.originPathname}) is not. A rewrite into ` +
+				`/private/** cannot be authorised — see wiki/private-docs.md.`
+		);
+		return notFound();
+	}
 
 	// Fail closed: without configuration, private routes do not exist as far
 	// as an anonymous visitor can tell.
@@ -1168,6 +1200,17 @@ that is the documented public type for middleware/endpoint contexts.
 
 Run: `npm run check && npm run build`
 Expected: zero errors. (Behavior is exercised in Tasks 9 and 11.)
+
+**Also prove the rewrite guard actually fires**, rather than trusting that
+the two-signal logic is right. Add a temporary page outside the repo's
+committed set — `src/pages/rewrite-probe.astro` containing only
+`--- return Astro.rewrite('/private/'); ---` — then build and request
+`/rewrite-probe`. Expected: **404**, and the `[auth] refusing …` line on
+stderr. Without the `routePattern` check this returns 200 with private HTML.
+Delete the probe page afterwards and confirm `git status --short` is clean.
+
+Record the result in your report. If the probe returns 200, the guard does
+not work and this task is not done — report BLOCKED rather than committing.
 
 - [ ] **Step 5: Commit**
 
