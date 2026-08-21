@@ -46,10 +46,17 @@ cp LICENSE packages/template/LICENSE
 git add packages/template/LICENSE
 ```
 
-- [ ] **Step 2: Confirm history followed the move**
+- [ ] **Step 2: Confirm the index sees renames, not delete+add**
 
-Run: `git log --oneline --follow -3 -- packages/template/src/middleware.ts`
-Expected: the v2.0.0 commits, not a single "add file" commit. If history did not follow, the move was done with `mv` rather than `git mv` — undo and redo.
+`git log --follow` cannot help yet — it walks committed history, and nothing is
+committed. What the index can tell you now:
+
+```bash
+git status --short | head -20
+```
+
+Expected: lines beginning `R ` (rename), not `D `/`A ` pairs. The
+`--follow` check comes after the commit, in Step 5b.
 
 - [ ] **Step 3: Verify the template still works entirely on its own**
 
@@ -80,6 +87,19 @@ Note: the suite serves on port 4331 by default; set `DOCS_TEST_PORT` if that is 
 git add -A
 git commit -m "refactor: move the shipped template into packages/template/ (EK-2373)"
 ```
+
+- [ ] **Step 5b: Now confirm history followed the move**
+
+```bash
+git log --oneline --follow -3 -- packages/template/src/middleware.ts
+```
+
+Expected: the v2.0.0 commits, not a single "add file" commit. If history did
+not follow, the move used `mv` rather than `git mv` — undo and redo.
+
+Note when checking a *diff* for renames: `git diff -M` needs both the old and
+new path in view, so a pathspec naming only the new path reports a fresh
+addition and tells you nothing. Run it without a pathspec, or name both.
 
 ---
 
