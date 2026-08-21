@@ -44,7 +44,8 @@ export default defineConfig({
 	// to emit absolute URLs.
 	site: 'https://example.com',
 	// The logged-in experience needs a server runtime for /private/** and
-	// /auth/**. Public pages stay prerendered and CDN-served either way.
+	// /auth/**. Public pages stay prerendered either way (CDN-served on Vercel;
+	// served from disk by the standalone Node server otherwise).
 	//
 	// Vercel builds set VERCEL=1 and need the Vercel adapter; everywhere else
 	// (local dev, `npm test`, `npm run preview`, self-hosting) uses the Node

@@ -1044,7 +1044,16 @@ import { verifySessionToken } from './lib/auth/tokens.mjs';
 type StateCookie = { state: string; returnTo: string; attempts: number };
 
 export const onRequest = defineMiddleware(async (context, next) => {
-	const kind = classifyPath(context.url.pathname);
+	// `originPathname`, NOT `url.pathname`. Measured against Astro 6.3.1
+	// during Task 3: `url.pathname` still carries the configured `base`, so on
+	// a site built with `base: '/docs'` a request for `/docs/private/secret/`
+	// classifies as PUBLIC — while Astro strips the base and renders the
+	// private page anyway. That is a complete bypass, and it costs a customer
+	// nothing but deploying under a subpath. `originPathname` is base-stripped
+	// and matched what the router actually saw in all 34 adversarial probes,
+	// including the multi-level-encoding cases (`%252e%252e`) where
+	// `url.pathname` and the router disagree about the org segment.
+	const kind = classifyPath(context.originPathname);
 	if (kind.type === 'public' || kind.type === 'auth') return next();
 
 	// Fail closed: without configuration, private routes do not exist as far
@@ -1065,7 +1074,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	if (!session) return redirectToSso(context);
 
 	// Wrong org is a 404, not a 403: org slugs must not be confirmable.
-	if (kind.type === 'org' && !session.orgs.includes(kind.org!)) return notFound();
+	//
+	// Compare the bytes verbatim — no lowercasing, trimming or decoding on
+	// either side. Astro's `getParams` does not decode, so `kind.org` is
+	// byte-identical to the `params.org` the page will receive; normalising
+	// here would make the guard and the page disagree about which org this is.
+	// (No `!` needed: the union narrows `org` to `string` under this `type`.)
+	if (kind.type === 'org' && !session.orgs.includes(kind.org)) return notFound();
 
 	context.locals.session = session;
 	return next();
@@ -1624,13 +1639,19 @@ existing comment about preview-not-build; add the auth servers:
 import { test, expect } from '@playwright/test';
 
 test.describe('private docs', () => {
-	test('server refuses /private/ without a session', async ({ page }) => {
-		// No cookies, no redirect-following: the raw response must be a redirect
-		// to the SSO endpoint, never private HTML.
-		const response = await page.request.get('/private/', { maxRedirects: 0 });
-		expect(response.status()).toBe(302);
-		expect(response.headers()['location']).toContain('localhost:4545/docs-sso');
-	});
+	// Both the section root and a deep page: a prefix-matching bug could let
+	// children through while the root still redirects, which would look fine
+	// in any test that only ever hits `/private/`.
+	for (const path of ['/private/', '/private/example-private-guide/']) {
+		test(`server refuses ${path} without a session`, async ({ page }) => {
+			// No cookies, no redirect-following: the raw response must be a
+			// redirect to the SSO endpoint, never private HTML.
+			const response = await page.request.get(path, { maxRedirects: 0 });
+			expect(response.status()).toBe(302);
+			expect(response.headers()['location']).toContain('localhost:4545/docs-sso');
+			expect(await response.text()).not.toContain('EKLINE-PRIVATE-SENTINEL');
+		});
+	}
 
 	test('the SSO round trip lands back on the private page, logged in', async ({ page }) => {
 		await page.goto('/private/');
@@ -1718,6 +1739,16 @@ phrase; keep the sentinel in at least one private and one org example page.
   Anything you add under that prefix (an org-specific API reference, say) is
   protected automatically — and anything you add *outside* it is public, no
   matter what it renders.
+- **The guard reads `context.originPathname`, never `context.url.pathname`.**
+  This is what makes setting `base` safe. `url.pathname` still carries the
+  base prefix, so under `base: '/docs'` a request for `/docs/private/secret/`
+  would classify as public while Astro strips the base and renders the private
+  page — a complete bypass. `originPathname` is base-stripped and matches what
+  the router actually matched. A refactor that "simplifies" this back to
+  `url.pathname` reintroduces the hole silently, on subpath deployments only.
+  (One caveat if you ever add rewrites: `originPathname` keeps the *original*
+  path across `Astro.rewrite()`, so re-classifying after a rewrite classifies
+  the wrong URL. The shipped middleware does not rewrite.)
 - **`orgs/` is a reserved folder name inside `src/content/private-docs/`**
   (excluded by the collection's glob): `/private/orgs/**` belongs to org docs.
 - **Fail closed.** `enabled: false` in `src/config/auth.mjs`, or any missing
@@ -1819,9 +1850,39 @@ app.get('/docs-sso', requireYourProductLogin, async (req, res) => {
 
 Don't need private docs? Delete `src/content/private-docs/`,
 `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`,
-`src/middleware.ts`, and the `loginLink` sidebar entry — the site builds
-statically as before. Details: `wiki/private-docs.md`.
+`src/middleware.ts`, `src/config/auth.mjs`, `src/lib/auth/`, and the
+`loginLink` entry in `src/config/sidebar.mjs`. Then, to get a plain static
+build back, also remove from `astro.config.mjs` the `adapter:` line, the
+`env:` block and the two adapter imports, and uninstall `@astrojs/node`,
+`@astrojs/vercel` and `jose`. Details: `wiki/private-docs.md`.
 ````
+
+**Do not skip the second sentence.** Deleting only the feature files leaves
+`adapter:` wired, so the build still emits a `dist/server/` bundle and no
+root `dist/index.html` — which silently breaks the README's own deploy
+instructions for a fork that doesn't want the feature.
+
+- [ ] **Step 2b: Fix the now-inaccurate Deploy section in `README.md`**
+
+`README.md:54` currently says "Astro builds to a static `dist/` folder, so
+you can host it almost anywhere" and `:73` lists Netlify, Cloudflare Pages
+and GitHub Pages. Both became wrong in Task 2: `dist/` now holds `client/`
+and `server/` with no root `index.html`, and on those three hosts `VERCEL` is
+unset, so they get the **Node** adapter — a server bundle none of them runs.
+A fork following its own README would deploy an empty site *and* have private
+docs silently never work. Rewrite that section to say:
+
+- the build output is `dist/client/` (Node adapter) or `.vercel/output/static/`
+  (Vercel), not a flat `dist/`;
+- Netlify and Cloudflare need their own adapter swapped in for
+  `@astrojs/node` (`@astrojs/netlify`, `@astrojs/cloudflare`) — one line in
+  `astro.config.mjs`, and the auth code is adapter-agnostic so nothing else
+  changes;
+- GitHub Pages cannot run a server at all, so it is static-only: follow the
+  "don't need private docs" removal above, and the flat `dist/` returns.
+
+Also fix `CLAUDE.md:38`, which still describes the build as producing
+`./dist/`.
 
 - [ ] **Step 3: Update `CLAUDE.md`**
 
