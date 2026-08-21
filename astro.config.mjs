@@ -91,6 +91,11 @@ export default defineConfig({
 			DOCS_SSO_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
 			DOCS_SSO_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
 			DOCS_SESSION_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
+			// Turns /demo-login into a working sign-in that accepts ANYONE. For the
+			// template's own demo deployment and for staging sites evaluating the
+			// feature — never for a site with real private content. The name is the
+			// warning; the attack it abbreviates is in wiki/private-docs.md.
+			DOCS_UNSAFE_DEMO_LOGIN: envField.string({ context: 'server', access: 'secret', optional: true }),
 		},
 	},
 	integrations: [
