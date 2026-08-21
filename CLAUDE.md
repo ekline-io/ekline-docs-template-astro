@@ -58,7 +58,7 @@ Standard Starlight layout (in place):
 - The build is adapter-based: `@astrojs/vercel` on Vercel (`VERCEL=1`), `@astrojs/node` everywhere else. Static output is `dist/client/` locally and `.vercel/output/static/` on Vercel — never a flat `dist/`. Tests resolve it via `tests/helpers/static-dir.mjs`; don't hardcode a path.
 - `src/assets/` — images imported from MDX (processed by Astro's image pipeline).
 - `public/` — static assets served as-is at the site root.
-- `site` in `astro.config.mjs` is set to `https://example.com` as a placeholder — downstream users must replace it with their deployed URL before publishing (sitemap and llms-txt emit absolute URLs from this).
+- `site` in `astro.config.mjs` is set to `https://example.com` as a placeholder — downstream users must replace it with their deployed URL before publishing (sitemap and llms-txt emit absolute URLs from this), or set `DOCS_SITE_URL` in the build environment.
 
 Component overrides (Starlight's "Overriding Components" mechanism) go in `src/components/` and are wired through the `components` field of the `starlight()` integration call — don't import Starlight internals directly.
 

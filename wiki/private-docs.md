@@ -94,6 +94,47 @@ Three properties of this handshake are worth stating plainly, because their name
 - **The session token carries an `aud` claim, and verification requires it.** Both tokens are HS256 JWTs, so if a customer sets `DOCS_SSO_SECRET` and `DOCS_SESSION_SECRET` to the same value — the ordinary slip — then without `aud` *any* token their product signs with that secret (an API token, a password-reset link) would verify as an 8-hour docs session. Only the session side is marked, because that is the side this template controls: requiring a new claim from the customer's product would change their integration contract to buy the same property. The reverse direction needs nothing — a session token carries no `state`, so it was never usable as a handoff token.
 - **No maximum handoff lifetime is enforced.** `exp` is *required* on both tokens, but its length is the product's policy, and rejecting a customer's 15-minute token would be this template overruling it. A product that signs a ten-year handoff token silently voids the mitigation above. The README's sample endpoint uses `5m`, and the reason is worth keeping when adapting it. (Verification allows 60s of clock skew on the handoff token, so a 5-minute window is really 6.)
 
+## The demo login
+
+`src/pages/demo-login.astro` plays the product's part in the handshake above:
+a persona picker that signs the same handoff JWT, so the template can be
+demonstrated — and evaluated on a staging deploy — before any real SSO
+endpoint exists. Enable it by pointing `DOCS_SSO_URL` at this site's own
+`/demo-login` and setting `DOCS_UNSAFE_DEMO_LOGIN=1`. It is off unless both
+that flag (spelled `1` or `true`, nothing else) and `authConfigured()` hold;
+either missing and the route answers the same bare 404 as the rest of the
+auth surface.
+
+**The name is not decoration.** If the flag is enabled on a site holding real
+private content, that content is readable by anyone — and not only via the
+picker. The attacker does not need `DOCS_SSO_URL` to point at the demo route:
+they visit `/private/` so the middleware sets their state cookie, read their
+own cookie (`HttpOnly` stops other sites, not the browser's owner — see the
+`state` note above), and call `/demo-login?as=…&redirect_uri=…&state=…`
+directly. The token is signed with the site's real `DOCS_SSO_SECRET`, so
+`/auth/callback` accepts it. Nothing but the flag staying unset prevents this,
+which is why the flag carries the warning in its name and why the route logs
+at error level on every token it issues.
+
+What the route does defend, it defends as a model for your real endpoint:
+
+- **`redirect_uri` must be same-origin with the request**, or the page refuses
+  (400). Without that check the route is an open redirector that hands a
+  freshly signed token to any site named in the query string. The mock SSO
+  server deliberately skips this and says why; a deployed endpoint must not —
+  yours should check `redirect_uri` against an allowlist too.
+- **The `?as=` value never enters a token.** Only a persona from the list in
+  `src/lib/demo-login.mjs` is signed; unknown ids re-render the picker.
+- **`/demo-login` is filtered out of the sitemap** in `astro.config.mjs` and
+  carries `noindex`. It is a *static* pathname with `prerender = false` —
+  precisely the shape `@astrojs/sitemap` advertises unless filtered (see the
+  route-shape note above), and unlike `/private/**` it cannot hide behind a
+  dynamic route shape.
+
+The personas name org folders byte-verbatim, under the same contract as a real
+token's `orgs` claim (see the slugging section above). `tests/demo-login.test.mjs`
+fails if a persona names a folder that does not exist.
+
 ## What the customer's login flow has to preserve
 
 Step 2 above assumes the reader already has a session with the customer's
@@ -149,6 +190,15 @@ Every such link therefore carries `data-astro-prefetch="false"`:
 `src/lib/private-sidebar.mjs`. `tests/visual/auth.spec.mjs` hovers both
 controls and asserts nothing changes, so the attributes cannot be quietly
 tidied away.
+
+`src/pages/demo-login.astro` carries two more, for the same reason and one
+extra: each persona link signs a handoff token, so hovering it signs the
+reader in as whichever persona their mouse happened to cross — not the one
+they meant to click. The page's other link, to "the private docs" on the
+explanation screen shown with no round trip in progress, is prefetch-off for
+the ordinary reason: it would run the full SSO round trip on hover, same as
+**Log in** above. `tests/visual/demo-login.spec.mjs` pins the persona-link
+case.
 
 If you add a link that signs in, signs out, or otherwise changes something,
 add the attribute. Ordinary private content links are fine to prefetch — they

@@ -8,6 +8,28 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.1.0
+
+### Demo login
+
+`/demo-login` — a persona picker that plays your product's part in the SSO
+handshake, so the logged-in experience can be demonstrated and evaluated with
+no real SSO endpoint behind it. Off unless `DOCS_UNSAFE_DEMO_LOGIN=1` *and*
+the three `DOCS_*` variables are set; a deployment that does not opt in is
+byte-for-byte unaffected, and the route answers 404. The name is the warning:
+it accepts anyone, so it is for demo and staging deployments only — never a
+site with real private content. See *The demo login* in `wiki/private-docs.md`.
+
+Three fake readers ship with it (Acme, Globex, no-org — matching the example
+org folders), so org isolation is visible in two clicks. Edit them in
+`src/lib/demo-login.mjs`.
+
+### Other
+
+- `site` in `astro.config.mjs` can now come from a `DOCS_SITE_URL` env var, so one
+  config serves deployments at different URLs. The placeholder default is
+  unchanged.
+
 ## 2.0.0
 
 Adds a logged-in experience: documentation that only signed-in readers can see,

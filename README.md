@@ -6,10 +6,12 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 
 **Live preview:** <https://ekline-docs-template-astro.vercel.app/>
 
-The preview is public docs only — private docs are deliberately not configured
-there, so there is no live sign-in to try. To see the logged-in experience, run
-it locally: copy `.env.example` to `.env`, `npm run dev:sso` in one terminal,
-`npm run dev` in another, then click **Log in**.
+The preview has the **demo login** enabled — click **Log in**, pick a persona,
+and see private and per-org docs work (try Acme's reader on Globex's section
+for the 404). It is the same template with `DOCS_UNSAFE_DEMO_LOGIN=1` set; see
+*Try it without wiring SSO* below. To run the logged-in experience locally:
+copy `.env.example` to `.env`, `npm run dev:sso` in one terminal, `npm run dev`
+in another, then click **Log in**.
 
 ## What's pre-wired
 
@@ -45,7 +47,7 @@ The site is live at <http://localhost:4321/> with hot reload.
 | What you want to change | Where to do it |
 | --- | --- |
 | Site title, sidebar, social links | `astro.config.mjs` |
-| **Site URL** (required for sitemap + llms.txt) | `site` field in `astro.config.mjs` |
+| **Site URL** (required for sitemap + llms.txt) | `site` field in `astro.config.mjs`, or the `DOCS_SITE_URL` env var |
 | Theme colors, fonts | `src/styles/global.css` — see [`wiki/theming.md`](./wiki/theming.md) |
 | Homepage content | `src/content/docs/index.mdx` |
 | **API reference** | Replace `public/openapi.yaml`, and edit `src/config/api-reference.mjs` — see [`wiki/api-reference.md`](./wiki/api-reference.md) |
@@ -123,6 +125,26 @@ res.redirect(`/login?next=${encodeURIComponent(returnTo)}`);
 
 `tests/mock-sso/server.mjs` is a working reference implementation of exactly this endpoint. It also doubles as the local dev login: copy `.env.example` to `.env`, run `npm run dev:sso`, and `npm run dev` has a working sign-in.
 
+#### Try it without wiring SSO
+
+A deployed equivalent of the mock exists in the template itself: set
+
+```
+DOCS_UNSAFE_DEMO_LOGIN=1
+DOCS_SSO_URL=https://<your-deployment>/demo-login
+```
+
+(plus the two secrets) and `/demo-login` becomes a persona picker that signs
+the handoff token your product would sign — three fake readers, one per org
+plus one with none, so org isolation is visible in two clicks. This is how the
+live preview above works.
+
+The name is the warning: **this sign-in accepts anyone.** Use it on demo and
+staging deployments that hold no real private content, and unset it the moment
+your real `DOCS_SSO_URL` exists. `wiki/private-docs.md` has the details, and
+the personas live in `src/lib/demo-login.mjs` if your staging site's org
+folders differ from the shipped examples.
+
 Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md) — the constraints there are what keep private content out of the public build, and several of them are easy to undo by accident.
 
 ### Deploying somewhere private docs aren't configured?
@@ -143,7 +165,7 @@ development and production agree without anything to remember.
 
 ### Don't need private docs?
 
-Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`, `src/middleware.ts`, `src/config/auth.mjs`, `src/lib/auth/`, `src/lib/private-sidebar.mjs` and `src/lib/sidebar-items.mjs`. Then drop the `privateDocs` and `orgDocs` collections from `src/content.config.ts`, and the `loginLink` entry and `showLoginLink` flag from `src/config/sidebar.mjs` along with their use in `astro.config.mjs`. Their tests go too (`tests/auth-*.test.mjs`, `tests/private-leaks.test.mjs`, `tests/sidebar-items.test.mjs`, `tests/visual/auth.spec.mjs`, `tests/mock-sso/`), as do the `dev:sso` script in `package.json` and the mock-SSO `webServer` entry in `playwright.config.mjs`.
+Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`, `src/pages/demo-login.astro`, `src/middleware.ts`, `src/config/auth.mjs`, `src/config/demo-login.mjs`, `src/lib/auth/`, `src/lib/demo-login.mjs`, `src/lib/private-sidebar.mjs` and `src/lib/sidebar-items.mjs`. Then drop the `privateDocs` and `orgDocs` collections from `src/content.config.ts`, and the `privateDocsLink` entry from `src/config/sidebar.mjs` along with its conditional use in `astro.config.mjs`. Their tests go too (`tests/auth-*.test.mjs`, `tests/demo-login.test.mjs`, `tests/private-leaks.test.mjs`, `tests/sidebar-items.test.mjs`, `tests/visual/auth.spec.mjs`, `tests/visual/demo-login.spec.mjs`, `tests/mock-sso/`), as do the `dev:sso` script in `package.json` and the mock-SSO `webServer` entry in `playwright.config.mjs`.
 
 **Then get the plain static build back**, or the site still ships a server it does not need. In `astro.config.mjs`, remove the `adapter:` line, the `env:` block, the two adapter imports and the sitemap `filter`; then uninstall `@astrojs/node`, `@astrojs/vercel` and `jose`. Skip this second half and the build keeps emitting a `dist/server/` bundle with no root `dist/index.html` — which silently breaks the deploy instructions below.
 
@@ -162,7 +184,7 @@ There is no longer a flat `dist/` folder you can host anywhere: on Netlify, Clou
 
 See Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform, and [`wiki/private-docs.md`](./wiki/private-docs.md) for the adapter and output-path details.
 
-> **Before deploying, set the `site` URL** in `astro.config.mjs` to your real domain. The sitemap and `llms.txt` files use it to emit absolute URLs.
+> **Before deploying, set the `site` URL** in `astro.config.mjs` to your real domain, or set `DOCS_SITE_URL` in the build environment. The sitemap and `llms.txt` files use it to emit absolute URLs.
 
 ## Commands
 
