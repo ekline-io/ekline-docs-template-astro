@@ -29,6 +29,14 @@ org folders), so org isolation is visible in two clicks. Edit them in
 - `site` in `astro.config.mjs` can now come from a `DOCS_SITE_URL` env var, so one
   config serves deployments at different URLs. The placeholder default is
   unchanged.
+- **The `vercel.json` markdown-twin rewrites are removed.** They served the
+  `.md` twins on an `Accept: text/markdown` header, and they stopped working
+  when 2.0.0 introduced the Vercel adapter — its generated routing config
+  supersedes them. Measured on a real deployment rather than assumed. Nothing
+  linked to the header-negotiated form (the contextual menu deep-links to the
+  `.md` route), so the twins are unaffected; only a mechanism nothing used has
+  gone. Self-hosting behind your own proxy, you can still negotiate on the
+  header there.
 - **`npm run test:visual` no longer needs port 4321.** It ran the site under
   `astro preview`, which reports a fixed `http://localhost:4321` origin whatever
   port it listens on — so the SSO round trip only worked on that one port, and a

@@ -264,13 +264,57 @@ Two traps in the browser suite, both worth knowing before you touch `playwright.
 
 Private pages are not in site search (Pagefind indexes built HTML only). The public "Private docs" nav link is static, not session-aware — static HTML is identical for every visitor, so it cannot be. Handoff verification is HS256 shared-secret; JWKS/OIDC would slot into `verifyHandoffToken` and nowhere else.
 
-## Open: `vercel.json` rewrites
+## Resolved: `vercel.json` rewrites do not work with the adapter
 
-Not caused by this feature, but newly relevant because of it. `vercel.json` carries two `rewrites` that serve the markdown twins on an `Accept: text/markdown` header. Before the adapter change, Vercel did zero-config detection on a plain static build and those rewrites applied. Now `@astrojs/vercel` emits Build Output API v3, and the generated `.vercel/output/config.json` contains only a filesystem handle, an `_astro` cache header and a 404 catch-all — no `text/markdown` route.
+`vercel.json` carried two `rewrites` that served the markdown twins on an
+`Accept: text/markdown` header. Before the adapter change they applied,
+because Vercel did zero-config detection on a plain static build. `@astrojs/vercel`
+emits Build Output API v3 instead, and the generated `.vercel/output/config.json`
+contains only a filesystem handle, an `_astro` cache header and a 404
+catch-all — no `text/markdown` route.
 
-Vercel's own Astro documentation (checked 2026-08-20) states that rewrites only work for static files with Astro, that Vercel's Routing Middleware should be used instead, and that using `vercel.json` to rewrite URL paths in an Astro project produces inconsistent behaviour and is not officially supported. The twins *are* static files, so the rewrites may still work — but "may" is not good enough for a template other people deploy. Two things follow:
+**Measured on the production deployment (2026-08-21), and the rewrites are
+inert:**
 
-1. **Astro middleware cannot replace these rewrites.** Middleware runs only on on-demand routes; the pages these rewrites serve are prerendered and handed straight to the CDN, so the middleware never sees the request.
-2. **The downside risk is not limited to the twins.** The same documentation warns that a `vercel.json` with conflicting routing config can override the adapter's generated configuration. If that happened it would affect `/private/**` too — the routes this whole feature depends on.
+| Request | Result |
+| --- | --- |
+| `curl -H 'Accept: text/markdown' <url>/` | `text/html` — the rewrite did not fire |
+| `curl -H 'Accept: text/markdown' <url>/guides/example/` | `text/html` — likewise |
+| `curl <url>/guides/example.md` | `200 text/markdown` — the twin itself is fine |
 
-**Verify on a real Vercel preview deployment** that `curl -H 'Accept: text/markdown' <url>/` still returns markdown and that `/private/` still reaches the middleware. This cannot be checked locally: `astro preview` does not read `vercel.json`. If either fails, drop the `rewrites` and accept that the twins are reached only at their `.md` URLs on Vercel — the `.md` files are still emitted and still linked from the contextual menu, so the feature degrades rather than breaks. Record the outcome here.
+So the `rewrites` block has been removed rather than left to imply a behaviour
+it does not have. This matches Vercel's own Astro documentation, which says
+rewrites only work for static files with Astro, that Routing Middleware is the
+supported mechanism, and that using `vercel.json` to rewrite URL paths in an
+Astro project is not officially supported.
+
+**What this costs, and what it does not.** On Vercel the twins are reached
+only at their `.md` URLs. Nothing links to the header-negotiated form —
+`@ekline/starlight-contextual-menu` deep-links to the `.md` route directly —
+so the feature degrades rather than breaks, and self-hosted deployments behind
+a proxy of your own can still negotiate on the header if you want it.
+
+**The reassuring half:** the feared side effect did not happen. A `vercel.json`
+with conflicting routing config *can* override the adapter's generated
+configuration, which would have taken `/private/**` with it. It did not:
+`/private/` reaches the middleware on the deployed site and answers with the
+guard's own `cache-control: private, no-store`, and the full SSO round trip
+completes through `/demo-login` on a configured preview.
+
+**Astro middleware cannot bring the rewrites back.** Middleware runs only on
+on-demand routes; the pages these rewrites served are prerendered and handed
+straight to the CDN, so the middleware never sees the request. Restoring the
+behaviour would mean Vercel Routing Middleware, which is a Vercel-specific
+file this template does not otherwise need.
+
+## Resolved: `context.url.origin` is the real host on Vercel
+
+The Node adapter reports a literal `localhost` unless `security.allowedDomains`
+matches (see *Reverse proxies and `redirect_uri`* above), so it was an open
+question whether `@astrojs/vercel` did the same — if it had, every `redirect_uri`
+would have pointed at a loopback address and sign-in could never complete.
+
+It does not: the SSO round trip completes end to end on a deployed Vercel
+preview, which it could not do if the origin were wrong. **No
+`security.allowedDomains` entry is needed on Vercel.** Self-hosted deployments
+behind a reverse proxy still need one.

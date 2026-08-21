@@ -14,8 +14,11 @@
  *
  * Run after `npm run build`:  `node --test tests/markdown-twins.test.mjs`
  *
- * Content negotiation (`Accept: text/markdown` -> `.md`) is configured in
- * `vercel.json` and runs only at the Vercel edge — not exercised here.
+ * Content negotiation (`Accept: text/markdown` -> `.md`) is gone: it lived in
+ * `vercel.json` rewrites that the Vercel adapter's generated routing config
+ * makes inert — measured on the deployed site, see "Resolved: `vercel.json`
+ * rewrites" in wiki/private-docs.md. The `.md` twins themselves are unaffected
+ * and are what everything links to, which is what this file checks.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
