@@ -11,8 +11,8 @@ export const collections = {
 	// docsSchema() so frontmatter is identical to public docs.
 	privateDocs: defineCollection({
 		// `orgs/` is reserved: /private/orgs/** is the org-docs URL space, so a
-		// same-named folder here would be unreachable. Excluded to fail loudly
-		// in `npm test` (leak tests) rather than silently 404.
+		// same-named folder here would be unreachable. Content placed there is
+		// dropped from this collection rather than shadowing a real org route.
 		loader: glob({ pattern: ['**/[^_]*.{md,mdx}', '!orgs/**'], base: './src/content/private-docs' }),
 		schema: docsSchema(),
 	}),
