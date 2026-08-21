@@ -30,7 +30,7 @@ import { docsSidebarGroups, changelogEntry, privateDocsLink } from './src/config
 // imports `astro:env/server`, which this file cannot. The components use that
 // one. The two can only disagree on a deployment that is misconfigured rather
 // than unconfigured, and both fail towards hiding the affordance.
-const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET, SITE_URL } = loadEnv(
+const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET, DOCS_SITE_URL } = loadEnv(
 	process.env.NODE_ENV ?? 'production',
 	process.cwd(),
 	''
@@ -63,9 +63,15 @@ const apiReferenceSidebar = await Promise.all(
 
 // https://astro.build/config
 export default defineConfig({
-	// TODO: replace with your deployed site URL (or set SITE_URL in the build
-	// environment). Required for sitemap and llms-txt to emit absolute URLs.
-	site: SITE_URL || 'https://example.com',
+	// TODO: replace with your deployed site URL (or set DOCS_SITE_URL in the
+	// build environment; it comes from the same `loadEnv` above, so a local
+	// `.env` works too). Required for sitemap and llms-txt to emit absolute URLs.
+	//
+	// `||`, not `??`: `loadEnv` returns `''` for a bare `DOCS_SITE_URL=`, and
+	// Astro rejects an empty `site` outright (its schema is `z.string().url()`).
+	// An empty assignment should mean "unset", not "fail the build" — the same
+	// presence idiom as the `ssoConfigured` line above.
+	site: DOCS_SITE_URL || 'https://example.com',
 	// The logged-in experience needs a server runtime for /private/** and
 	// /auth/**. Public pages stay prerendered either way (CDN-served on Vercel;
 	// served from disk by the standalone Node server otherwise).
@@ -127,7 +133,23 @@ export default defineConfig({
 		// *static* pathname (`src/pages/demo-login.astro`), exactly the shape the
 		// sitemap advertises unless told otherwise — the route-shape defence the
 		// /private/ routes get for free does not exist here.
-		sitemap({ filter: (page) => !page.includes('/private/') && !page.includes('/demo-login') }),
+		//
+		// `/private/` is a directory prefix: anything under it, at any depth.
+		// `/demo-login` is a single leaf route, so it is anchored — a customer
+		// page at /guides/demo-login-setup/ is not this route, and neither is a
+		// deployment whose hostname happens to contain the string (both measured:
+		// an unanchored `.includes('/demo-login')` matches both). Not anchored on
+		// a trailing slash either: whether one is emitted depends on
+		// `build.format` / `trailingSlash`, which a fork may change, and that
+		// failure would publish the route instead of merely mis-filtering one.
+		// `page` is always an absolute href built by the integration, so `new
+		// URL` cannot throw here.
+		sitemap({
+			filter: (page) => {
+				const { pathname } = new URL(page);
+				return !pathname.includes('/private/') && !/\/demo-login\/?$/.test(pathname);
+			},
+		}),
 		starlight({
 			title: 'My Docs',
 			// TODO: point this at your own repository. It ships aimed at the
