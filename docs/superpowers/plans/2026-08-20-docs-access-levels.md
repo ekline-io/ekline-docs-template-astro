@@ -1452,20 +1452,44 @@ export const GET: APIRoute = async (context) => {
 	return context.redirect(returnTo);
 };
 
-/** Only same-site paths; anything else falls back to the private index. */
+/**
+ * Only same-site paths; anything else falls back to the private index.
+ *
+ * An allowlist, not a denylist. The obvious spelling — "starts with `/`, but
+ * not `//`" — admits `/"><script>…`, which breaks out of the `href` attribute
+ * in `failure()` below. `returnTo` arrives from the unsigned state cookie, so
+ * reaching a victim needs cookie-forcing first; that is a real position on a
+ * docs site, not a theoretical one. Restricting the character set is cheaper
+ * to get right than escaping, and nothing legitimate needs the rest: this
+ * value is always a path this site generated.
+ */
 function safeReturnTo(value: string | undefined): string {
-	return value && value.startsWith('/') && !value.startsWith('//') ? value : '/private/';
+	if (!value || !value.startsWith('/') || value.startsWith('//')) return '/private/';
+	return /^\/[A-Za-z0-9/_\-.~%?=&]*$/.test(value) ? value : '/private/';
 }
 
 function failure(reason: string, returnTo: string) {
 	// The retry link restarts SSO via the middleware. The state cookie is NOT
 	// cleared here: repeated failures increment its counter until the loop
 	// guard stops the cycle.
+	//
+	// `reason` is one of this file's own literals and `returnTo` has been
+	// through `safeReturnTo`, so neither can carry markup — but escape anyway.
+	// The alternative is that the safety of this string depends on a reader
+	// tracing both arguments to their sources.
 	return new Response(
 		`<!doctype html><title>Sign-in failed</title>
-		<h1>Sign-in failed</h1><p>${reason}</p>
-		<p><a href="${returnTo}">Try again</a></p>`,
+		<h1>Sign-in failed</h1><p>${escapeHtml(reason)}</p>
+		<p><a href="${escapeHtml(returnTo)}">Try again</a></p>`,
 		{ status: 400, headers: { 'content-type': 'text/html; charset=utf-8' } }
+	);
+}
+
+function escapeHtml(value: string): string {
+	return value.replace(
+		/[&<>"']/g,
+		(char) =>
+			({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]
 	);
 }
 ```
@@ -1535,6 +1559,7 @@ git commit -m "feat: on-demand private and org routes with SSO handoff endpoints
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { staticDir } from './helpers/static-dir.mjs';
@@ -1564,13 +1589,42 @@ test('the sentinel exists in the private source content (guards the guard)', () 
 });
 
 test('no private content anywhere in the static output', () => {
-	// Search bytes, not decoded text. Pagefind's index and fragments under
-	// `pagefind/` are binary; reading them as UTF-8 can mangle or skip
-	// content and pass vacuously, which is the worst possible outcome for
-	// the one test that proves the security model.
+	// Search bytes, and inflate first where the bytes are compressed.
+	//
+	// Pagefind's index and fragments are not merely binary — they are gzip.
+	// All 18 compressed files under `pagefind/` begin with the magic `1f8b`,
+	// so a plain `Buffer.includes` can never match inside them no matter what
+	// they contain. That would make this test blind to the single surface
+	// most likely to carry indexed private prose, while still reporting
+	// green: the worst possible outcome for the one test that proves the
+	// security model.
 	const needle = Buffer.from(SENTINEL);
-	const leaked = walk(STATIC).filter((file) => readFileSync(file).includes(needle));
+	const leaked = walk(STATIC).filter((file) => {
+		const raw = readFileSync(file);
+		if (raw.includes(needle)) return true;
+		if (raw[0] !== 0x1f || raw[1] !== 0x8b) return false;
+		try {
+			return gunzipSync(raw).includes(needle);
+		} catch {
+			// Not actually gzip despite the magic bytes; the raw check above
+			// already covered it.
+			return false;
+		}
+	});
 	assert.deepEqual(leaked, [], `private content leaked into: ${leaked.join(', ')}`);
+});
+
+test('the gzip branch above is actually exercised', () => {
+	// Without this, a Pagefind change that stopped emitting gzip would make
+	// the inflate path dead code and nobody would notice.
+	const compressed = walk(STATIC).filter((file) => {
+		const raw = readFileSync(file);
+		return raw.length > 1 && raw[0] === 0x1f && raw[1] === 0x8b;
+	});
+	assert.ok(
+		compressed.length > 0,
+		'no gzip files found in the static output — the leak test never inflates anything'
+	);
 });
 
 // Deliberately scoped to STATIC, not all of `dist/`. Private content IS
@@ -1609,10 +1663,39 @@ test('llms.txt variants do not mention private content', () => {
 Run: `npm test`
 Expected: all suites PASS, including the five new leak tests.
 
-If `llms.txt variants` or the sitemap test FAILS: that is the test doing its
-job — `starlight-llms-txt` and the sitemap only process the `docs` collection
-and prerendered routes respectively, so a failure means a collection or route
-ended up somewhere it should not be. Investigate; do not exclude-list.
+If the `llms.txt variants` test FAILS, that is the test doing its job:
+`starlight-llms-txt` reads `getCollection('docs')` and nothing else
+(`generator.ts:30`), as do the `.md` twin routes
+(`@ekline/starlight-contextual-menu/markdown-route.js:24`). A failure there
+means content ended up in the `docs` collection that should not be.
+Investigate; do not exclude-list.
+
+**The sitemap is different, and the earlier draft of this note had it wrong.**
+`@astrojs/sitemap` never consults `isPrerendered` — its only filters are
+`r.type !== 'page'` and `if (r.pathname)`, and `pathname` is undefined for
+`[dynamic]` and `[...spread]` routes. So a **non-dynamic** on-demand page
+under `src/pages/private/` lands in `sitemap-0.xml`, which was demonstrated
+with a scratch build, not inferred. The routes this plan adds are all spread
+routes and endpoints, so nothing leaks as shipped — but that is an accident
+of route shape, and a customer who adds `src/pages/private/welcome.astro`
+would publish the URL without touching anything that looks security-related.
+
+Add the filter in Task 2's `astro.config.mjs` rather than relying on it:
+
+```js
+	// Sitemaps advertise URLs to crawlers. Nothing under /private/ should be
+	// advertised: the content needs a session, so a crawler can only ever get
+	// a redirect, and the URL itself names an org. This is belt-and-braces —
+	// the routes here are all dynamic, and @astrojs/sitemap skips those — but
+	// it does NOT skip on-demand routes generally (it never checks
+	// `isPrerendered`), so a future non-dynamic page under /private/ would be
+	// listed without this.
+	sitemap({ filter: (page) => !page.includes('/private/') }),
+```
+
+A leaked URL is not leaked content, and `/private/` is already advertised by
+the sidebar's login link. But the sitemap test asserts the absence, so the
+filter and the test should agree deliberately rather than by luck.
 
 - [ ] **Step 3: Commit**
 
@@ -1692,6 +1775,22 @@ In `package.json` scripts, after `"start"`:
     "dev:sso": "node tests/mock-sso/server.mjs",
 ```
 
+**Before you write the config, know this or the suite will not run.** Under
+`astro preview --port N`, `context.url.origin` is **always**
+`http://localhost:4321` regardless of `N` — measured at four different ports
+during Task 8. The middleware builds `redirect_uri` from that origin, so a
+preview on 4331 sends the mock SSO server a callback URL on 4321 and the
+round-trip spec dies on connection refused. `astro dev` and the standalone
+Node server both report the real port; only `preview` is wrong.
+
+Run the preview on **4321** — the default, and the one port where origin and
+reality agree. That means changing the existing `baseURL` and the API
+reference suite's port too, so do it in one edit rather than leaving two
+suites on different ports. Do not "fix" this by having the mock SSO ignore
+`redirect_uri`: the round trip is precisely what these tests exist to prove,
+and a mock that ignores the parameter would keep passing if the middleware
+stopped sending it.
+
 - [ ] **Step 3: Update `playwright.config.mjs`**
 
 Replace the existing single `webServer` object with an array. Keep the
@@ -1706,12 +1805,12 @@ existing comment about preview-not-build; add the auth servers:
 			// The DOCS_* values match tests/mock-sso/server.mjs and are read at
 			// runtime (astro:env access:'secret'), so the already-built output
 			// picks them up. Test-only values, safe to commit.
-			command: 'npx astro preview --port 4331',
-			url: 'http://localhost:4331',
+			command: 'npx astro preview --port 4321',
+			url: 'http://localhost:4321',
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
 			env: {
-				PORT: '4331',
+				PORT: '4321',
 				DOCS_SSO_URL: 'http://localhost:4545/docs-sso',
 				// Must match tests/mock-sso/server.mjs. Two distinct values, as
 				// in .env.example — the session token's `aud` claim means a
@@ -1729,6 +1828,11 @@ existing comment about preview-not-build; add the auth servers:
 			timeout: 30_000,
 		},
 	],
+
+	// Also update `use.baseURL` to 'http://localhost:4321' in the same edit —
+	// the API reference suite and the auth suite must share one port, and 4321
+	// is the only one where `astro preview` reports a truthful `url.origin`
+	// (see the note above Step 3).
 ```
 
 (The mock-server `url` probe returns a 302, which Playwright counts as up.)
@@ -1935,6 +2039,34 @@ suggest more than they deliver:
   customer's own token policy — but the README's sample endpoint uses `5m`
   and the reason is worth keeping when adapting it.
 
+## Things that are outside the guard
+
+The middleware guards a URL prefix. These are the non-obvious ways a request
+can render without passing through it:
+
+- **Unmatched routes never enter the middleware at all** on the Node adapter.
+  Harmless — there is nothing to render — but it means "no `[auth]` log line"
+  does not prove a request was allowed.
+- **Server islands are fetched at `/_server-islands/**`**, outside the prefix,
+  even when the island is rendered inside a private page. If you add one to
+  private content, it must do its own session check.
+- **`sidebar.hidden` is not access control** — see above.
+
+## Reverse proxies and `redirect_uri`
+
+On `@astrojs/node`, `context.url.origin` comes from the server's own `HOST`
+and `PORT`, **not** the `Host` header — Astro 6 ignores `Host` and
+`X-Forwarded-Host` unless they match `security.allowedDomains`. That is good
+news for security (nobody can poison `redirect_uri` with a forged `Host`), but
+it means a self-hosted deployment behind a reverse proxy must set
+`security.allowedDomains` or the SSO round trip will send readers to
+`http://localhost:<port>/auth/callback`.
+
+One related quirk worth knowing when debugging: under `astro preview --port N`,
+`url.origin` always reports `http://localhost:4321` whatever `N` is. `astro dev`
+and the standalone server both report the real port. This is why the Playwright
+suite runs preview on 4321.
+
 ## Adapters and output paths
 
 The adapter is env-selected in `astro.config.mjs`: Vercel builds
@@ -2034,6 +2166,33 @@ docs silently never work. Rewrite that section to say:
 
 Also fix `CLAUDE.md:38`, which still describes the build as producing
 `./dist/`.
+
+- [ ] **Step 2c: Polish carried over from the Task 5/6 review**
+
+Small, and each has a reason:
+
+- **`src/content/docs/changelog.mdx`** — add `next: false` to the frontmatter,
+  with a one-line comment. `loginLink` is the last sidebar entry, so
+  Starlight's pagination now offers "Next → Private docs" from the changelog:
+  a login gate presented as the next thing to *read*, and in an unconfigured
+  template (the state every customer starts in) it points at a 404. The
+  sidebar link is a deliberate affordance; the pagination arrow is an
+  accident of list position. Note it beside `loginLink` in
+  `src/config/sidebar.mjs` too, so anyone moving that entry revisits this.
+- **`src/config/sidebar.mjs`** — the docstring says the file exists "because
+  two consumers need it", but `loginLink` has exactly one consumer: the
+  public config. A logged-in reader gets "Log out" instead. Keeping it here
+  is right — this file is *sidebar config*, not *shared* sidebar config — so
+  say that instead. Add a clause noting the label is the customer's to change
+  ("Customer portal", "Partner docs") while the `/private/` path is not: it is
+  wired into the middleware's guard.
+- **The three bare sentinel lines** in `org-docs/acme/index.mdx`,
+  `org-docs/globex/index.mdx` and `private-docs/example-private-guide.mdx`
+  read `Leak marker: EKLINE-PRIVATE-SENTINEL-DO-NOT-LEAK` with no context. A
+  customer's first encounter is as likely to be `acme/index.mdx` as the
+  landing page, and there they cannot tell what it is or whether deleting it
+  is safe. Make them
+  `Leak marker (see private-docs/index.mdx; safe to delete with this file):`.
 
 - [ ] **Step 3: Update `CLAUDE.md`**
 
