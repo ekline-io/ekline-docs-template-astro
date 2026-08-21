@@ -152,11 +152,32 @@ Astro 6.3.1. The v10 lines are the Astro 6 majors:
 
 | Package | Version | Peer |
 | --- | --- | --- |
-| `@astrojs/node` | `^10.1.4` | `astro: ^6.3.0` ✓ (6.3.1 installed) |
+| `@astrojs/node` | **exactly `10.1.1`** (no caret — see below) | `astro: ^6.3.0` |
 | `@astrojs/vercel` | `^10.0.8` | `astro: ^6.0.0` ✓ |
 | `jose` | `^6.2.9` | none |
 
-Run: `npm install @astrojs/node@^10.1.4 @astrojs/vercel@^10.0.8 jose@^6.2.9`
+**The `@astrojs/node` pin must be exact, and peer ranges do not explain why.**
+Discovered during implementation and confirmed against the installed source:
+`@astrojs/node` 10.1.2 switched to importing `createRequestFromNodeRequest`,
+which Astro only began exporting in 6.4.0 — while still declaring peer
+`astro: ^6.3.0`. So npm resolves 10.1.4 against 6.3.1 with a completely clean
+`npm ls`, and the build then dies deep in Rollup:
+
+```
+node_modules/@astrojs/node/dist/serve-app.js (6:2): "createRequestFromNodeRequest"
+is not exported by "node_modules/astro/dist/core/app/entrypoints/node.js"
+```
+
+| | imports | builds on Astro 6.3.1 |
+| --- | --- | --- |
+| `@astrojs/node` ≤ 10.1.1 | `createRequest` | yes |
+| `@astrojs/node` 10.1.2–10.1.4 | `createRequestFromNodeRequest` | **no** |
+
+`~10.1.1` would float back onto the break, so the pin has to be exact. Record
+the reason in a comment beside the adapter in `astro.config.mjs` — an
+undocumented exact pin is an invisible trap for whoever next bumps deps.
+
+Run: `npm install @astrojs/node@10.1.1 @astrojs/vercel@^10.0.8 jose@^6.2.9`
 Expected: installs with no `ERESOLVE` / peer-dependency errors.
 
 Verify the peers actually resolved rather than trusting the install:
@@ -982,9 +1003,16 @@ export function authConfigured() {
 declare namespace App {
 	interface Locals {
 		/**
-		 * Set by `src/middleware.ts` on authenticated requests under
-		 * `/private/**`. Absent everywhere else — public pages are prerendered
-		 * and identical for every visitor by design.
+		 * The signed-in reader, set by `src/middleware.ts` on authenticated
+		 * requests under `/private/**`. Absent everywhere else — public pages
+		 * are prerendered and identical for every visitor by design.
+		 *
+		 * Not to be confused with Astro's own `context.session`, which the
+		 * Node adapter enables automatically (it logs "Enabling sessions with
+		 * filesystem storage" on every build). That is server-side key/value
+		 * storage this template does not use; this is the JWT the SSO handoff
+		 * produced. Two different things named "session" — read the type, not
+		 * the name.
 		 */
 		session?: {
 			sub: string;
@@ -1697,6 +1725,19 @@ phrase; keep the sentinel in at least one private and one org example page.
   appears in `astro dev` only.
 - **Keep secrets out of `src/config/auth.mjs`.** Behavior knobs live there;
   `DOCS_SSO_URL`, `DOCS_SSO_SECRET` and `DOCS_SESSION_SECRET` are env vars.
+- **Never enable Vercel ISR (`vercel({ isr: true })`).** This is the one
+  configuration change that silently defeats everything on this page.
+  `@astrojs/vercel` ≤ 10.0.8 carries a high-severity advisory
+  (CVE-2026-73424, "unauthenticated path override in the ISR function"):
+  with ISR on, `/_isr?x_astro_path=/private/orgs/acme/` renders any route
+  **bypassing Astro middleware entirely** — which is where this template's
+  only auth check lives. The template calls `vercel()` bare, so it is not
+  affected as shipped. The fix landed in `@astrojs/vercel` v11, which
+  requires Astro 7; until this template moves to Astro 7, "do not enable
+  ISR" is the mitigation, not an upgrade.
+- **`@astrojs/node` is pinned to exactly `10.1.1`.** 10.1.2+ imports an Astro
+  export that only exists from 6.4.0, so a caret range produces a clean
+  `npm ls` and a broken build. The reason is in `astro.config.mjs`.
 
 ## The SSO handoff
 
