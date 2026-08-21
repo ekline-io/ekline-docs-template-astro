@@ -6,6 +6,11 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 
 **Live preview:** <https://ekline-docs-template-astro.vercel.app/>
 
+The preview is public docs only — private docs are deliberately not configured
+there, so there is no live sign-in to try. To see the logged-in experience, run
+it locally: copy `.env.example` to `.env`, `npm run dev:sso` in one terminal,
+`npm run dev` in another, then click **Log in**.
+
 ## What's pre-wired
 
 So you don't have to set these up yourself:

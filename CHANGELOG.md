@@ -8,6 +8,115 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.0.0
+
+Adds a logged-in experience: documentation that only signed-in readers can see,
+and sections written for one customer that only that customer can reach.
+
+A major version because the build output moved. If you deploy anywhere other
+than Vercel, read *Upgrading* at the end of this entry before pulling it across.
+
+### Private and per-org documentation
+
+Three levels of access, all enforced on the server:
+
+| | Lives in | Who sees it |
+| --- | --- | --- |
+| Public | `src/content/docs/` | everyone, prerendered exactly as before |
+| Private | `src/content/private-docs/` | any signed-in reader, at `/private/…` |
+| Per-org | `src/content/org-docs/<org>/` | only members of that org, at `/private/orgs/<org>/…` |
+
+**Readers sign in through your product.** The docs site has no user database, no
+signup and no password field — it hands the reader to an endpoint you implement
+(about twenty lines; the README has it) and trades a short-lived signed token
+for its own session cookie. Access follows your existing users and permissions,
+including revocation, and readers never learn a second credential.
+
+**Private content cannot leak, structurally rather than by configuration.** It
+lives outside the `docs` collection and is never prerendered, so it is not
+present in the build for Pagefind, `llms.txt`, the sitemap or the `.md` twin
+routes to find. `tests/private-leaks.test.mjs` asserts it on every `npm test`,
+searching raw bytes and inflating Pagefind's gzipped index so the check cannot
+pass by looking in the wrong place.
+
+**A wrong org is a 404, never a 403.** A 403 would confirm the org exists, and
+org names are customer names. The refusal is byte-identical to the one for an
+org that does not exist — asserted by a test that compares the two responses.
+
+### Signing in, from the reader's side
+
+- A **Log in / Log out** control sits in the header, next to the theme toggle,
+  and in the mobile menu. Public pages are prerendered and identical for every
+  visitor, so the swap is decided client-side from a content-free cookie read
+  before first paint: no flash, no extra request, and public pages stay
+  CDN-cacheable.
+- The sidebar's **Private docs** entry appears only once a reader is signed in,
+  so nobody is offered a section they cannot open. Org sections are deliberately
+  *not* handled this way — those labels are customer names, and prerendered HTML
+  would hand every one of them to every anonymous visitor.
+- Deployments without private docs configured set `showAuthControls` to `false`
+  in `src/config/sidebar.mjs` and the whole affordance disappears.
+
+### Breaking: the build output moved
+
+There is no longer a flat `dist/` you can host anywhere. Private docs need a
+server runtime, so an adapter is now wired in:
+
+- **Vercel** builds (`VERCEL=1` is set automatically) use `@astrojs/vercel`;
+  static files land in `.vercel/output/static/`.
+- **Everywhere else** uses `@astrojs/node`; static files land in `dist/client/`
+  and the server in `dist/server/`.
+
+Public pages are still prerendered in both cases — only `/private/**` and
+`/auth/**` render on demand, so the public site keeps its CDN behaviour.
+
+Netlify, Cloudflare Pages and GitHub Pages need attention: an unmodified
+template hands them the Node adapter, which none of them runs. Swap in that
+platform's adapter, or remove the feature and get the flat `dist/` back. The
+README's Deploy table says which.
+
+### Breaking: three new dependencies
+
+`@astrojs/node`, `@astrojs/vercel` and `jose`. `@astrojs/node` is pinned to
+exactly `10.1.1`, and the pin is load-bearing: 10.1.2 began importing an Astro
+export that only exists from 6.4, while still declaring a peer of `^6.3.0` — so
+a caret range resolves cleanly, reports no peer warning, and then fails the
+build inside Rollup. Raise the adapter and Astro together, or neither.
+
+### Also
+
+- `astro.config.mjs` filters `/private/` out of the sitemap. `@astrojs/sitemap`
+  never consults `isPrerendered`, so a non-dynamic on-demand page under that
+  prefix would otherwise be advertised to crawlers.
+- `npm run dev:sso` starts a mock SSO server, so `npm run dev` has a working
+  sign-in locally with nothing to configure beyond copying `.env.example`.
+- `wiki/private-docs.md` documents the constraints that keep this safe. Several
+  exist because a bypass was found and measured; the file says which and why.
+
+### Upgrading from 1.x
+
+Nothing about your existing content, theming or API references changed. Public
+pages render exactly as they did.
+
+1. **Check your deploy target.** If you are on Vercel, nothing to do. Otherwise
+   your publish directory changes from `dist/` to `dist/client/`, and Netlify,
+   Cloudflare and GitHub Pages need the adapter swapped or the feature removed.
+2. **Don't want private docs at all?** The README's *Don't need private docs?*
+   section lists the files to delete — including the `adapter` and `env` entries
+   in `astro.config.mjs` and the three dependencies. Skip that second half and
+   the build keeps emitting a server bundle you have no use for.
+3. **Want them?** Copy `src/middleware.ts`, `src/config/auth.mjs`,
+   `src/lib/auth/`, `src/lib/private-sidebar.mjs`, `src/lib/sidebar-items.mjs`,
+   `src/pages/private/`, `src/pages/auth/` and the two content collections, then
+   set the three environment variables from `.env.example` and implement the
+   SSO endpoint from the README.
+4. **If you have customised `src/config/sidebar.mjs`**, note it now also exports
+   `privateDocsLink` and `showAuthControls`, and that `astro.config.mjs` reads
+   both.
+
+Read [`wiki/private-docs.md`](wiki/private-docs.md) before changing anything
+under `src/pages/private/`, `src/pages/auth/` or `src/middleware.ts`.
+
 ## 1.0.0
 
 The first tagged release. The template has been in use before now; this marks
