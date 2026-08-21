@@ -166,9 +166,11 @@ test('redirect_uri: adversarial cases from URL parsing quirks', () => {
 	// attack, but the refusal lands either way.
 	assert.equal(parseDemoRedirectUri('http://localhost:4321.evil.example/', ORIGIN), null);
 
-	// The Fix 1 regression pin: `URL#origin` alone says this is same-origin
-	// (`new URL('blob:http://localhost:4321/x').origin === 'http://localhost:4321'`),
-	// but `blob:` is not a scheme a browser can be redirected to, and the
-	// scheme check refuses it before origin is ever compared.
+	// Pins the scheme check as a defense in its own right, not just a side
+	// effect of the origin comparison: `URL#origin` alone says this is
+	// same-origin (`new URL('blob:http://localhost:4321/x').origin ===
+	// 'http://localhost:4321'`), but `blob:` is not a scheme a browser can be
+	// redirected to, and the scheme check refuses it before origin is ever
+	// compared.
 	assert.equal(parseDemoRedirectUri('blob:http://localhost:4321/x', ORIGIN), null);
 });

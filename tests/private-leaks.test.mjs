@@ -27,6 +27,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadEnv } from 'vite';
 
 import { staticDir } from './helpers/static-dir.mjs';
 
@@ -46,6 +47,34 @@ const ROOT = join(__dirname, '..');
 const STATIC = staticDir(ROOT);
 
 const SENTINEL = 'EKLINE-PRIVATE-SENTINEL-DO-NOT-LEAK';
+
+// Was *this* build configured for sign-in? Derived exactly the way
+// `astro.config.mjs` derives its own `ssoConfigured` (see the comment there,
+// and `loadEnv` used the same way): a presence check on the three `DOCS_*`
+// vars via `loadEnv`, not `process.env` — Astro does not load `.env` files
+// into `process.env`, so reading it directly would report "unconfigured"
+// against a local `.env` file exactly as it would against a real deployment
+// with nothing set, which is the wrong answer in the one case this repo's
+// own contributors hit most often.
+//
+// Deliberately `ssoConfigured`, not `authConfigured()` from
+// `src/config/auth.mjs`. That function is the stricter, authoritative check —
+// it also parses `DOCS_SSO_URL` and rejects a bad scheme — but it imports
+// `astro:env/server`, which exists only inside a running Astro build or
+// server; a plain `node --test` script cannot import it at all (see that
+// file's own top-of-file comment). `ssoConfigured` is also the more relevant
+// notion for what this test inspects regardless of that constraint: it is
+// literally the value `astro.config.mjs` uses to decide whether
+// `privateDocsLink` (the `data-auth-only` sidebar entry) is emitted into the
+// static output in the first place. `ROOT`, not `process.cwd()`, so the
+// answer does not depend on the directory `node --test` happens to be
+// invoked from.
+const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET } = loadEnv(
+	process.env.NODE_ENV ?? 'production',
+	ROOT,
+	''
+);
+const ssoConfigured = Boolean(DOCS_SSO_URL && DOCS_SSO_SECRET && DOCS_SESSION_SECRET);
 
 function walk(dir) {
 	return readdirSync(dir, { withFileTypes: true }).flatMap((item) =>
@@ -182,8 +211,6 @@ test('the sitemap does not reference /private/ or /demo-login', () => {
 	// pathname with `prerender = false`, unlike the `/private/**` routes above
 	// which are dynamic/spread and so excluded by shape alone. Without the
 	// same filter entry, `@astrojs/sitemap` would advertise it to crawlers.
-	// (This assertion is vacuous until a later task adds the `/demo-login`
-	// route and its filter entry — there is nothing to advertise yet.)
 	const files = walk(STATIC).filter((file) => /sitemap.*\.xml$/.test(file));
 	assert.ok(files.length > 0, 'no sitemap files found');
 	for (const file of files) {
@@ -245,26 +272,63 @@ test('no org name reaches the public build', () => {
 	}
 });
 
-test('an unconfigured build offers no way to sign in', () => {
-	// The default state every fork starts in, and the one this file can check
-	// without a browser: `npm test` builds with no `DOCS_*` variables set, so
-	// the guard fails closed and `/private/**` answers a bare 404. A Log in
-	// button or a "Private docs" nav entry in that build would be a dead link
-	// on every page — the affordance has to be derived from configuration, not
-	// rendered unconditionally.
+test('the sign-in affordance matches whether the build was configured', () => {
+	// State-aware rather than one-sided, because `npm test` itself runs in
+	// both states depending on what is in the environment when it runs — and
+	// both are load-bearing. `vercel.json` sets `"buildCommand": "npm test"`,
+	// and as of the demo login this template's own Vercel preview sets
+	// `DOCS_SSO_URL`, `DOCS_SSO_SECRET` and `DOCS_SESSION_SECRET` (plus
+	// `DOCS_UNSAFE_DEMO_LOGIN`), so that deploy runs this suite *configured*.
+	// A plain local `npm test` with nothing exported runs it *unconfigured*.
+	// A test that only ever asserted "absent" would pass in the first case
+	// for the wrong reason — there would be nothing wrong with a build that
+	// silently stopped rendering "Log in" at all — and would have caught
+	// nothing the day the Vercel deploy actually needed the affordance to
+	// render. Asserting the direction that matches `ssoConfigured` (see
+	// above) makes both directions meaningful instead of just the one nobody
+	// currently exercises via `vercel.json`.
 	//
-	// `tests/visual/auth.spec.mjs` covers the other direction, against a build
-	// that IS configured (see `.env.test`). Together they pin both states; on
-	// its own either one passes against a control that never changes.
-	const offenders = walk(STATIC).filter((file) => {
-		if (!file.endsWith('.html')) return false;
-		const html = readFileSync(file, 'utf8');
-		return html.includes('class="auth-in') || html.includes('data-auth-only');
-	});
-
-	assert.deepEqual(
-		offenders.map(rel),
-		[],
-		'sign-in affordances rendered on a build with no DOCS_* configured'
+	// Unconfigured: the guard fails closed and `/private/**` answers a bare
+	// 404, so a "Log in" button or a "Private docs" nav entry would be a dead
+	// link on every page — the affordance has to be derived from
+	// configuration, not rendered unconditionally. (Unchanged from before
+	// this test covered the other direction too.)
+	//
+	// Configured: sign-in is actually possible, so at least one static page
+	// must carry each affordance — a build that forgot to wire either one
+	// would leave every reader with no way to find `/private/` at all.
+	//
+	// `tests/visual/auth.spec.mjs` covers the same two states end to end in a
+	// real browser (against `.env.test`, always configured); this is the
+	// cheaper, browser-free version, and now the only one of the two that
+	// runs in whichever state a given `npm test` invocation is actually in.
+	const htmlFiles = walk(STATIC).filter((file) => file.endsWith('.html'));
+	const withAuthIn = htmlFiles.filter((file) =>
+		readFileSync(file, 'utf8').includes('class="auth-in')
 	);
+	const withAuthOnly = htmlFiles.filter((file) =>
+		readFileSync(file, 'utf8').includes('data-auth-only')
+	);
+
+	if (ssoConfigured) {
+		assert.ok(
+			withAuthIn.length > 0,
+			'no page rendered a "Log in" control on a build with DOCS_* configured'
+		);
+		assert.ok(
+			withAuthOnly.length > 0,
+			'no page rendered a data-auth-only entry on a build with DOCS_* configured'
+		);
+	} else {
+		assert.deepEqual(
+			withAuthIn.map(rel),
+			[],
+			'a "Log in" control rendered on a build with no DOCS_* configured'
+		);
+		assert.deepEqual(
+			withAuthOnly.map(rel),
+			[],
+			'a data-auth-only entry rendered on a build with no DOCS_* configured'
+		);
+	}
 });

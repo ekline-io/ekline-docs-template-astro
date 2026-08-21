@@ -195,9 +195,9 @@ test.describe('the picker', () => {
 		expect(leaks, 'hovering a persona link must not fire the sign-in request').toEqual([]);
 		// The end-state check too, so a leak that used a mechanism other than
 		// a plain `request` event (a `fetch()`-based prefetch, say) is still
-		// caught. This is the assertion Important-1 anchors: everywhere else in
-		// this file that asserts "no session cookie", this test and test 5 are
-		// what prove the cookie name still matters — a silent rename of
+		// caught. It also keeps every other "no session cookie" assertion in
+		// this file meaningful: this test and test 5 are what prove the
+		// cookie name itself still matters — a silent rename of
 		// `docs_session` would otherwise leave every one of those negatives
 		// vacuously true.
 		expect(
