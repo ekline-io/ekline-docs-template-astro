@@ -1,4 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+
+/** The three `DOCS_*` values from `.env.test`, the one place they are written. */
+const testEnv = Object.fromEntries(
+	readFileSync(new URL('.env.test', import.meta.url), 'utf8')
+		.split('\n')
+		.filter((line) => line.trim() && !line.startsWith('#'))
+		.map((line) => {
+			const eq = line.indexOf('=');
+			return [line.slice(0, eq).trim(), line.slice(eq + 1).trim()];
+		})
+);
 
 /**
  * Visual regression tests for the API reference.
@@ -56,7 +68,11 @@ export default defineConfig({
 	reporter: process.env.CI ? 'github' : 'list',
 
 	use: {
-		baseURL: 'http://localhost:4331',
+		// 4321, not an out-of-the-way port, and not a matter of taste — see the
+		// note on `webServer` below. Both suites share it: the auth suite needs
+		// this exact port to work at all, and running the API reference suite
+		// somewhere else would mean two preview servers for one `dist/`.
+		baseURL: 'http://localhost:4321',
 		// Only kept for failures — a passing run should leave nothing behind.
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
@@ -80,17 +96,72 @@ export default defineConfig({
 		{ name: 'mobile', use: { ...devices['Pixel 5'] } },
 	],
 
-	webServer: {
-		// Preview only — the build runs from the `test:visual` script instead.
-		//
-		// Building here would be skipped whenever `reuseExistingServer` finds a
-		// server already listening, and the suite would then quietly test the
-		// previous build. That is how a real fix can look like a persistent
-		// failure. `astro preview` serves `dist/` from disk, so a server left
-		// running from an earlier run picks the fresh build up either way.
-		command: 'npx astro preview --port 4331',
-		url: 'http://localhost:4331',
-		reuseExistingServer: !process.env.CI,
-		timeout: 120_000,
-	},
+	/*
+	 * Two servers: the docs site, and the mock SSO endpoint it hands readers off
+	 * to. `tests/visual/auth.spec.mjs` drives the round trip between them.
+	 *
+	 * ## The preview server must run on 4321
+	 *
+	 * Under `astro preview --port N`, `context.url.origin` is always
+	 * `http://localhost:4321` regardless of `N` — measured at four different
+	 * ports. The middleware builds the `redirect_uri` it sends to the SSO
+	 * endpoint out of that origin, so a preview on any other port tells the SSO
+	 * server to send the reader back to a port nothing is listening on, and the
+	 * round trip dies on connection refused. `astro dev` and the standalone Node
+	 * server both report the real port; only `preview` is wrong.
+	 *
+	 * So 4321 is not a preference, and the fix is not to make the mock SSO server
+	 * ignore `redirect_uri`: that round trip is what these tests prove, and a
+	 * mock that ignored the parameter would keep passing if the middleware
+	 * stopped sending one.
+	 */
+	webServer: [
+		{
+			// Preview only — the build runs from the `test:visual` script instead.
+			//
+			// Building here would be skipped whenever `reuseExistingServer` finds a
+			// server already listening, and the suite would then quietly test the
+			// previous build. That is how a real fix can look like a persistent
+			// failure. `astro preview` serves `dist/` from disk, so a server left
+			// running from an earlier run picks the fresh build up either way.
+			//
+			// Env is the one thing a reused server does *not* pick up: these values
+			// are read at runtime (`astro:env` `access: 'secret'`), so a preview
+			// started by hand without them serves 404s from `/private/**` instead of
+			// the SSO redirect. The logged-out specs fail loudly when that happens,
+			// which is the intended outcome — stop the server and let this config
+			// start its own.
+			command: 'npx astro preview --port 4321',
+			url: 'http://localhost:4321',
+			reuseExistingServer: !process.env.CI,
+			timeout: 120_000,
+			// Read from `.env.test` rather than written out here.
+			//
+			// The same three values configure the *build* — the auth controls are
+			// derived from configuration, so a build without them correctly omits
+			// them and every header test would fail for the right reason and the
+			// wrong purpose. That build runs via `node --env-file=.env.test` in
+			// `package.json`. Two copies of these values would drift, and the
+			// failure when they did would be a redirect to an SSO endpoint whose
+			// signature no longer verifies — a long way from the edit that caused
+			// it.
+			//
+			// The two secrets are deliberately different, as in `.env.example`:
+			// the session token's `aud` claim means a handoff token cannot be
+			// replayed as a session cookie even when both match, and the suite
+			// should exercise the configuration customers are told to use.
+			env: { PORT: '4321', ...testEnv },
+		},
+		{
+			// The readiness probe is deliberately a request the endpoint refuses:
+			// `redirect_uri=probe` is not a URL, so it answers 400, and Playwright
+			// counts anything under 404 as up. A well-formed probe would answer 302
+			// — and Playwright *follows* redirects when polling, which would send it
+			// to a docs site that may not be listening yet.
+			command: 'node tests/mock-sso/server.mjs',
+			url: 'http://localhost:4545/docs-sso?redirect_uri=probe&state=probe',
+			reuseExistingServer: !process.env.CI,
+			timeout: 30_000,
+		},
+	],
 });

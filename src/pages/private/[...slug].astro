@@ -1,0 +1,66 @@
+---
+/**
+ * Renders `privateDocs` entries on demand. Never prerendered — that is the
+ * security model (see wiki/private-docs.md). `src/middleware.ts` has already
+ * verified the session before this runs; this file makes no access decision of
+ * its own and must not start making one.
+ *
+ * Keep every route under `src/pages/private/` a dynamic or spread route.
+ * `@astrojs/sitemap` never consults `isPrerendered` — it skips endpoints and
+ * routes with no static `pathname` — so a plain `src/pages/private/welcome.astro`
+ * would be advertised to crawlers even while returning 302s. `astro.config.mjs`
+ * also filters `/private/` out of the sitemap, but the route shape is the part
+ * that does not depend on anyone remembering the filter.
+ */
+import { getCollection, render } from 'astro:content';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { buildPrivateSidebar } from '../../lib/private-sidebar.mjs';
+
+export const prerender = false;
+
+// `/private/` gives an empty rest-param, and the collection-root entry's id is
+// the literal `index` — Astro only collapses `/index` with a leading slash, so
+// the root page keeps it (measured in Task 5). Falsy, not `??`: the rest param
+// is `''` here, not undefined.
+//
+// Known and accepted: this makes `/private/index/` a second URL for the landing
+// page, because the id `index` is what both spellings resolve to. It is a
+// canonical-URL wart, not a leak — both go through the middleware like any other
+// private URL — and the alternative is special-casing a literal `'index'` slug
+// into a 404 or a redirect, which costs more than the duplicate is worth. The
+// sidebar only ever links `/private/`.
+const id = Astro.params.slug || 'index';
+const entries = await getCollection('privateDocs');
+const entry = entries.find((candidate) => candidate.id === id);
+// The same bare 404 the middleware serves, for the same reason: a reader who is
+// signed in but asking for a page that does not exist must not be able to tell
+// that apart from a page they are not entitled to.
+if (!entry) {
+	// Deliberately inlined rather than imported from `src/lib/auth/http.mjs`,
+	// which has the same response as `notFound()`. `astro check` does not
+	// analyse the body of a top-level early return in Astro frontmatter: a
+	// symbol referenced only there is reported as an unused import, and — worse
+	// — a type error only there is never reported at all. Importing a helper for
+	// this branch buys deduplication and pays for it in a false diagnostic plus
+	// a blind spot. What actually protects the guarantee is
+	// `tests/visual/auth.spec.mjs`, which asserts these bodies are byte-identical
+	// to the middleware's, which is the property that matters and is stronger
+	// than a shared function anyone can bypass.
+	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
+		status: 404,
+		headers: { 'content-type': 'text/html; charset=utf-8' },
+	});
+}
+const { Content, headings } = await render(entry);
+// `entries` is handed on so the sidebar does not load `privateDocs` a second
+// time — this route renders on demand, so that cost is per request.
+const sidebar = await buildPrivateSidebar(Astro.locals.session, entries);
+---
+
+<StarlightPage
+	frontmatter={{ title: entry.data.title, description: entry.data.description }}
+	sidebar={sidebar}
+	headings={headings}
+>
+	<Content />
+</StarlightPage>

@@ -1,5 +1,7 @@
 # build output
 dist/
+# Vercel adapter output (`VERCEL=1` builds); see wiki/private-docs.md
+.vercel/
 # generated types
 .astro/
 

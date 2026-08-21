@@ -563,3 +563,70 @@ header.header > div.header {
 		align-self: center;
 	}
 }
+
+/* Sidebar entries marked `data-auth-only` are for signed-in readers.
+ *
+ * They ship in the HTML of every page — public pages are prerendered once and
+ * served to everyone, so there is no per-reader server render to omit them
+ * from — and are revealed by the `data-signed-in` mark that
+ * `src/components/CustomHead.astro` puts on <html> before first paint.
+ *
+ * This is presentation, not access control. Everything behind these links is
+ * enforced by `src/middleware.ts`; hiding them only avoids offering a reader a
+ * section that would bounce them to a sign-in they may not want. Never put a
+ * customer's org name behind this rule — the markup is public regardless of
+ * whether CSS draws it. */
+.sidebar-content li:has(> a[data-auth-only]) {
+	display: none;
+}
+
+html[data-signed-in] .sidebar-content li:has(> a[data-auth-only]) {
+	/* `revert-layer`, not `revert`: `revert` rolls back to the user-agent
+	 * origin, so if Starlight ever sets `display` on sidebar list items the
+	 * revealed entry alone would drop to `list-item` while its siblings did
+	 * something else — a misalignment only signed-in readers would see.
+	 * `revert-layer` rolls back to whatever the cascade would otherwise have
+	 * applied, which is what "undo the rule above" actually means here. */
+	display: revert-layer;
+}
+
+/* Theme switcher: icon only, no "Light" / "Dark" / "Auto" label.
+ *
+ * Starlight renders a native <select> whose visible text is the selected
+ * option, sized by `--sl-select-width`. Collapsing that width leaves the two
+ * absolutely-positioned icons — the theme glyph and the caret — sitting next to
+ * each other, which is the whole control we want.
+ *
+ * `color: transparent` on the <select> rather than `font-size: 0` or a text
+ * indent: those change how the native popup measures itself, and on some
+ * platforms collapse it too. The options are safe because Starlight gives them
+ * their own `color`, so the open list stays readable.
+ *
+ * Scoped to the theme switcher deliberately. The language switcher shares this
+ * markup, and its labels are the only thing distinguishing one language from
+ * another — a customer enabling i18n needs those words. */
+starlight-theme-select label {
+	/* The two icons are absolutely positioned against *this* element, one at
+	 * each end, so its width is what sets the control's size — not the
+	 * `--sl-select-width` custom property, which Starlight applies as an inline
+	 * style a stylesheet cannot override anyway. Wide enough for both plus a
+	 * little air; any narrower and they overlap (measured at -12px). */
+	width: calc(var(--sl-label-icon-size) + var(--sl-caret-size) + 0.25rem);
+}
+
+starlight-theme-select select {
+	color: transparent;
+	/* Fill the label exactly. Starlight's padding and negative inline margin
+	 * exist to reserve room for the label text between the icons; with no text
+	 * they only push the icons apart, so both are dropped and the select
+	 * becomes the click target for the whole control. */
+	box-sizing: border-box;
+	width: 100%;
+	padding-inline: 0;
+	margin-inline: 0;
+}
+
+/* The value is still announced; only the painted text is hidden. */
+starlight-theme-select option {
+	color: var(--sl-color-gray-1);
+}

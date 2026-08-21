@@ -2,11 +2,11 @@
  * Smoke tests for the Markdown-twin discoverability story:
  *
  *   1. Every real docs page emits a `<link rel="alternate" type="text/markdown">`.
- *   2. Every alternate href resolves to a real `.md` file in `dist/`.
+ *   2. Every alternate href resolves to a real `.md` file in the build output.
  *   3. Custom routes with no Markdown source (the Scalar API reference under
  *      `/api/**`) do NOT emit the alternate link.
  *   4. Every `.md` file has well-formed content (non-empty, leading `#`).
- *   5. Those same API reference routes have no `.md` sibling in `dist/`.
+ *   5. Those same API reference routes have no `.md` sibling in the output.
  *
  * On (3) and (5): the `/api/**` routes are `.astro` pages that render an
  * OpenAPI document in the browser via Scalar. There is no Markdown behind them
@@ -23,8 +23,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
+import { staticDir } from './helpers/static-dir.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, '..', 'dist');
+const STATIC_DIR = staticDir(join(__dirname, '..'));
 
 function* walk(dir, predicate) {
 	if (!existsSync(dir)) return;
@@ -35,10 +37,10 @@ function* walk(dir, predicate) {
 	}
 }
 
-function urlToDistPath(href) {
-	// /index.md           -> dist/index.md
-	// /foo/bar.md         -> dist/foo/bar.md
-	return join(DIST, href.replace(/^\//, ''));
+function urlToStaticPath(href) {
+	// /index.md           -> <static dir>/index.md
+	// /foo/bar.md         -> <static dir>/foo/bar.md
+	return join(STATIC_DIR, href.replace(/^\//, ''));
 }
 
 function extractAlternateHref(html) {
@@ -48,14 +50,15 @@ function extractAlternateHref(html) {
 	return m ? m[1] : null;
 }
 
-const htmlFiles = [...walk(DIST, (name) => name.endsWith('.html'))];
-const mdFiles = [...walk(DIST, (name) => name.endsWith('.md'))];
+const htmlFiles = [...walk(STATIC_DIR, (name) => name.endsWith('.html'))];
+const mdFiles = [...walk(STATIC_DIR, (name) => name.endsWith('.md'))];
 
 const isOpenApiPage = (htmlPath) =>
-	relative(DIST, htmlPath).split(sep)[0] === 'api';
+	relative(STATIC_DIR, htmlPath).split(sep)[0] === 'api';
 
 test('build output exists (did `npm run build` run?)', () => {
-	assert.ok(existsSync(DIST), 'dist/ does not exist');
+	// `staticDir()` already established that the directory exists, so the
+	// question here is whether it has anything in it.
 	assert.ok(htmlFiles.length > 0, 'no .html files emitted');
 	assert.ok(mdFiles.length > 0, 'no .md files emitted');
 });
@@ -67,7 +70,7 @@ test('real docs pages emit <link rel="alternate" type="text/markdown">', () => {
 	const missing = [];
 	for (const f of expected) {
 		const html = readFileSync(f, 'utf-8');
-		if (!extractAlternateHref(html)) missing.push(relative(DIST, f));
+		if (!extractAlternateHref(html)) missing.push(relative(STATIC_DIR, f));
 	}
 	assert.equal(
 		missing.length,
@@ -80,7 +83,7 @@ test('OpenAPI virtual pages do NOT emit the alternate link', () => {
 	const offenders = htmlFiles
 		.filter(isOpenApiPage)
 		.filter((f) => extractAlternateHref(readFileSync(f, 'utf-8')))
-		.map((f) => relative(DIST, f));
+		.map((f) => relative(STATIC_DIR, f));
 	assert.equal(
 		offenders.length,
 		0,
@@ -93,8 +96,8 @@ test('every alternate href resolves to a real .md file', () => {
 	for (const f of htmlFiles) {
 		const href = extractAlternateHref(readFileSync(f, 'utf-8'));
 		if (!href) continue;
-		if (!existsSync(urlToDistPath(href)))
-			broken.push(`${relative(DIST, f)} -> ${href}`);
+		if (!existsSync(urlToStaticPath(href)))
+			broken.push(`${relative(STATIC_DIR, f)} -> ${href}`);
 	}
 	assert.equal(
 		broken.length,
@@ -114,7 +117,7 @@ test('alternate href follows the `<url>.md` convention (no /index.md tail)', () 
 			href !== '/index.md' &&
 			/\/index\.md$/.test(href)
 		) {
-			wrongShape.push(`${relative(DIST, f)} -> ${href}`);
+			wrongShape.push(`${relative(STATIC_DIR, f)} -> ${href}`);
 		}
 	}
 	assert.equal(
@@ -129,7 +132,7 @@ test('every emitted .md file is non-empty and starts with `# `', () => {
 	for (const md of mdFiles) {
 		const content = readFileSync(md, 'utf-8');
 		if (content.length < 4 || !content.startsWith('# ')) {
-			malformed.push(`${relative(DIST, md)}: ${content.slice(0, 40)}…`);
+			malformed.push(`${relative(STATIC_DIR, md)}: ${content.slice(0, 40)}…`);
 		}
 	}
 	assert.equal(
@@ -139,9 +142,9 @@ test('every emitted .md file is non-empty and starts with `# `', () => {
 	);
 });
 
-test('OpenAPI routes have NO .md sibling in dist/', () => {
+test('OpenAPI routes have NO .md sibling in the build output', () => {
 	const offending = mdFiles
-		.map((p) => relative(DIST, p))
+		.map((p) => relative(STATIC_DIR, p))
 		.filter((p) => p.startsWith('api' + sep) || p.startsWith('api.md'));
 	assert.equal(
 		offending.length,
@@ -151,8 +154,8 @@ test('OpenAPI routes have NO .md sibling in dist/', () => {
 });
 
 test('home page (/index.md) and 404 page (/404.md) both exist as .md', () => {
-	assert.ok(existsSync(join(DIST, 'index.md')), 'dist/index.md missing');
-	assert.ok(existsSync(join(DIST, '404.md')), 'dist/404.md missing');
+	assert.ok(existsSync(join(STATIC_DIR, 'index.md')), 'index.md missing');
+	assert.ok(existsSync(join(STATIC_DIR, '404.md')), '404.md missing');
 });
 
 test('sample of expected /<slug>.md files exist (canonical convention)', () => {
@@ -164,8 +167,8 @@ test('sample of expected /<slug>.md files exist (canonical convention)', () => {
 	];
 	for (const rel of canonical) {
 		assert.ok(
-			existsSync(join(DIST, rel)),
-			`expected dist/${rel} to exist`
+			existsSync(join(STATIC_DIR, rel)),
+			`expected ${rel} in the build output`
 		);
 	}
 });

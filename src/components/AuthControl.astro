@@ -1,0 +1,88 @@
+---
+/**
+ * The one auth affordance on public pages: "Log in", or "Log out" once the
+ * reader has a session.
+ *
+ * Public pages are prerendered — one HTML file served to everyone — so this
+ * cannot be decided on the server. Both links are always in the markup and CSS
+ * shows exactly one of them, keyed off a `data-signed-in` attribute that
+ * `CustomHead.astro` sets on `<html>` before the first paint. Nothing is
+ * fetched and nothing swaps in after load, so there is no flash of the wrong
+ * button.
+ *
+ * The attribute comes from a readable, content-free hint cookie
+ * (`SIGNED_IN_HINT_COOKIE`). It grants nothing: forge it and you get a header
+ * that lies to you, while every private URL still goes through the guard. That
+ * is the trade this makes deliberately — a cosmetic lie the reader tells
+ * themselves, in exchange for no flash and no per-page request.
+ *
+ * "Log in" points at `/private/`, not at the SSO endpoint. The guard is what
+ * knows where sign-in lives and what to come back to; sending readers straight
+ * at `DOCS_SSO_URL` would skip the `state` nonce and the `returnTo` it stores.
+ *
+ * Rendered only when sign-in is actually configured. The header asks
+ * `authConfigured()`, so a deployment with no `DOCS_*` variables set — a demo,
+ * a staging site, a fork that has not wired SSO yet — shows no control at all
+ * rather than one that answers 404.
+ *
+ * **Both links opt out of prefetching, and must stay that way.** Starlight
+ * enables `prefetchAll`, so Astro prefetches every link on hover — and a
+ * prefetch is a real GET with the reader's cookies. That turns both of these
+ * into state changes on hover: prefetching "Log out" destroys the session
+ * without a click, and prefetching "Log in" runs the entire SSO round trip
+ * (guard → the product → `/auth/callback`) and issues a session nobody asked
+ * for. Both were measured, not reasoned about; the second is how a reader who
+ * clicks "Log out" and leaves the mouse where it is gets silently signed back
+ * in, because "Log in" then occupies the same pixel.
+ *
+ * Both hrefs go through `withBase`. Astro does not apply the configured `base`
+ * to a plain `<a href>` in a component — only Starlight does, and only for the
+ * sidebar items it builds. So the "Private docs" entry beside this one comes
+ * out as `/docs/private/` on a subpath deployment while a raw href here would
+ * stay `/private/` and 404, which is precisely how this went unnoticed the
+ * first time.
+ */
+import { withBase } from '../lib/auth/http.mjs';
+---
+
+<div class="auth-control print:hidden">
+	<a class="auth-in" href={withBase('/private/')} data-astro-prefetch="false">Log in</a>
+	<a class="auth-out" href={withBase('/auth/logout')} data-astro-prefetch="false">Log out</a>
+</div>
+
+<style>
+	.auth-control {
+		display: flex;
+		align-items: center;
+	}
+
+	.auth-control a {
+		color: var(--sl-color-gray-1);
+		font-size: var(--sl-text-sm);
+		text-decoration: none;
+		white-space: nowrap;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		line-height: 1;
+	}
+
+	.auth-control a:hover {
+		color: var(--sl-color-white);
+		background-color: var(--sl-color-gray-6);
+	}
+
+	/* Signed out is the default, because it is the state a reader with no
+	 * cookies is in and the state a forged cookie cannot fake into something
+	 * more permissive. */
+	.auth-out {
+		display: none;
+	}
+
+	:global(html[data-signed-in]) .auth-in {
+		display: none;
+	}
+
+	:global(html[data-signed-in]) .auth-out {
+		display: inline-block;
+	}
+</style>

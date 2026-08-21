@@ -23,11 +23,51 @@
 import Default from '@astrojs/starlight/components/Head.astro';
 import MarkdownAlternate from '@ekline/starlight-contextual-menu/MarkdownAlternate.astro';
 import { ClientRouter } from 'astro:transitions';
+import { SIGNED_IN_HINT_COOKIE, SIGNED_IN_HINT_VALUE } from '../lib/auth/http.mjs';
 ---
 
 <Default />
 <ClientRouter />
 <MarkdownAlternate />
+
+<script
+	is:inline
+	define:vars={{ hintCookieName: SIGNED_IN_HINT_COOKIE, hintCookieValue: SIGNED_IN_HINT_VALUE }}
+>
+	// Marks `<html>` when the reader has a session, so the header can show
+	// "Log out" and the sidebar can reveal its "Private docs" entry. Public
+	// pages are prerendered — one file for everyone — so this is the only place
+	// per-reader state can come from.
+	//
+	// `is:inline`, and in <head>, on purpose: it has to run before the first
+	// paint or the reader sees "Log in" flash and swap. A module script is
+	// deferred and would do exactly that.
+	//
+	// It reads the content-free hint cookie, never the session cookie, which is
+	// HttpOnly and must stay unreadable. Forging the hint changes what this
+	// header says and nothing else — every private URL still goes through the
+	// guard.
+	//
+	// The `define:vars` names are prefixed deliberately. They become `const`
+	// declarations at global scope, which classic inline scripts share, so a
+	// generic `cookie` or `value` would throw "already been declared" against
+	// any analytics or consent snippet a customer adds — and a parse error
+	// takes this whole script with it, silently signing everyone out of the
+	// header.
+	(() => {
+		const apply = () => {
+			const signedIn = document.cookie
+				.split('; ')
+				.some((entry) => entry === `${hintCookieName}=${hintCookieValue}`);
+			document.documentElement.toggleAttribute('data-signed-in', signedIn);
+		};
+		apply();
+		// `<ClientRouter />` replaces `<html>`'s attributes on every navigation,
+		// so the mark has to be reapplied. `astro:after-swap` runs before paint,
+		// which is why the button does not flicker between pages.
+		document.addEventListener('astro:after-swap', apply);
+	})();
+</script>
 
 <script>
 	// `<ClientRouter />` swaps the whole document on navigation, so the sidebar is rebuilt and

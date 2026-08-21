@@ -25,20 +25,17 @@ import {
 	listsOperationsInSidebar,
 	routeFor,
 } from '../src/config/api-reference.mjs';
+import { staticDir } from './helpers/static-dir.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, '..', 'dist');
+const STATIC_DIR = staticDir(join(__dirname, '..'));
 
-/** `dist`-relative path of the HTML a reference builds to. */
+/** Absolute path of the HTML a reference builds to. */
 const htmlFor = (reference) =>
-	join(DIST, routeFor(reference).replace(/^\/|\/$/g, ''), 'index.html');
+	join(STATIC_DIR, routeFor(reference).replace(/^\/|\/$/g, ''), 'index.html');
 
-/** `dist`-relative path of the document a reference is served from. */
-const specFor = (reference) => join(DIST, reference.specUrl.replace(/^\//, ''));
-
-test('build output exists (did `npm run build` run?)', () => {
-	assert.ok(existsSync(DIST), 'dist/ does not exist');
-});
+/** Absolute path of the document a reference is served from. */
+const specFor = (reference) => join(STATIC_DIR, reference.specUrl.replace(/^\//, ''));
 
 test('more than one reference is configured', () => {
 	// The template ships two so both layouts are visible on real content. If you
@@ -49,7 +46,7 @@ test('more than one reference is configured', () => {
 test("every reference's OpenAPI document is emitted as a static asset", () => {
 	for (const reference of enabledReferences) {
 		const spec = specFor(reference);
-		assert.ok(existsSync(spec), `${reference.id}: ${reference.specUrl} missing from dist/`);
+		assert.ok(existsSync(spec), `${reference.id}: ${reference.specUrl} missing from the build output`);
 
 		const content = readFileSync(spec, 'utf-8');
 		assert.match(content, /^openapi:\s*3\./m, `${reference.id}: not an OpenAPI 3.x document`);
@@ -117,7 +114,7 @@ const KNOWN_ANCHORS = [
 ];
 
 test('the sidebar lists operations generated from the OpenAPI document', () => {
-	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
+	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 
 	assert.ok(
@@ -127,7 +124,7 @@ test('the sidebar lists operations generated from the OpenAPI document', () => {
 });
 
 test('generated sidebar anchors match the hashes Scalar assigns', () => {
-	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
+	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 
 	for (const anchor of KNOWN_ANCHORS) {
 		assert.ok(
@@ -141,7 +138,7 @@ test('generated sidebar anchors match the hashes Scalar assigns', () => {
 });
 
 test('operation links carry their HTTP method as a badge', () => {
-	const html = readFileSync(join(DIST, 'api/index.html'), 'utf-8');
+	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	assert.match(html, /sl-badge[^"]*"[^>]*>GET</, 'no GET badge in the sidebar');
 	assert.match(html, /sl-badge[^"]*"[^>]*>POST</, 'no POST badge in the sidebar');
 });
@@ -149,7 +146,7 @@ test('operation links carry their HTTP method as a badge', () => {
 test('the operation list is reachable from ordinary docs pages', () => {
 	// The sidebar is global, so a reader on a prose page can jump straight to an
 	// endpoint instead of finding the reference first and searching inside it.
-	const html = readFileSync(join(DIST, 'get-started/quickstart/index.html'), 'utf-8');
+	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');
 	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 	assert.ok(links.length >= 10, `expected operations in the global sidebar, found ${links.length}`);
 });
@@ -157,7 +154,7 @@ test('the operation list is reachable from ordinary docs pages', () => {
 test('a full-width reference gets a plain sidebar link, not an operation list', () => {
 	// Scalar's own sidebar lists the operations on a `full` route, so repeating
 	// them in Starlight's would be two navigation trees for one document.
-	const html = readFileSync(join(DIST, 'get-started/quickstart/index.html'), 'utf-8');
+	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');
 
 	for (const reference of enabledReferences.filter((r) => !listsOperationsInSidebar(r))) {
 		assert.ok(

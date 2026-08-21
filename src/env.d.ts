@@ -50,3 +50,30 @@ declare module 'virtual:starlight/pagefind-config' {
 		Extract<import('@astrojs/starlight/types').StarlightConfig['pagefind'], object>
 	>;
 }
+
+declare namespace App {
+	interface Locals {
+		/**
+		 * The signed-in reader, set by `src/middleware.ts` on authenticated
+		 * requests under `/private/**`. Absent everywhere else — public pages
+		 * are prerendered and identical for every visitor by design.
+		 *
+		 * Optional, and it has to stay that way: `Astro.locals` is typed for
+		 * every route, and a required field would make `astro check` believe
+		 * public pages have a session too.
+		 *
+		 * Not to be confused with Astro's own `context.session`, which the
+		 * Node adapter enables automatically (it logs "Enabling sessions with
+		 * filesystem storage" on every build). That is server-side key/value
+		 * storage this template does not use; this is the JWT the SSO handoff
+		 * produced. Two different things named "session" — read the type, not
+		 * the name.
+		 */
+		session?: {
+			sub: string;
+			email: string | null;
+			name: string | null;
+			orgs: string[];
+		};
+	}
+}

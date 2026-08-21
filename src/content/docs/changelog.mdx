@@ -1,6 +1,10 @@
 ---
 title: Changelog
 description: Notable changes to the product, newest first.
+# The login link is the last sidebar entry, so pagination would otherwise offer
+# "Next → Private docs" here — a sign-in gate presented as the next thing to
+# read, pointing at a 404 until SSO is configured. See src/config/sidebar.mjs.
+next: false
 ---
 
 A running list of notable changes. Group by month (newest at the top) and use
