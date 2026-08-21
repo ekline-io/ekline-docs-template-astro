@@ -20,5 +20,5 @@ So: **do not** add a `workspaces` key, hoist dependencies into a root `node_modu
 
 ## Repo-wide rules
 
-- **Node 22.x** is the verified version across every project in this repo (see each project's own `package.json` `engines` field).
+- **Node 22.x** is the verified version across every project in this repo (pinned in the root `package.json`'s `engines` field and in CI).
 - **Consult the Starlight docs before making any change to an Astro/Starlight project** — https://starlight.astro.build/ is the source of truth and overrides general training knowledge. Applies to `packages/template/` today and will apply to `apps/docs` once it exists.

@@ -1,6 +1,6 @@
 # EkLine docs template
 
-A documentation site template built on [Astro](https://astro.build/) + [Starlight](https://starlight.astro.build/). Click **"Use this template"**, replace the placeholder content, and ship.
+A documentation site template built on [Astro](https://astro.build/) + [Starlight](https://starlight.astro.build/). Create your site with one command, replace the placeholder content, and ship.
 
 [![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
 
@@ -28,17 +28,27 @@ So you don't have to set these up yourself:
 
 ## Quick start
 
-1. Click **"Use this template"** at the top of this GitHub page to create your own copy.
-2. Clone your new repo and install dependencies:
+1. Create your site from the template:
    ```bash
-   git clone <your-repo-url>
-   cd <your-repo>
+   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+   ```
+   Not the GitHub **"Use this template"** button: this template lives in a
+   subdirectory of a monorepo, so the button would hand you the whole
+   repository — the docs site, the build tooling and all — rather than the
+   template. The command above fetches exactly `packages/template/`, lockfile
+   included.
+2. Install dependencies:
+   ```bash
+   cd <your-project>
    npm install
    ```
 3. Start the dev server:
    ```bash
    npm run dev
    ```
+
+Put it under version control whenever you like — the command leaves you a plain
+directory, not a clone, so its history is yours from the first commit.
 
 The site is live at <http://localhost:4321/> with hot reload.
 

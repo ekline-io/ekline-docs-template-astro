@@ -105,7 +105,7 @@ Scalar is MIT licensed. That requires the copyright notice to travel with the so
 
 ### What runs automatically
 
-`.github/workflows/ci.yml` runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so a failure there also blocks the deploy.
+The template repository's `.github/workflows/ci.yml` (at the monorepo root, so not part of your copy) runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so a failure there also blocks the deploy.
 
 The browser tests matter most. Every integration bug this reference has had — a blank reference after client-side navigation, white seams in dark mode, the API client rendering underneath the sidebar, method badges coming out white-on-white — produced a page that **built perfectly**. `npm test` reads build output and cannot see paint order, theme classes, or scroll behaviour. Only the browser suite can.
 

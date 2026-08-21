@@ -10,6 +10,27 @@ pulling across into a site you have already customised.
 
 ## 2.1.0
 
+### How you create a site from this template has changed
+
+```bash
+npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+```
+
+The GitHub **"Use this template"** button no longer works for this, and the
+README no longer suggests it. The template now lives in `packages/template/`
+inside a monorepo — that button copies whole repositories, so it would hand you
+EkLine's build tooling and its own hosted sites along with the template. The
+command above fetches exactly the template directory, lockfile included.
+
+Nothing inside your site changes: the files you receive are byte-for-byte what
+the previous version shipped. Only the way you fetch them is different, and
+existing sites are unaffected — you already have your copy.
+
+One consequence worth knowing: `npm create astro` strips `CHANGELOG.md` from a
+fetched template, so your copy will not include this file. It records the
+template's history rather than your site's, and it stays readable in the
+repository.
+
 ### Demo login
 
 `/demo-login` — a persona picker that plays your product's part in the SSO
