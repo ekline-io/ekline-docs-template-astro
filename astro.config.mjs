@@ -72,7 +72,19 @@ export default defineConfig({
 		},
 	},
 	integrations: [
-		sitemap(),
+		// Sitemaps advertise URLs to crawlers, and nothing under /private/ should
+		// be advertised: reaching it needs a session, so a crawler can only ever
+		// collect a redirect, and the URL itself names an org.
+		//
+		// This is not belt-and-braces. `@astrojs/sitemap` never consults
+		// `isPrerendered` — its only filters are `type !== 'page'` and a defined
+		// `pathname`, and `pathname` is undefined for `[dynamic]` and `[...spread]`
+		// routes. So an on-demand route is listed like any other unless it happens
+		// to be dynamic. Every route this template puts under /private/ is a spread
+		// route, which is why nothing leaked before this line existed; adding one
+		// plain `src/pages/private/welcome.astro` would publish it. Measured twice
+		// on real builds, not inferred. See wiki/private-docs.md.
+		sitemap({ filter: (page) => !page.includes('/private/') }),
 		starlight({
 			title: 'My Docs',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
