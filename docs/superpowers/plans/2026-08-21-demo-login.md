@@ -472,19 +472,21 @@ const state = Astro.url.searchParams.get('state');
 // `parseDemoRedirectUri` returning a URL rather than a boolean: redirecting to
 // the raw string would hand `Location:` a value the parser had already
 // normalised (CR/LF stripped, case folded), turning a hostile query parameter
-// into an ERR_INVALID_CHAR 500 instead of the clean refusal below.
+// into a header the runtime refuses to write, instead of the clean refusal
+// below.
+//
 // A request that fails this gets the explanation page whether or not it
 // carries `?as=`; a token is only ever signed when every check passes.
-// Set when the persona and round trip were both valid but `jose` refused the
-// key, so the page below can say so instead of silently offering the picker
-// again as though nothing had happened.
-let signingFailed = false;
-
 const redirectTarget = parseDemoRedirectUri(redirectUri, Astro.url.origin);
 const roundTrip =
 	redirectTarget && typeof state === 'string' && state !== ''
 		? { redirectTarget, state }
 		: null;
+
+// Set when the round trip and persona were both valid but signing failed, so
+// the page can say the demo is misconfigured rather than silently re-offering
+// a picker that cannot work.
+let signingFailed = false;
 
 if (roundTrip) {
 	const persona = findPersona(Astro.url.searchParams.get('as'));
@@ -494,12 +496,13 @@ if (roundTrip) {
 		// reason is worth keeping: `state` binds the token to this round trip
 		// but does not stop a stolen token being replayed; the short exp is
 		// what limits that (wiki/private-docs.md, "The SSO handoff").
-		// `demoLoginConfigured()` established the secret is a non-empty string,
-		// not that it is a usable key — a truncated or whitespace-only
-		// `DOCS_SSO_SECRET` passes the gate and fails here. Refuse rather than
-		// throw: an unhandled rejection on the sign-in path is a stack trace
-		// where the design calls for a clean refusal.
-		let token;
+		//
+		// Wrapped, because `demoLoginConfigured()` established the secret is a
+		// non-empty string, not that it is a usable key: a truncated or
+		// whitespace-only `DOCS_SSO_SECRET` passes the gate and fails here. An
+		// unhandled rejection on the sign-in path is a stack trace where the
+		// design calls for a stated failure.
+		let token = null;
 		try {
 			token = await new SignJWT({
 				email: persona.email,
@@ -513,51 +516,56 @@ if (roundTrip) {
 				.setExpirationTime('5m')
 				.sign(new TextEncoder().encode(ssoSecret));
 		} catch (error) {
-			console.error('[demo-login] could not sign the handoff token:', error);
-			token = null;
+			console.error(
+				'[demo-login] could not sign the handoff token — check DOCS_SSO_SECRET:',
+				error
+			);
+			signingFailed = true;
 		}
+
 		if (token) {
-		// Error level on purpose: if this flag is ever on where it should not
-		// be, this line is how production logs say so.
-		console.error(
-			`[demo-login] UNSAFE demo sign-in issued a handoff token for persona "${persona.id}". ` +
-				'If this is not a demo or staging deployment, unset DOCS_UNSAFE_DEMO_LOGIN now.'
-		);
-			// A copy: `searchParams.set` mutates, and `roundTrip.redirectTarget`
-			// is read again below if this branch is ever refactored.
-			// `roundTrip` established same-origin http(s), so this cannot leave
-			// the site.
+			// Error level on purpose: if this flag is ever on where it should
+			// not be, this line is how production logs say so.
+			console.error(
+				`[demo-login] UNSAFE demo sign-in issued a handoff token for persona "${persona.id}". ` +
+					'If this is not a demo or staging deployment, unset DOCS_UNSAFE_DEMO_LOGIN now.'
+			);
+			// A copy: `searchParams.set` mutates. `roundTrip` established
+			// same-origin http(s), so this cannot leave the site.
 			const target = new URL(roundTrip.redirectTarget);
 			target.searchParams.set('token', token);
 			return Astro.redirect(target.href);
 		}
-		// Signing failed. Fall through to the page below, which explains the
-		// round trip — the reader sees a dead end rather than a stack trace,
-		// and the error log above names the cause.
-		signingFailed = true;
 	}
 }
 
-// A failed validation with parameters present is a refusal (a foreign
-// redirect_uri, most likely); absent parameters just mean somebody browsed
-// here directly, which deserves directions rather than an error.
-if (!roundTrip && (redirectUri !== null || state !== null)) {
+// Three outcomes reach the page below, and they need different statuses.
+//
+// A signing failure is a deployment fault: say so with a 500, because a 200
+// would tell an operator watching status codes that the demo works.
+// A validation failure *with parameters present* is a refusal — a foreign
+// `redirect_uri`, most likely — so 400. Absent parameters just mean somebody
+// browsed here directly, which deserves directions and a plain 200.
+if (signingFailed) {
+	Astro.response.status = 500;
+} else if (!roundTrip && (redirectUri !== null || state !== null)) {
 	Astro.response.status = 400;
 }
 
 // Links prebuilt here so the template stays declarative. Values are echoed
 // only out of a validated `roundTrip`, so the picker never propagates
 // parameters it would refuse to act on.
-const pickerLinks = roundTrip
-	? personas.map((persona) => ({
-			...persona,
-			href: `${Astro.url.pathname}?${new URLSearchParams({
-				as: persona.id,
-				redirect_uri: roundTrip.redirectTarget.href,
-				state: roundTrip.state,
-			})}`,
-		}))
-	: [];
+const pickerLinks =
+	roundTrip && !signingFailed
+		? personas.map((persona) => ({
+				...persona,
+				href: `${Astro.url.pathname}?${new URLSearchParams({
+					as: persona.id,
+					redirect_uri: roundTrip.redirectTarget.href,
+					state: roundTrip.state,
+				})}`,
+			}))
+		: [];
 ---
 
 <html lang="en">
@@ -626,7 +634,13 @@ const pickerLinks = roundTrip
 			and must never be enabled on a site with real private content.
 		</p>
 		{
-			roundTrip ? (
+			signingFailed ? (
+				<p>
+					This demo sign-in is misconfigured: the handoff token could not be
+					signed. Check <code>DOCS_SSO_SECRET</code> on the deployment — the
+					server log names the underlying error.
+				</p>
+			) : roundTrip ? (
 				<>
 					<p>Pick a reader. Each one shows a different slice of the private docs:</p>
 					{pickerLinks.map((persona) => (
@@ -699,6 +713,30 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4321/demo-login?as=in
 curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4321/demo-login?as=acme&redirect_uri=https%3A%2F%2Fevil.example%2Fx&state=teststate"
 # → 400
 ```
+
+Then prove the signing-failure branch, which is the one the Task 2 review
+added and the one no ordinary request reaches. Stop the dev server, restart it
+with a deliberately unusable secret, and repeat the valid-persona request:
+
+```bash
+DOCS_SSO_SECRET= DOCS_SSO_URL=http://localhost:4545/docs-sso DOCS_SESSION_SECRET=x DOCS_UNSAFE_DEMO_LOGIN=1 npx astro dev --port 4321
+```
+
+An empty `DOCS_SSO_SECRET` makes `authConfigured()` false, so that spelling
+404s — which is itself worth seeing once. To reach the signing branch the
+secret must be non-empty but unusable by `jose`; a single space is the
+smallest such value:
+
+```bash
+DOCS_SSO_SECRET=" " DOCS_SSO_URL=http://localhost:4545/docs-sso DOCS_SESSION_SECRET=x DOCS_UNSAFE_DEMO_LOGIN=1 npx astro dev --port 4321
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:4321/demo-login?as=acme&redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fcallback&state=teststate"
+# → 500, page says "misconfigured", server log names DOCS_SSO_SECRET, no stack trace to the client
+```
+
+If a single space turns out to be a *valid* HMAC key (verify — `jose` accepts
+short keys for HS256), find a value that genuinely throws, or induce the
+failure another way. What must be demonstrated is the branch, not a particular
+input: **a signing failure renders the page and logs, rather than throwing.**
 
 Also confirm the off-state: stop the server, start it *without* the env file
 (`npx astro dev --port 4321`), and:
