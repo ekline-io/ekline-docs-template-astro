@@ -13,6 +13,7 @@ import {
 	listsOperationsInSidebar,
 	routeFor,
 } from './src/config/api-reference.mjs';
+import { docsSidebarGroups, changelogEntry, loginLink } from './src/config/sidebar.mjs';
 
 // One sidebar entry per API reference, generated from its OpenAPI document.
 // Regenerated on every build, so swapping in your own document updates the
@@ -101,33 +102,11 @@ export default defineConfig({
 						'A documentation site built with Astro Starlight. Replace this description with a one-paragraph summary of your project.',
 				}),
 			],
+			// The nav groups, the changelog entry and the login link are declared in
+			// `src/config/sidebar.mjs`. Edit that, not this — the sidebar shown on
+			// logged-in pages is assembled from the same exports.
 			sidebar: [
-				{
-					label: 'Get started',
-					items: [
-						{ label: 'Introduction', slug: 'get-started/introduction' },
-						{ label: 'Quickstart', slug: 'get-started/quickstart' },
-						{ label: 'Authentication', slug: 'get-started/authentication' },
-					],
-				},
-				{
-					label: 'Guides',
-					items: [
-						{ label: 'Example guide', slug: 'guides/example' },
-						{ label: 'Send your first request', slug: 'guides/send-your-first-request' },
-					],
-				},
-				{
-					label: 'Concepts',
-					items: [
-						{ label: 'How it works', slug: 'concepts/how-it-works' },
-						{ label: 'Glossary', slug: 'concepts/glossary' },
-					],
-				},
-				{
-					label: 'Reference',
-					items: [{ autogenerate: { directory: 'reference' } }],
-				},
+				...docsSidebarGroups,
 				// Interactive API references, rendered by Scalar. Their routes live
 				// in `src/pages/api/` rather than in a Starlight plugin — Scalar
 				// renders each whole reference itself, so there are no per-operation
@@ -136,10 +115,8 @@ export default defineConfig({
 				// Built from the OpenAPI documents (see the import at the top of this
 				// file), so they need no maintenance when a document changes.
 				...apiReferenceSidebar,
-				{
-					label: 'Changelog',
-					slug: 'changelog',
-				},
+				changelogEntry,
+				loginLink,
 			],
 		}),
 	],
