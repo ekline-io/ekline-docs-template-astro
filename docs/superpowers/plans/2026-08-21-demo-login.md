@@ -681,9 +681,18 @@ Notes for the implementer, so nothing gets "tidied":
 - Astro escapes `{expression}` interpolations in templates, so persona fields
   and the `URLSearchParams` string need no manual `escapeHtml`.
 - `data-astro-prefetch="false"` on every link that GETs a state-changing or
-  round-trip URL — the wiki's prefetch section is the law here. (This page
-  doesn't mount Starlight's `<ClientRouter />`, so it is arguably redundant —
-  keep it anyway; it documents intent and survives a future layout change.)
+  round-trip URL — the wiki's prefetch section is the law here, and on this
+  page it is **load-bearing, not documentation**. An earlier draft of this plan
+  claimed it was "arguably redundant" because the page does not mount
+  `<ClientRouter />`; that was wrong, and was measured wrong. Astro's prefetch
+  is independent of view transitions — it ships as a `stage: 'page'` script
+  that lands on every page in the project, and Starlight sets
+  `prefetch: { prefetchAll: true }` with the default hover strategy.
+  `/demo-login` does serve that script. Without the attribute, hovering a
+  persona link fires a real GET that mints a token and completes the round trip
+  through `/auth/callback`, signing the reader in as whichever persona their
+  mouse crossed — the bug `69d9b0a` fixed elsewhere in this repo. Each link
+  carries a comment saying so, matching the four existing ones.
 - The persona links echo `redirect_uri`/`state` only out of a validated
   `roundTrip`, so the picker never propagates values it would refuse to act on.
 
