@@ -39,13 +39,33 @@
  * dot segment), so an org URL is classified as merely private and the
  * membership check is skipped.
  *
- * `originPathname` matched what the router actually saw in every probe case,
- * under both `astro build` and `astro dev`, so this is one rule rather than two
- * that must be kept in step. It also applies the site's `trailingSlash` setting,
- * which is why every rule below accepts a segment with or without its trailing
- * slash. The one thing it is not is rewrite-aware — it deliberately keeps the
- * *original* path across `Astro.rewrite()`, so a middleware that rewrites and
- * then re-classifies would be classifying the wrong URL.
+ * `originPathname` matched what the router actually saw in every non-rewrite
+ * probe case, under both `astro build` and `astro dev`. It also applies the
+ * site's `trailingSlash` setting, which is why every rule below accepts a
+ * segment with or without its trailing slash.
+ *
+ * ### Rewrites are the exception, and this input fails open on them
+ *
+ * Astro re-enters the **entire user middleware chain** after any rewrite
+ * (`core/rewrites/handler.js` → `Rewrites.execute` → `middleware.handle(...)`)
+ * and pins `originPathname` to the *pre-rewrite* path for that second pass.
+ * This is Astro's automatic behaviour, not a pattern a middleware author opts
+ * into or can decline: the rewrite may be issued by a page or by a third-party
+ * integration, and the chain re-runs either way. Measured on the same harness,
+ * with a public `/brochure` page calling `Astro.rewrite('/private/secret/')`:
+ *
+ *     [MW] {"url":"/brochure",        "origin":"/brochure/", "cls":"public"}
+ *     [MW] {"url":"/private/secret/", "origin":"/brochure/", "cls":"public"}
+ *     → HTTP 200, body: PRIVATE-CONTENT
+ *
+ * On that second pass the guard is handed a public path while the private route
+ * renders: the `base` row above with the safe and unsafe inputs swapped, and
+ * failing open rather than closed. It is latent in this template today —
+ * nothing in `src/`, Starlight, Scalar, the contextual menu, llms-txt or either
+ * adapter calls `rewrite()` — but one future rewrite into `/private/**` opens
+ * it. Closing it belongs to the middleware, not to this function: it needs the
+ * route Astro actually settled on (`context.routePattern`) as well as the path
+ * the reader asked for. Neither input alone is sufficient in both directions.
  *
  * ## Why there is no decoding, traversal handling or slash collapsing here
  *
@@ -57,7 +77,10 @@
  * backslash separators) before any pathname exists, and Astro decodes and
  * collapses leading slashes before both route matching and `originPathname`.
  * `tests/auth-guards.test.mjs` pins those platform behaviours so they fail
- * loudly if they ever change, rather than quietly.
+ * loudly if they ever change, rather than quietly. A fail-closed
+ * `startsWith('//')` rule was considered and rejected on the same grounds:
+ * `originPathname` has already collapsed those, so it would guard a shape that
+ * cannot arrive, at the cost of a rule that is harder to audit.
  *
  * Matching is case-sensitive for the same reason: Astro builds route patterns
  * with `new RegExp(...)` and no `i` flag, so `/PRIVATE/secret/` reaches no

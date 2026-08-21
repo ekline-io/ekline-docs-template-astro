@@ -216,11 +216,22 @@ test('a strange org slug is returned verbatim, never repaired', () => {
 		org: 'acme%2Fworkflow',
 	});
 	assert.deepEqual(classifyPath('/private/orgs/%2e%2e/x/'), { type: 'org', org: '%2e%2e' });
-	assert.deepEqual(classifyPath('/private/orgs/./'), { type: 'org', org: '.' });
-	assert.deepEqual(classifyPath('/private/orgs/../'), { type: 'org', org: '..' });
-	assert.deepEqual(classifyPath('/private/orgs/acme /'), { type: 'org', org: 'acme ' });
+	// A control character survives as part of the slug too: a real request for
+	// `/private/orgs/acme%00/` arrives decoded, and `params.org` is the same
+	// `acme\u0000`. Written as an escape rather than a literal byte, which
+	// would make grep treat this file as binary.
+	assert.deepEqual(classifyPath('/private/orgs/acme\u0000/'), {
+		type: 'org',
+		org: 'acme\u0000',
+	});
 
 	// None of them can become a traversal downstream either: the routes look
 	// their entry up by exact collection id (`orgDocs` ids look like
 	// `acme/workflow`), never by building a filesystem path.
+	//
+	// Every slug asserted above is one a real request can actually produce. A
+	// bare `.` or `..` is not: the URL parser resolves those long before the
+	// guard is reachable, which the dot-segment test above asserts directly.
+	// They are left out rather than asserted here, so this test's apparent
+	// reach is its real reach.
 });
