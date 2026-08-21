@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in `packages/template/` — EkLine's Starlight (Astro) documentation template. It governs everything under this directory. For how this fits into the rest of the repo (what else lives here, and why there's no npm workspace tying it together), see the repo root's [`CLAUDE.md`](../../CLAUDE.md).
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this template.
 
 ## Project intent
 
@@ -31,7 +31,7 @@ This applies to bug fixes too: if Starlight has changed how something is configu
 
 ## Commands
 
-Run these from `packages/template/` (the repo root's `package.json` also exposes `template:*` equivalents that delegate here — see the root `CLAUDE.md`):
+Once the Astro/Starlight project is scaffolded, the standard commands will be:
 
 - `npm install` — install dependencies
 - `npm run dev` — start the dev server (default http://localhost:4321)
@@ -43,7 +43,7 @@ Run these from `packages/template/` (the repo root's `package.json` also exposes
 - `npm run dev:sso` — mock SSO server for developing the logged-in experience locally (pair with `.env` copied from `.env.example`)
 - `npm run astro -- <cmd>` — run Astro CLI commands
 
-CI (the repo root's `.github/workflows/ci.yml`, which runs every step with `packages/template/` as its working directory) runs `check`, `test`, and `test:visual:ci` on every PR. The screenshot comparisons are excluded there because their baselines are macOS-only; run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
+CI (`.github/workflows/ci.yml`, at the repo root) runs `check`, `test`, and `test:visual:ci` on every PR. The screenshot comparisons are excluded there because their baselines are macOS-only; run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
 
 These follow the defaults from `npm create astro@latest`. If/when the scripts in `package.json` diverge from these, update this section.
 
