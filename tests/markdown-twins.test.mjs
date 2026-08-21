@@ -23,8 +23,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
+import { staticDir } from './helpers/static-dir.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, '..', 'dist');
+const DIST = staticDir(join(__dirname, '..'));
 
 function* walk(dir, predicate) {
 	if (!existsSync(dir)) return;
@@ -55,7 +57,9 @@ const isOpenApiPage = (htmlPath) =>
 	relative(DIST, htmlPath).split(sep)[0] === 'api';
 
 test('build output exists (did `npm run build` run?)', () => {
-	assert.ok(existsSync(DIST), 'dist/ does not exist');
+	// `staticDir()` already threw at import time if nothing was built, so this
+	// one is belt-and-braces; the two below are the assertions with teeth.
+	assert.ok(existsSync(DIST));
 	assert.ok(htmlFiles.length > 0, 'no .html files emitted');
 	assert.ok(mdFiles.length > 0, 'no .md files emitted');
 });

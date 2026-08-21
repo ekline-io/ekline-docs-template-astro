@@ -25,9 +25,10 @@ import {
 	listsOperationsInSidebar,
 	routeFor,
 } from '../src/config/api-reference.mjs';
+import { staticDir } from './helpers/static-dir.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, '..', 'dist');
+const DIST = staticDir(join(__dirname, '..'));
 
 /** `dist`-relative path of the HTML a reference builds to. */
 const htmlFor = (reference) =>
@@ -37,7 +38,9 @@ const htmlFor = (reference) =>
 const specFor = (reference) => join(DIST, reference.specUrl.replace(/^\//, ''));
 
 test('build output exists (did `npm run build` run?)', () => {
-	assert.ok(existsSync(DIST), 'dist/ does not exist');
+	// `staticDir()` already threw at import time if nothing was built — with a
+	// better message than this could give. Kept as the named precondition.
+	assert.ok(existsSync(DIST));
 });
 
 test('more than one reference is configured', () => {
