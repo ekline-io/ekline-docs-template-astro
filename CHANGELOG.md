@@ -54,8 +54,10 @@ org that does not exist — asserted by a test that compares the two responses.
   so nobody is offered a section they cannot open. Org sections are deliberately
   *not* handled this way — those labels are customer names, and prerendered HTML
   would hand every one of them to every anonymous visitor.
-- Deployments without private docs configured set `showAuthControls` to `false`
-  in `src/config/sidebar.mjs` and the whole affordance disappears.
+- **Nothing is offered on a deployment that cannot honour it.** With the
+  `DOCS_*` variables unset, the control and the sidebar entry are absent from
+  the build entirely — no dead link on a demo, a staging site, or a fork that
+  has not wired SSO yet. Derived from configuration, not a flag to remember.
 
 ### Breaking: the build output moved
 
@@ -111,8 +113,8 @@ pages render exactly as they did.
    set the three environment variables from `.env.example` and implement the
    SSO endpoint from the README.
 4. **If you have customised `src/config/sidebar.mjs`**, note it now also exports
-   `privateDocsLink` and `showAuthControls`, and that `astro.config.mjs` reads
-   both.
+   `privateDocsLink`, which `astro.config.mjs` includes only when SSO is
+   configured.
 
 Read [`wiki/private-docs.md`](wiki/private-docs.md) before changing anything
 under `src/pages/private/`, `src/pages/auth/` or `src/middleware.ts`.

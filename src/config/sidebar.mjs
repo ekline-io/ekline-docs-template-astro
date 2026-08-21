@@ -73,21 +73,3 @@ export const privateDocsLink = {
 	attrs: { 'data-auth-only': 'true', 'data-astro-prefetch': 'false' },
 };
 
-/**
- * Whether this deployment offers signing in at all.
- *
- * Set `false` on any deployment without private docs configured — a demo, a
- * staging site, a fork that has not set the `DOCS_*` variables. It drops both
- * the header's Log in / Log out control and the sidebar's "Private docs" entry,
- * so readers are not offered a sign-in that cannot work. The routes and the
- * guard are untouched; nothing becomes reachable either way.
- *
- * It cannot be derived. The sidebar and header are built at build time; the SSO
- * settings are read through `astro:env/server` at request time, deliberately,
- * so one build can serve a configured environment and an unconfigured one.
- * Astro also does not load `.env` into `process.env` early enough for a
- * build-time check to see local configuration, so deriving it would hide the
- * control during local development — the one place sign-in is easiest to try.
- * A flag you set is honest about being a decision rather than a detection.
- */
-export const showAuthControls = true;

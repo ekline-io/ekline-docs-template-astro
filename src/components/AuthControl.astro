@@ -20,7 +20,10 @@
  * knows where sign-in lives and what to come back to; sending readers straight
  * at `DOCS_SSO_URL` would skip the `state` nonce and the `returnTo` it stores.
  *
- * Rendered only when `showAuthControls` is on — see `src/config/sidebar.mjs`.
+ * Rendered only when sign-in is actually configured. The header asks
+ * `authConfigured()`, so a deployment with no `DOCS_*` variables set — a demo,
+ * a staging site, a fork that has not wired SSO yet — shows no control at all
+ * rather than one that answers 404.
  *
  * **Both links opt out of prefetching, and must stay that way.** Starlight
  * enables `prefetchAll`, so Astro prefetches every link on hover — and a

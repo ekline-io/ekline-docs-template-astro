@@ -1,4 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+
+/** The three `DOCS_*` values from `.env.test`, the one place they are written. */
+const testEnv = Object.fromEntries(
+	readFileSync(new URL('.env.test', import.meta.url), 'utf8')
+		.split('\n')
+		.filter((line) => line.trim() && !line.startsWith('#'))
+		.map((line) => {
+			const eq = line.indexOf('=');
+			return [line.slice(0, eq).trim(), line.slice(eq + 1).trim()];
+		})
+);
 
 /**
  * Visual regression tests for the API reference.
@@ -123,17 +135,22 @@ export default defineConfig({
 			url: 'http://localhost:4321',
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
-			env: {
-				PORT: '4321',
-				DOCS_SSO_URL: 'http://localhost:4545/docs-sso',
-				// Must match tests/mock-sso/server.mjs. Two distinct values, as in
-				// .env.example — the session token's `aud` claim means a handoff
-				// token cannot be replayed as a session cookie even when both
-				// secrets match, and the suite should exercise the configuration
-				// customers are told to use. Test-only values, safe to commit.
-				DOCS_SSO_SECRET: 'dev-only-sso-not-a-secret',
-				DOCS_SESSION_SECRET: 'dev-only-session-not-a-secret',
-			},
+			// Read from `.env.test` rather than written out here.
+			//
+			// The same three values configure the *build* — the auth controls are
+			// derived from configuration, so a build without them correctly omits
+			// them and every header test would fail for the right reason and the
+			// wrong purpose. That build runs via `node --env-file=.env.test` in
+			// `package.json`. Two copies of these values would drift, and the
+			// failure when they did would be a redirect to an SSO endpoint whose
+			// signature no longer verifies — a long way from the edit that caused
+			// it.
+			//
+			// The two secrets are deliberately different, as in `.env.example`:
+			// the session token's `aud` claim means a handoff token cannot be
+			// replayed as a session cookie even when both match, and the suite
+			// should exercise the configuration customers are told to use.
+			env: { PORT: '4321', ...testEnv },
 		},
 		{
 			// The readiness probe is deliberately a request the endpoint refuses:

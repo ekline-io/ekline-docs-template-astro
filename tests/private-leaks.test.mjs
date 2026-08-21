@@ -238,3 +238,27 @@ test('no org name reaches the public build', () => {
 		);
 	}
 });
+
+test('an unconfigured build offers no way to sign in', () => {
+	// The default state every fork starts in, and the one this file can check
+	// without a browser: `npm test` builds with no `DOCS_*` variables set, so
+	// the guard fails closed and `/private/**` answers a bare 404. A Log in
+	// button or a "Private docs" nav entry in that build would be a dead link
+	// on every page — the affordance has to be derived from configuration, not
+	// rendered unconditionally.
+	//
+	// `tests/visual/auth.spec.mjs` covers the other direction, against a build
+	// that IS configured (see `.env.test`). Together they pin both states; on
+	// its own either one passes against a control that never changes.
+	const offenders = walk(STATIC).filter((file) => {
+		if (!file.endsWith('.html')) return false;
+		const html = readFileSync(file, 'utf8');
+		return html.includes('class="auth-in') || html.includes('data-auth-only');
+	});
+
+	assert.deepEqual(
+		offenders.map(rel),
+		[],
+		'sign-in affordances rendered on a build with no DOCS_* configured'
+	);
+});

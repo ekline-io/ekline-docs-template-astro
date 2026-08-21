@@ -127,20 +127,19 @@ Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs
 
 ### Deploying somewhere private docs aren't configured?
 
-A staging site, a public demo, a preview build — anywhere the `DOCS_*` variables
-aren't set. Set `showLoginLink` to `false` in
-[`src/config/sidebar.mjs`](./src/config/sidebar.mjs) for that deployment.
+Nothing to do. A staging site, a public demo, a preview build, a fork that has
+not wired SSO yet — with the `DOCS_*` variables unset, the **Log in** control
+and the sidebar's **Private docs** entry are absent from the build entirely.
 
-The guard fails closed without those variables, so `/private/**` answers a bare
-404 — correct, and exactly what makes the sidebar's "Private docs" link a dead
-link on every page rather than merely an unhelpful one. The flag drops the link;
-the routes and the guard are untouched, so nothing becomes reachable.
+That matters because the guard fails closed without those variables, so
+`/private/**` answers a bare 404 — correct, and exactly what would make an
+always-rendered link a dead one on every page. The routes and the guard are
+untouched either way; nothing becomes reachable.
 
-It is a flag rather than something detected automatically because it cannot be
-detected: the sidebar is built at build time, the SSO settings are read at
-request time (deliberately, so one build can serve a configured environment and
-an unconfigured one), and Astro does not load `.env` early enough for a
-build-time check to see your local configuration anyway.
+It is derived rather than configured: `astro.config.mjs` reads the variables
+through Vite's `loadEnv`, and the header asks `authConfigured()`. Both see a
+local `.env`, and both see variables exported by Vercel or CI, so local
+development and production agree without anything to remember.
 
 ### Don't need private docs?
 

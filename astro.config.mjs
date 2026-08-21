@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig, envField } from 'astro/config';
+import { loadEnv } from 'vite';
 import node from '@astrojs/node';
 import vercel from '@astrojs/vercel';
 import starlight from '@astrojs/starlight';
@@ -13,12 +14,28 @@ import {
 	listsOperationsInSidebar,
 	routeFor,
 } from './src/config/api-reference.mjs';
-import {
-	docsSidebarGroups,
-	changelogEntry,
-	privateDocsLink,
-	showAuthControls,
-} from './src/config/sidebar.mjs';
+import { docsSidebarGroups, changelogEntry, privateDocsLink } from './src/config/sidebar.mjs';
+
+// Is signing in configured for this deployment?
+//
+// `loadEnv`, not `process.env`. Astro does not load `.env` files into
+// `process.env` by the time this file runs, so reading it directly reports
+// "unconfigured" during local development — the one place sign-in is easiest to
+// try. `loadEnv` reads the `.env` files *and* the real environment, so it is
+// right in all three cases: nothing configured, a local `.env`, and variables
+// exported by Vercel or CI. Measured, after `process.env` got it wrong.
+//
+// A presence check only. `authConfigured()` in `src/config/auth.mjs` is the
+// authoritative version — it also parses the URL and checks the scheme — but it
+// imports `astro:env/server`, which this file cannot. The components use that
+// one. The two can only disagree on a deployment that is misconfigured rather
+// than unconfigured, and both fail towards hiding the affordance.
+const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET } = loadEnv(
+	process.env.NODE_ENV ?? 'production',
+	process.cwd(),
+	''
+);
+const ssoConfigured = Boolean(DOCS_SSO_URL && DOCS_SSO_SECRET && DOCS_SESSION_SECRET);
 
 // One sidebar entry per API reference, generated from its OpenAPI document.
 // Regenerated on every build, so swapping in your own document updates the
@@ -92,7 +109,17 @@ export default defineConfig({
 		sitemap({ filter: (page) => !page.includes('/private/') }),
 		starlight({
 			title: 'My Docs',
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+			// TODO: point this at your own repository. It ships aimed at the
+			// template so the live preview links somewhere useful — it was the
+			// Starlight starter's own repo until now, which is not what a reader
+			// of your docs is looking for.
+			social: [
+				{
+					icon: 'github',
+					label: 'GitHub',
+					href: 'https://github.com/ekline-io/ekline-docs-template-astro',
+				},
+			],
 			customCss: ['./src/styles/global.css'],
 			components: {
 				Head: './src/components/CustomHead.astro',
@@ -137,11 +164,11 @@ export default defineConfig({
 				// file), so they need no maintenance when a document changes.
 				...apiReferenceSidebar,
 				changelogEntry,
-				// Hidden until the reader signs in, and dropped entirely when this
-				// deployment has no private docs — see `showAuthControls` in
-				// src/config/sidebar.mjs. The Log in / Log out control itself
-				// lives in the header (src/components/AuthControl.astro).
-				...(showAuthControls ? [privateDocsLink] : []),
+				// Hidden by CSS until the reader signs in, and absent from the
+				// build entirely when this deployment has no SSO configured, so
+				// nobody is offered a section that can only answer 404. The
+				// Log in / Log out control itself lives in the header.
+				...(ssoConfigured ? [privateDocsLink] : []),
 			],
 		}),
 	],
