@@ -200,3 +200,41 @@ test('llms.txt variants do not mention private content', () => {
 		assert.ok(!body.includes('/private/'), `${rel(file)} links to /private/`);
 	}
 });
+
+test('no org name reaches the public build', () => {
+	// The rule the signed-in sidebar entry has to obey.
+	//
+	// `data-auth-only` entries ship in the HTML of every public page and are
+	// merely hidden by CSS, which is fine for a fixed path like `/private/`.
+	// It would NOT be fine for org sections: their labels are customer names,
+	// and a prerendered page is served to every anonymous visitor, so listing
+	// them would hand Acme the fact that Globex is a customer. That is the same
+	// disclosure the 404-not-403 rule exists to prevent, reintroduced through
+	// the navigation.
+	//
+	// Titles rather than slugs, deliberately: the slug `acme` is a plausible
+	// substring of unrelated content (an OpenAPI example, a sample domain),
+	// which would make this test fail for reasons that are not leaks.
+	const orgTitles = ['Acme docs', 'Globex docs'];
+	const files = walk(STATIC);
+	assert.ok(files.length > 0, 'no static output to search');
+
+	for (const title of orgTitles) {
+		const needle = Buffer.from(title);
+		const leaked = files.filter((file) => {
+			const raw = readFileSync(file);
+			if (raw.includes(needle)) return true;
+			if (raw[0] !== 0x1f || raw[1] !== 0x8b) return false;
+			try {
+				return gunzipSync(raw).includes(needle);
+			} catch {
+				return false;
+			}
+		});
+		assert.deepEqual(
+			leaked.map((file) => relative(ROOT, file)),
+			[],
+			`the org name "${title}" is public in: ${leaked.join(', ')}`
+		);
+	}
+});

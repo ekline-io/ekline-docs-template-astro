@@ -90,5 +90,33 @@ export function notFound() {
 	});
 }
 
+/**
+ * Name of the hint cookie that tells *client-side* code a session exists.
+ *
+ * It carries the single character `1` and nothing else — no name, no email, no
+ * orgs. That is the whole design: public pages are prerendered and identical
+ * for everyone, so the only way the header can show "Log out" to a signed-in
+ * reader is for a script to look at something the browser already has. The real
+ * session cookie is `HttpOnly` and must stay that way, so this one exists
+ * beside it purely to be readable.
+ *
+ * It grants nothing. Anyone can set it by hand and see "Log out" while signed
+ * out; every private URL still goes through the guard, which reads the signed
+ * session and not this. The cost of forging it is that your own header lies to
+ * you.
+ *
+ * **Never put reader data in here.** It is readable by any script on the page
+ * and it rides on CDN-cached responses. The moment it carries a name or an org
+ * list, it is per-reader data on a shared page.
+ *
+ * Lives in this module rather than `src/config/auth.mjs` because
+ * `src/components/CustomHead.astro` needs the name and must not pull in an
+ * `astro:env/server` import to get it.
+ */
+export const SIGNED_IN_HINT_COOKIE = 'docs_signed_in';
+
+/** The only value it ever holds. */
+export const SIGNED_IN_HINT_VALUE = '1';
+
 /** `private` for the intermediaries that only honour that; `no-store` for the rest. */
 export const NO_STORE = 'private, no-store';

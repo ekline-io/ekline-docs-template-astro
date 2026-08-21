@@ -67,6 +67,15 @@ const cookieDefaults = /** @type {const} */ ({
 /** Attributes for the docs site's own session cookie. */
 export const sessionCookieAttributes = cookieDefaults;
 
+/**
+ * Attributes for the readable hint cookie.
+ *
+ * Same as the others minus `httpOnly` — the entire point is that a script can
+ * read it. See `SIGNED_IN_HINT_COOKIE` in `src/lib/auth/http.mjs` for why that
+ * is safe, and for the rule about never putting reader data in it.
+ */
+export const hintCookieAttributes = { ...cookieDefaults, httpOnly: false };
+
 /** Attributes for the in-flight SSO round trip's state cookie. */
 export const stateCookieAttributes = cookieDefaults;
 

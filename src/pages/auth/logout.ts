@@ -25,8 +25,8 @@
  * refusing to log people out.
  */
 import type { APIRoute } from 'astro';
-import { auth, sessionCookieAttributes } from '../../config/auth.mjs';
-import { siteRoot } from '../../lib/auth/http.mjs';
+import { auth, sessionCookieAttributes, hintCookieAttributes } from '../../config/auth.mjs';
+import { siteRoot, SIGNED_IN_HINT_COOKIE } from '../../lib/auth/http.mjs';
 import { clearStateCookie } from '../../middleware';
 
 export const prerender = false;
@@ -41,6 +41,9 @@ export const GET: APIRoute = (context) => {
 	}
 
 	context.cookies.delete(auth.sessionCookie, sessionCookieAttributes);
+	// Clear the readable hint too, or the header keeps offering "Log out" to
+	// someone who no longer has a session.
+	context.cookies.delete(SIGNED_IN_HINT_COOKIE, hintCookieAttributes);
 	// Also clear any half-finished sign-in, so its `attempts` counter cannot
 	// outlive the session and push the reader onto the loop-guard error page
 	// the next time they sign in.

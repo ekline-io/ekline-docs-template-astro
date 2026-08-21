@@ -16,8 +16,14 @@ import {
 	authSecrets,
 	authConfigured,
 	sessionCookieAttributes,
+	hintCookieAttributes,
 } from '../../config/auth.mjs';
-import { escapeHtml, withBase } from '../../lib/auth/http.mjs';
+import {
+	escapeHtml,
+	withBase,
+	SIGNED_IN_HINT_COOKIE,
+	SIGNED_IN_HINT_VALUE,
+} from '../../lib/auth/http.mjs';
 import { verifyHandoffToken, createSessionToken } from '../../lib/auth/tokens.mjs';
 import {
 	readStateCookie,
@@ -63,6 +69,14 @@ export const GET: APIRoute = async (context) => {
 	});
 	context.cookies.set(auth.sessionCookie, value, {
 		...sessionCookieAttributes,
+		maxAge: auth.sessionTtlSeconds,
+	});
+	// A second, readable cookie saying only that a session exists. Public pages
+	// are prerendered and identical for everyone, so this is the only thing the
+	// header can look at to show "Log out" instead of "Log in". It carries no
+	// reader data and grants nothing — see `SIGNED_IN_HINT_COOKIE`.
+	context.cookies.set(SIGNED_IN_HINT_COOKIE, SIGNED_IN_HINT_VALUE, {
+		...hintCookieAttributes,
 		maxAge: auth.sessionTtlSeconds,
 	});
 	// Success clears the state cookie — and with it the loop-guard counter.

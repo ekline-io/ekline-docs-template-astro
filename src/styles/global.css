@@ -563,3 +563,23 @@ header.header > div.header {
 		align-self: center;
 	}
 }
+
+/* Sidebar entries marked `data-auth-only` are for signed-in readers.
+ *
+ * They ship in the HTML of every page — public pages are prerendered once and
+ * served to everyone, so there is no per-reader server render to omit them
+ * from — and are revealed by the `data-signed-in` mark that
+ * `src/components/CustomHead.astro` puts on <html> before first paint.
+ *
+ * This is presentation, not access control. Everything behind these links is
+ * enforced by `src/middleware.ts`; hiding them only avoids offering a reader a
+ * section that would bounce them to a sign-in they may not want. Never put a
+ * customer's org name behind this rule — the markup is public regardless of
+ * whether CSS draws it. */
+.sidebar-content li:has(> a[data-auth-only]) {
+	display: none;
+}
+
+html[data-signed-in] .sidebar-content li:has(> a[data-auth-only]) {
+	display: revert;
+}

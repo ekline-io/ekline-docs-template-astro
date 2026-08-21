@@ -54,23 +54,36 @@ export const changelogEntry = { label: 'Changelog', slug: 'changelog' };
  * `next: false` — otherwise Starlight's pagination offers a sign-in gate as
  * the next thing to read. Move this entry and revisit that.
  */
-export const loginLink = { label: 'Private docs', link: '/private/' };
+export const privateDocsLink = {
+	label: 'Private docs',
+	link: '/private/',
+	// Hidden by CSS until `<html>` carries `data-signed-in` — see
+	// `src/components/AuthControl.astro` and `src/styles/global.css`. It is in
+	// the markup for everyone because the page is prerendered once and served to
+	// everyone; the attribute is what differs per reader.
+	//
+	// That is safe to ship publicly: `/private/` is a fixed path that reveals
+	// nothing, and following it just starts the SSO round trip. What must NOT be
+	// done here is listing org sections the same way — those names are customer
+	// names, and static HTML would hand every one of them to every visitor.
+	attrs: { 'data-auth-only': 'true' },
+};
 
 /**
- * Whether that link is in the sidebar at all.
+ * Whether this deployment offers signing in at all.
  *
- * Set this to `false` on any deployment that does not have private docs
- * configured, or readers get a nav item on every page that answers a bare 404.
- * The guard fails closed when `DOCS_SSO_URL` and the two secrets are unset —
- * which is correct, and which is exactly what makes the link dead rather than
- * merely unhelpful.
+ * Set `false` on any deployment without private docs configured — a demo, a
+ * staging site, a fork that has not set the `DOCS_*` variables. It drops both
+ * the header's Log in / Log out control and the sidebar's "Private docs" entry,
+ * so readers are not offered a sign-in that cannot work. The routes and the
+ * guard are untouched; nothing becomes reachable either way.
  *
- * It cannot be derived. The sidebar is built here, in `astro.config.mjs`, at
- * build time; the SSO settings are read through `astro:env/server` at request
- * time, deliberately, so one build can be deployed to a configured environment
- * and an unconfigured one. Astro also does not load `.env` into `process.env`
- * this early, so checking it here would hide the link during local development
- * — the one place sign-in is easiest to try. A flag you set is honest about
- * being a decision rather than a detection.
+ * It cannot be derived. The sidebar and header are built at build time; the SSO
+ * settings are read through `astro:env/server` at request time, deliberately,
+ * so one build can serve a configured environment and an unconfigured one.
+ * Astro also does not load `.env` into `process.env` early enough for a
+ * build-time check to see local configuration, so deriving it would hide the
+ * control during local development — the one place sign-in is easiest to try.
+ * A flag you set is honest about being a decision rather than a detection.
  */
-export const showLoginLink = true;
+export const showAuthControls = true;

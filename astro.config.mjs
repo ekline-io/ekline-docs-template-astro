@@ -16,8 +16,8 @@ import {
 import {
 	docsSidebarGroups,
 	changelogEntry,
-	loginLink,
-	showLoginLink,
+	privateDocsLink,
+	showAuthControls,
 } from './src/config/sidebar.mjs';
 
 // One sidebar entry per API reference, generated from its OpenAPI document.
@@ -97,6 +97,10 @@ export default defineConfig({
 			components: {
 				Head: './src/components/CustomHead.astro',
 				Header: './src/components/CustomHeader.astro',
+				// The header's right-hand cluster is hidden below `md`, so the Log in /
+				// Log out control has to be repeated here or phones get no way to sign
+				// in — the same reason Starlight repeats theme and language controls.
+				MobileMenuFooter: './src/components/CustomMobileMenuFooter.astro',
 				Hero: './src/components/CustomHero.astro',
 				Footer: './src/components/CustomFooter.astro',
 				// Re-init Pagefind after every Astro view-transition swap — the
@@ -133,9 +137,11 @@ export default defineConfig({
 				// file), so they need no maintenance when a document changes.
 				...apiReferenceSidebar,
 				changelogEntry,
-				// Dropped entirely when private docs are not configured for this
-				// deployment — see `showLoginLink` in src/config/sidebar.mjs.
-				...(showLoginLink ? [loginLink] : []),
+				// Hidden until the reader signs in, and dropped entirely when this
+				// deployment has no private docs — see `showAuthControls` in
+				// src/config/sidebar.mjs. The Log in / Log out control itself
+				// lives in the header (src/components/AuthControl.astro).
+				...(showAuthControls ? [privateDocsLink] : []),
 			],
 		}),
 	],

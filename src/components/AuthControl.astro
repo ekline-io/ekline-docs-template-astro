@@ -1,0 +1,67 @@
+---
+/**
+ * The one auth affordance on public pages: "Log in", or "Log out" once the
+ * reader has a session.
+ *
+ * Public pages are prerendered — one HTML file served to everyone — so this
+ * cannot be decided on the server. Both links are always in the markup and CSS
+ * shows exactly one of them, keyed off a `data-signed-in` attribute that
+ * `CustomHead.astro` sets on `<html>` before the first paint. Nothing is
+ * fetched and nothing swaps in after load, so there is no flash of the wrong
+ * button.
+ *
+ * The attribute comes from a readable, content-free hint cookie
+ * (`SIGNED_IN_HINT_COOKIE`). It grants nothing: forge it and you get a header
+ * that lies to you, while every private URL still goes through the guard. That
+ * is the trade this makes deliberately — a cosmetic lie the reader tells
+ * themselves, in exchange for no flash and no per-page request.
+ *
+ * "Log in" points at `/private/`, not at the SSO endpoint. The guard is what
+ * knows where sign-in lives and what to come back to; sending readers straight
+ * at `DOCS_SSO_URL` would skip the `state` nonce and the `returnTo` it stores.
+ *
+ * Rendered only when `showAuthControls` is on — see `src/config/sidebar.mjs`.
+ */
+---
+
+<div class="auth-control print:hidden">
+	<a class="auth-in" href="/private/">Log in</a>
+	<a class="auth-out" href="/auth/logout">Log out</a>
+</div>
+
+<style>
+	.auth-control {
+		display: flex;
+		align-items: center;
+	}
+
+	.auth-control a {
+		color: var(--sl-color-gray-1);
+		font-size: var(--sl-text-sm);
+		text-decoration: none;
+		white-space: nowrap;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		line-height: 1;
+	}
+
+	.auth-control a:hover {
+		color: var(--sl-color-white);
+		background-color: var(--sl-color-gray-6);
+	}
+
+	/* Signed out is the default, because it is the state a reader with no
+	 * cookies is in and the state a forged cookie cannot fake into something
+	 * more permissive. */
+	.auth-out {
+		display: none;
+	}
+
+	:global(html[data-signed-in]) .auth-in {
+		display: none;
+	}
+
+	:global(html[data-signed-in]) .auth-out {
+		display: inline-block;
+	}
+</style>

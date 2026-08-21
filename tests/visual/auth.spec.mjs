@@ -31,6 +31,34 @@ const SENTINEL = 'EKLINE-PRIVATE-SENTINEL';
 /** Set by `/auth/callback`; named in `src/config/auth.mjs` (`auth.sessionCookie`). */
 const SESSION_COOKIE = 'docs_session';
 
+/** The readable hint; named in `src/lib/auth/http.mjs` (`SIGNED_IN_HINT_COOKIE`). */
+const HINT_COOKIE = 'docs_signed_in';
+
+/** A public, prerendered page — the only kind where the swap has to be done client-side. */
+const PUBLIC_PAGE = '/guides/example/';
+
+/**
+ * The auth control the reader can actually see, revealed the way they would.
+ *
+ * There are two copies in the DOM and only ever one of them on screen. The
+ * header's right-hand cluster is `sl-hidden md:sl-flex`, so on a phone it does
+ * not render and the control is repeated in the mobile menu footer — which is
+ * why this returns a *scoped* locator rather than a bare `.auth-out`. An
+ * unscoped one silently resolves to the header copy and reports "hidden" on
+ * mobile, which reads as a broken feature rather than a broken selector.
+ *
+ * Both viewports run these tests on purpose: phones originally had no way to
+ * sign in at all, and skipping mobile is exactly what hid that.
+ */
+async function authControl(page, isMobile) {
+	if (!isMobile) return page.locator('.right-group .auth-control');
+	// `aria-controls`, not the label: the contextual-menu plugin also ships a
+	// button whose accessible name contains "menu".
+	await page.locator('button[aria-controls="starlight__sidebar"]').click();
+	await expect(page.locator('#starlight__sidebar')).toBeVisible();
+	return page.locator('.mobile-preferences .auth-control');
+}
+
 /** Starlight's rendered navigation. Present in the DOM on every viewport. */
 const nav = (page) => page.locator('.sidebar-content');
 
@@ -212,8 +240,8 @@ test.describe('the private sidebar', () => {
 		await page.goto('/private/');
 
 		await expect(nav(page).getByRole('link', { name: 'Log out' })).toBeVisible();
-		// `loginLink` in `src/config/sidebar.mjs` is the public pages' "Private
-		// docs" link, and it exists to start the SSO round trip. Offering it to a
+		// `privateDocsLink` in `src/config/sidebar.mjs` is the public pages'
+		// "Private docs" entry, revealed once a reader signs in. Offering it to a
 		// reader who is already signed in is the giveaway that the private sidebar
 		// was built from the public config instead of `buildPrivateSidebar`.
 		await expect(
@@ -232,5 +260,117 @@ test.describe('the private sidebar', () => {
 		await expect(nav(page).locator('a[href="/api/"]')).toHaveCount(1);
 		await expect(nav(page).locator('a[href="/api/admin/"]')).toHaveCount(1);
 		await expect(nav(page).locator('a[href^="/api/#"]')).toHaveCount(0);
+	});
+});
+
+test.describe('the header auth control', () => {
+	// Public pages are prerendered: one HTML file served to every reader. So the
+	// Log in / Log out swap cannot be a server decision, and these tests are the
+	// only thing standing between "personalised header" and "everyone sees the
+	// same button". Each asserts both directions — a test that only checked the
+	// state it set up would pass against a control that never changes.
+
+	test('a reader with no session is offered Log in, and nothing more', async ({
+		page,
+		isMobile,
+	}) => {
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+
+		await expect(control.locator('.auth-in')).toBeVisible();
+		await expect(control.locator('.auth-out')).toBeHidden();
+		// The point of the whole exercise: no dangling link to content they
+		// cannot reach.
+		await expect(nav(page).locator('a[data-auth-only]')).toBeHidden();
+	});
+
+	test('after signing in the same page offers Log out and the private section', async ({
+		page,
+		isMobile,
+	}) => {
+		await page.goto('/private/');
+		expect(await sessionCookie(page), 'never signed in; the rest is vacuous').toBeDefined();
+
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+
+		await expect(control.locator('.auth-out')).toBeVisible();
+		await expect(control.locator('.auth-in')).toBeHidden();
+		await expect(nav(page).locator('a[data-auth-only]')).toBeVisible();
+	});
+
+	test('the hint cookie carries no reader data', async ({ page }) => {
+		// It is readable by any script and rides on CDN-cached pages, so its
+		// value is the one thing about it that must never grow. A future edit
+		// adding a name or an org list for convenience turns a cosmetic marker
+		// into per-reader data on a shared page.
+		await page.goto('/private/');
+
+		const hint = (await page.context().cookies()).find((c) => c.name === HINT_COOKIE);
+		expect(hint, 'signing in must set the hint').toBeDefined();
+		expect(hint.value).toBe('1');
+		expect(hint.httpOnly, 'the hint has to be readable, unlike the session').toBe(false);
+
+		const session = await sessionCookie(page);
+		expect(session.httpOnly, 'the session must NOT be readable').toBe(true);
+	});
+
+	test('the swap is decided before first paint, not after', async ({ page }) => {
+		// The reason the marker comes from a cookie rather than a fetch. Waiting
+		// only for `domcontentloaded` means no network round trip and no
+		// post-load script has run — if the attribute is already there, the
+		// reader never saw the wrong button.
+		await page.goto('/private/');
+
+		await page.goto(PUBLIC_PAGE, { waitUntil: 'domcontentloaded' });
+
+		await expect(page.locator('html')).toHaveAttribute('data-signed-in', '');
+	});
+
+	test('the swap survives a client-side navigation', async ({ page, isMobile }) => {
+		// `<ClientRouter />` replaces the attributes on <html> at every
+		// navigation, so the marker has to be reapplied on `astro:after-swap`.
+		// Without that the header silently reverts to "Log in" on the second
+		// page — and only on client-side navigations, which is the kind of bug
+		// that survives manual testing.
+		await page.goto('/private/');
+		await page.goto(PUBLIC_PAGE);
+		await expect((await authControl(page, isMobile)).locator('.auth-out')).toBeVisible();
+
+		await nav(page).getByRole('link', { name: 'Quickstart' }).click();
+		await expect(page).toHaveURL(/\/get-started\/quickstart\/$/);
+
+		await expect((await authControl(page, isMobile)).locator('.auth-out')).toBeVisible();
+	});
+
+	test('logging out puts the control back', async ({ page, isMobile }) => {
+		await page.goto('/private/');
+		await page.goto(PUBLIC_PAGE);
+		await (await authControl(page, isMobile)).locator('.auth-out').click();
+		await expect(page).toHaveURL('/');
+
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+		await expect(control.locator('.auth-in')).toBeVisible();
+		await expect(control.locator('.auth-out')).toBeHidden();
+		await expect(nav(page).locator('a[data-auth-only]')).toBeHidden();
+		expect(await sessionCookie(page)).toBeUndefined();
+	});
+
+	test('a forged hint changes the control and grants nothing', async ({ page, isMobile }) => {
+		// The trade this design makes on purpose. Anyone can set the hint, so
+		// the control can lie; the guard reads the signed session and does not
+		// care what the control says.
+		await page.context().addCookies([
+			{ name: HINT_COOKIE, value: '1', url: 'http://localhost:4321' },
+		]);
+
+		await page.goto(PUBLIC_PAGE);
+		const control = await authControl(page, isMobile);
+		await expect(control.locator('.auth-out'), 'the lie is cosmetic').toBeVisible();
+
+		const response = await page.request.get('/private/', { maxRedirects: 0 });
+		expect(response.status(), 'the guard is unmoved').toBe(302);
+		expect(response.headers()['location']).toContain('/docs-sso');
 	});
 });
