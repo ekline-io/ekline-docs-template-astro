@@ -792,7 +792,7 @@ git commit -m "feat: /demo-login persona picker, gated on DOCS_UNSAFE_DEMO_LOGIN
 - [ ] **Step 1: Extend the `loadEnv` destructure**
 
 ```js
-const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET, SITE_URL } = loadEnv(
+const { DOCS_SSO_URL, DOCS_SSO_SECRET, DOCS_SESSION_SECRET, DOCS_SITE_URL } = loadEnv(
 	process.env.NODE_ENV ?? 'production',
 	process.cwd(),
 	''
@@ -812,9 +812,9 @@ Replace:
 with:
 
 ```js
-	// TODO: replace with your deployed site URL (or set SITE_URL in the build
+	// TODO: replace with your deployed site URL (or set DOCS_SITE_URL in the build
 	// environment). Required for sitemap and llms-txt to emit absolute URLs.
-	site: SITE_URL || 'https://example.com',
+	site: DOCS_SITE_URL || 'https://example.com',
 ```
 
 - [ ] **Step 3: Extend the sitemap filter**
@@ -851,7 +851,7 @@ not know is wired up.
 
 ```bash
 git add astro.config.mjs
-git commit -m "feat: keep /demo-login out of the sitemap; allow SITE_URL to set site (EK-2373)"
+git commit -m "feat: keep /demo-login out of the sitemap; allow DOCS_SITE_URL to set site (EK-2373)"
 ```
 
 ---
@@ -1016,6 +1016,34 @@ Append:
 # DOCS_UNSAFE_DEMO_LOGIN=1
 ```
 
+- [ ] **Step 1b: `.env.example` — document `DOCS_SITE_URL`**
+
+Append, after the demo-login block:
+
+```
+#
+# ── Site URL ────────────────────────────────────────────────────────────────
+# The deployed URL, used by the sitemap and llms-txt to emit absolute URLs.
+# Set it here or replace the `site` placeholder in astro.config.mjs — they are
+# the same setting, and the env var wins. Useful when one build serves several
+# environments (a preview deployment and production have different URLs).
+# DOCS_SITE_URL=https://docs.example.com
+```
+
+- [ ] **Step 1c: `README.md` and `CLAUDE.md` — `site` now has two paths**
+
+Three lines currently describe only the config-file path, and the one they
+omit is the path the template's own deployment uses. Update each:
+
+- `README.md` ~line 48, the pre-wired table row: **Site URL** … change the
+  right-hand cell to `` `site` field in `astro.config.mjs`, or the
+  `DOCS_SITE_URL` env var ``.
+- `README.md` ~line 165, "**Before deploying, set the `site` URL** in
+  `astro.config.mjs`" — append "or set `DOCS_SITE_URL` in the build
+  environment".
+- `CLAUDE.md` ~line 61, "`site` … downstream users must replace it" — append
+  the same clause.
+
 - [ ] **Step 2: `README.md` — the live-preview paragraph**
 
 Replace:
@@ -1140,7 +1168,7 @@ org folders), so org isolation is visible in two clicks. Edit them in
 
 ### Other
 
-- `site` in `astro.config.mjs` can now come from a `SITE_URL` env var, so one
+- `site` in `astro.config.mjs` can now come from a `DOCS_SITE_URL` env var, so one
   config serves deployments at different URLs. The placeholder default is
   unchanged.
 ```
@@ -1251,7 +1279,7 @@ stable alias keeps `DOCS_SSO_URL` valid across pushes):
 | `DOCS_SSO_SECRET` | first generated value |
 | `DOCS_SESSION_SECRET` | second generated value |
 | `DOCS_UNSAFE_DEMO_LOGIN` | `1` |
-| `SITE_URL` | `https://<branch-alias>.vercel.app` |
+| `DOCS_SITE_URL` | `https://<branch-alias>.vercel.app` |
 
 Redeploy the preview after setting them (env vars are runtime-read, but the
 sidebar's login entry is derived at build time from `loadEnv` — a rebuild is
@@ -1286,7 +1314,7 @@ and `cache-control: private, no-store`.
   		// redirect_uri is built on a loopback origin and sign-in cannot
   		// complete. See "Reverse proxies and redirect_uri" in
   		// wiki/private-docs.md.
-  		allowedDomains: SITE_URL ? [{ hostname: new URL(SITE_URL).hostname }] : [],
+  		allowedDomains: DOCS_SITE_URL ? [{ hostname: new URL(DOCS_SITE_URL).hostname }] : [],
   	},
   ```
 
@@ -1338,7 +1366,7 @@ Same five variables in the **Production** environment, with production URLs:
 | `DOCS_SSO_SECRET` | fresh `openssl rand -base64 32` — generate new ones for prod |
 | `DOCS_SESSION_SECRET` | fresh `openssl rand -base64 32`, different value |
 | `DOCS_UNSAFE_DEMO_LOGIN` | `1` |
-| `SITE_URL` | `https://ekline-docs-template-astro.vercel.app` |
+| `DOCS_SITE_URL` | `https://ekline-docs-template-astro.vercel.app` |
 
 Redeploy production (the merge deploy may have run before the vars existed —
 if so, hit Redeploy). Repeat the Task 8.4 walkthrough against
