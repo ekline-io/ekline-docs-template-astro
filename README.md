@@ -67,6 +67,9 @@ import { SignJWT } from 'jose';
 
 const secret = new TextEncoder().encode(process.env.DOCS_SSO_SECRET);
 
+// `requireYourProductLogin` is your existing auth middleware — the one guarding
+// the rest of your product. It is doing more work here than it looks: see
+// "Readers who are not signed in yet" below.
 app.get('/docs-sso', requireYourProductLogin, async (req, res) => {
 	const token = await new SignJWT({
 		email: req.user.email,
@@ -91,6 +94,27 @@ Three things about that endpoint are load-bearing:
 - **Honour `redirect_uri`.** It is the docs site telling you where its callback lives, and it moves with the deployment (a `base` path puts it at `/docs/auth/callback`). A hardcoded callback URL works right up until it doesn't. A real endpoint should check the value against an allowlist of your own docs domains before redirecting to it.
 - **Echo `state` back unchanged.** It binds the token to the browser that started the sign-in; the callback rejects a token whose `state` does not match.
 - **Keep `exp` short.** The handoff token travels in a URL, so five minutes is the mitigation. Nothing in the template caps it — that would mean overruling your own token policy.
+
+### Readers who are not signed in yet
+
+The endpoint above assumes `req.user` exists. Most of the time it will: readers reach private docs from inside your product, so their session cookie comes along and the whole round trip is invisible — two redirects and they are on the page.
+
+When it doesn't, `requireYourProductLogin` does what it always does and sends them to your login page. **That detour is the reader's entire login experience for the docs site, and the docs site has no part in it.** There is no login form here, no password field, nothing to configure: they see the sign-in page they already know.
+
+The one thing that has to work is the trip back:
+
+- **Your login flow must return the reader to the full original URL**, `redirect_uri` and `state` query parameters intact. Most login systems do this by default — they capture the requested URL and replay it after authentication. Some drop the query string, and some send everyone to a dashboard regardless.
+- If yours drops them, the reader signs in successfully and lands somewhere else entirely. Nothing errors. The docs site never hears about it, so nothing appears in its logs either — from the outside it just looks like sign-in "doesn't work".
+
+**Test this path deliberately.** It is the one branch that a signed-in developer never exercises: open the docs site in a private window with no product session, click a private link, and check you come back to the page you asked for rather than to your product's home page.
+
+If your login redirect can only return a path you choose, point it at `/docs-sso` and preserve the original query string:
+
+```js
+// Inside your login middleware, when there is no session yet.
+const returnTo = req.originalUrl; // '/docs-sso?redirect_uri=…&state=…'
+res.redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+```
 
 `tests/mock-sso/server.mjs` is a working reference implementation of exactly this endpoint. It also doubles as the local dev login: copy `.env.example` to `.env`, run `npm run dev:sso`, and `npm run dev` has a working sign-in.
 

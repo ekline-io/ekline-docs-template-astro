@@ -94,6 +94,41 @@ Three properties of this handshake are worth stating plainly, because their name
 - **The session token carries an `aud` claim, and verification requires it.** Both tokens are HS256 JWTs, so if a customer sets `DOCS_SSO_SECRET` and `DOCS_SESSION_SECRET` to the same value — the ordinary slip — then without `aud` *any* token their product signs with that secret (an API token, a password-reset link) would verify as an 8-hour docs session. Only the session side is marked, because that is the side this template controls: requiring a new claim from the customer's product would change their integration contract to buy the same property. The reverse direction needs nothing — a session token carries no `state`, so it was never usable as a handoff token.
 - **No maximum handoff lifetime is enforced.** `exp` is *required* on both tokens, but its length is the product's policy, and rejecting a customer's 15-minute token would be this template overruling it. A product that signs a ten-year handoff token silently voids the mitigation above. The README's sample endpoint uses `5m`, and the reason is worth keeping when adapting it. (Verification allows 60s of clock skew on the handoff token, so a 5-minute window is really 6.)
 
+## What the customer's login flow has to preserve
+
+Step 2 above assumes the reader already has a session with the customer's
+product. Usually they do — they reached private docs from inside it. When they
+have not, `/docs-sso` sits behind the product's own auth, so the product sends
+them to its login page. That detour is the reader's whole login experience for
+the docs site, and nothing in this template participates in it: there is no
+login form here, no password field, no account to create.
+
+What the template does depend on is the trip back. **The product's login flow
+must return the reader to the full original URL, `redirect_uri` and `state`
+query parameters intact.** Most login systems capture the requested URL and
+replay it after authentication; some drop the query string, and some send
+everyone to a dashboard.
+
+When that happens the failure is silent and points nowhere:
+
+- The reader signs in successfully. Nothing errors.
+- They land on the product's home page instead of the docs page they wanted.
+- `/auth/callback` is never reached, so the docs site has no idea a sign-in was
+  attempted and logs nothing.
+- The loop guard does not fire either — it counts *failed* round trips, and this
+  round trip never came back at all.
+
+From the outside it reads as "sign-in doesn't work", with no evidence anywhere.
+That makes it worth an explicit test rather than an assumption, and it is the
+one branch a signed-in developer never exercises: open the docs site in a
+private window with no product session, click a private link, and confirm you
+return to the page you asked for.
+
+The state cookie's ten-minute `maxAge` bounds how long that detour may take. A
+login flow that parks the reader somewhere for longer — an email verification
+step, say — will find the cookie gone on return and start a fresh round trip,
+which is correct but means the reader loses the page they originally wanted.
+
 ## Things that are outside the guard
 
 The middleware guards a URL prefix. These are the non-obvious ways a request can render without passing through it:
