@@ -1857,6 +1857,29 @@ phrase; keep the sentinel in at least one private and one org example page.
   the wrong URL. The shipped middleware does not rewrite.)
 - **`orgs/` is a reserved folder name inside `src/content/private-docs/`**
   (excluded by the collection's glob): `/private/orgs/**` belongs to org docs.
+- **Org folder names are slugified; the token's `orgs` claim is not.** Astro's
+  glob loader runs each path segment through `github-slugger` to build the
+  entry id, while the org slug from the SSO token is compared byte-verbatim
+  (deliberately — see the 404-not-403 rule above). The two only meet if the
+  folder name is already slug-shaped. Consequences to plan around:
+  - A folder named `Acme Labs` and one named `acme-labs` both become
+    `acme-labs`, and their pages merge into one org.
+  - An org legitimately named `acme.co` in your token gets **no group at
+    all**, silently, because the folder slugs to `acmeco`.
+
+  Normalising the token side would be worse than the empty group: it would
+  make two different folders answer to one org. **Name org folders in
+  lowercase kebab-case and match the token's `orgs` values to them exactly.**
+  If an org's section is mysteriously empty, this is the first thing to check.
+- **An org slug containing `/` gets no group.** `orgGroup` returns `null` for
+  it, because a nested entry id like `acme/deep` would otherwise match an org
+  claim of `acme/deep` and put one customer's page title in another's
+  sidebar. Nothing is lost: the middleware's org capture is a single path
+  segment, so a slash-bearing org can never be granted access anyway.
+- **`sidebar.hidden` is not access control.** It keeps a page out of the nav;
+  the page is still served to any logged-in reader who has its URL. To deny
+  access, move the page — to `org-docs/<org>/` for one customer, or out of the
+  private collections entirely.
 - **Fail closed.** `enabled: false` in `src/config/auth.mjs`, or any missing
   env var, makes `/private/**` a 404 in production. The friendly setup page
   appears in `astro dev` only.
