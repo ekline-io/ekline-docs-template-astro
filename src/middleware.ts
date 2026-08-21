@@ -53,13 +53,76 @@ import { verifySessionToken } from './lib/auth/tokens.mjs';
  * every field is whatever the reader's browser says it is; this type describes
  * only the shape that survives `readStateCookie`.
  */
-type StateCookie = { state: string; returnTo: string; attempts: number };
+export type StateCookie = { state: string; returnTo: string; attempts: number };
 
 /**
  * Failed round trips tolerated before the loop guard gives up — one to be
  * unlucky, two to be a pattern.
+ *
+ * A **failed round trip**, not a redirect issued, and the difference is the
+ * whole of why this counter lives where it does. `/auth/callback` owns the
+ * increment and raises it only for a handoff it actually rejected; this file
+ * reads the count and refuses once it is already at the limit; a callback that
+ * succeeds deletes the cookie, which resets it.
+ *
+ * Counting redirects instead is what this did until it was measured, and it
+ * made ordinary browsing trip the guard. One browser, one cookie jar, three
+ * logged-out visits to different private URLs and the SSO endpoint never
+ * contacted once:
+ *
+ *     /private/                       -> 302 | attempts now 1
+ *     /private/example-private-guide/ -> 302 | attempts now 2
+ *     /private/orgs/acme/             -> 502 "Sign-in did not complete"
+ *
+ * The third response blamed an SSO endpoint that had never been asked for
+ * anything. Nothing exotic gets a reader there: the back button then a second
+ * private link, two tabs, any sub-resource under `/private/`, or
+ * `<ClientRouter />` prefetching private sidebar links on hover — each prefetch
+ * is a real GET that would have burned a slot without the reader clicking at
+ * all.
  */
 const MAX_SSO_ATTEMPTS = 2;
+
+/**
+ * One spelling of the state cookie's attributes, for the write and the
+ * deletions alike.
+ *
+ * A browser keys a cookie on name + domain + path, so a `set` and a `delete`
+ * that disagree about `path` do not cancel out — the old cookie stays, holding
+ * a stale `attempts`. Two spellings of one cookie invite exactly the edit that
+ * changes one of them.
+ *
+ * Not exported: `/auth/callback` writes this cookie too, but through
+ * `writeStateCookie` below, so these attributes have exactly one caller-visible
+ * spelling.
+ *
+ * `secure` is `Secure` everywhere except `astro dev`: Vite compiles
+ * `import.meta.env.DEV` to a literal `false` in a production build, and dev
+ * needs it off to work over plain http on localhost.
+ */
+const stateCookieAttributes = {
+	path: '/',
+	httpOnly: true,
+	sameSite: 'lax',
+	secure: !import.meta.env.DEV,
+} as const;
+
+/** How long one sign-in round trip may stay in flight, in seconds. */
+const STATE_COOKIE_MAX_AGE = 600;
+
+/**
+ * Write the state cookie.
+ *
+ * Exported because `/auth/callback` writes it too — it owns the `attempts`
+ * counter (see `MAX_SSO_ATTEMPTS`) and has to hand the incremented value back
+ * to the browser.
+ */
+export function writeStateCookie(context: APIContext, value: StateCookie): void {
+	context.cookies.set(auth.stateCookie, JSON.stringify(value), {
+		...stateCookieAttributes,
+		maxAge: STATE_COOKIE_MAX_AGE,
+	});
+}
 
 /** `private` for the intermediaries that only honour that; `no-store` for the rest. */
 const NO_STORE = 'private, no-store';
@@ -252,29 +315,30 @@ function redirectToSso(context: APIContext) {
 	if (!ssoEndpoint) return notFound();
 
 	const prior = readStateCookie(context.cookies.get(auth.stateCookie)?.value);
-	const attempts = (prior?.attempts ?? 0) + 1;
+	// Read, never incremented. Issuing a redirect is not a failure — a reader
+	// opening five private links while logged out is one browser doing something
+	// ordinary five times, not five broken sign-ins. `/auth/callback` counts the
+	// failures; see `MAX_SSO_ATTEMPTS`.
+	const attempts = prior?.attempts ?? 0;
 	// Loop guard: an SSO endpoint that bounces readers straight back would
 	// otherwise redirect forever, and a redirect loop is a much worse failure to
 	// debug than a page that says what broke.
-	if (attempts > MAX_SSO_ATTEMPTS) {
-		// Same attributes as the `set` below. A browser matches a deletion on
-		// name and path alone, so this works either way, but two spellings of one
-		// cookie invite a future edit that changes `path` in one place only.
-		context.cookies.delete(auth.stateCookie, {
-			path: '/',
-			httpOnly: true,
-			sameSite: 'lax',
-			secure: !import.meta.env.DEV,
-		});
+	if (attempts >= MAX_SSO_ATTEMPTS) {
+		// Deleting resets the counter, so the next request starts a clean round
+		// trip rather than pinning the reader on this page forever. That is
+		// deliberate: the guard exists to break a *loop*, and one error page is
+		// enough to break one.
+		context.cookies.delete(auth.stateCookie, stateCookieAttributes);
 		return errorPage(
 			'Sign-in did not complete',
-			'The sign-in service redirected back without a valid token twice. ' +
-				'This usually means the SSO endpoint or the shared secret is misconfigured.'
+			`Two sign-in attempts came back from the SSO service without a token this ` +
+				`site could accept. That usually means the endpoint is not signing with ` +
+				`DOCS_SSO_SECRET, or it is not returning the state parameter it was given.`
 		);
 	}
 
 	const state = crypto.randomUUID();
-	const value: StateCookie = {
+	writeStateCookie(context, {
 		state,
 		// `url.pathname`, deliberately — the one place in this file where
 		// `originPathname` would be the wrong input. This string is handed back
@@ -285,17 +349,10 @@ function redirectToSso(context: APIContext) {
 		// (`safeReturnTo`) rather than trusted, because by then it is cookie
 		// data like everything else here.
 		returnTo: context.url.pathname + context.url.search,
+		// Carried forward unchanged: a fresh `state` must not also mean a fresh
+		// budget, or a reader could reset the counter by asking for one more
+		// private page between failures.
 		attempts,
-	};
-	context.cookies.set(auth.stateCookie, JSON.stringify(value), {
-		path: '/',
-		httpOnly: true,
-		sameSite: 'lax',
-		// Vite compiles `import.meta.env.DEV` to a literal `false` in a
-		// production build, so this is `Secure` everywhere except `astro dev` —
-		// which needs it off to work over plain http on localhost.
-		secure: !import.meta.env.DEV,
-		maxAge: 600,
 	});
 
 	// A copy: `ssoEndpoint` is shared by every request and `searchParams.set`

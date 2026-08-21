@@ -10,10 +10,10 @@
  * parameter and the unsigned state cookie both — and nothing here may assume
  * otherwise.
  */
-import type { APIRoute } from 'astro';
+import type { APIContext, APIRoute } from 'astro';
 import { auth, authSecrets, authConfigured } from '../../config/auth.mjs';
 import { verifyHandoffToken, createSessionToken } from '../../lib/auth/tokens.mjs';
-import { readStateCookie } from '../../middleware';
+import { readStateCookie, writeStateCookie, type StateCookie } from '../../middleware';
 
 export const prerender = false;
 
@@ -26,7 +26,9 @@ export const GET: APIRoute = async (context) => {
 	const stored = readStateCookie(context.cookies.get(auth.stateCookie)?.value);
 	const returnTo = safeReturnTo(stored?.returnTo);
 
-	if (!token || !stored) return failure('The sign-in link is missing its token or state.', returnTo);
+	if (!token || !stored) {
+		return rejected(context, stored, 'The sign-in link is missing its token or state.', returnTo);
+	}
 
 	let session;
 	try {
@@ -36,7 +38,7 @@ export const GET: APIRoute = async (context) => {
 		});
 	} catch (error) {
 		console.error('[auth] handoff token rejected:', error);
-		return failure('The sign-in token was invalid or expired.', returnTo);
+		return rejected(context, stored, 'The sign-in token was invalid or expired.', returnTo);
 	}
 
 	const value = await createSessionToken(session, {
@@ -71,10 +73,44 @@ function safeReturnTo(value: string | undefined): string {
 	return /^\/[A-Za-z0-9/_\-.~%?=&]*$/.test(value) ? value : '/private/';
 }
 
+/**
+ * One failed round trip: count it, then say so.
+ *
+ * This endpoint is the only place that can tell a *failed* sign-in from a
+ * redirect merely being issued, which is why the loop guard's counter is
+ * incremented here rather than in the middleware. The middleware reads the
+ * number and refuses once it is at `MAX_SSO_ATTEMPTS`; a successful callback
+ * deletes the cookie, which resets it. Counting redirects instead put honest
+ * readers on the error page after three logged-out clicks — see the comment on
+ * `MAX_SSO_ATTEMPTS` in `src/middleware.ts` for the measured transcript.
+ *
+ * `state` and `returnTo` are written back untouched. The nonce is spent, but the
+ * middleware overwrites both the moment it issues the next redirect, and
+ * `readStateCookie` rejects a cookie missing either field — so a partial write
+ * here would silently discard the increment it exists to make.
+ *
+ * Nothing is counted when there is no valid cookie to count on. That is not the
+ * broken-SSO case the guard is for: the middleware writes the cookie
+ * immediately before redirecting, so an endpoint that returns a bad token
+ * returns it *with* the cookie present. A missing one means the round trip was
+ * never started from this browser — a bookmarked callback URL, an expired
+ * cookie, a browser refusing it — and inventing a counter for it would let any
+ * unauthenticated GET to this endpoint push a reader towards the error page.
+ */
+function rejected(
+	context: APIContext,
+	stored: StateCookie | null,
+	reason: string,
+	returnTo: string
+) {
+	if (stored) writeStateCookie(context, { ...stored, attempts: stored.attempts + 1 });
+	return failure(reason, returnTo);
+}
+
 function failure(reason: string, returnTo: string) {
-	// The retry link restarts SSO via the middleware. The state cookie is NOT
-	// cleared here: repeated failures increment its counter until the loop
-	// guard stops the cycle.
+	// The retry link restarts SSO via the middleware, which reads the counter
+	// `rejected()` just raised — so a genuinely broken SSO endpoint reaches the
+	// loop guard on the second retry rather than redirecting forever.
 	//
 	// `reason` is one of this file's own literals and `returnTo` has been
 	// through `safeReturnTo`, so neither can carry markup — but escape anyway.
