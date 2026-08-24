@@ -3,11 +3,21 @@
  *
  *   1. Every real docs page emits a `<link rel="alternate" type="text/markdown">`.
  *   2. Every alternate href resolves to a real `.md` file in the build output.
- *   3. Every `.md` file has well-formed content (non-empty, leading `#`).
+ *   3. Custom routes with no Markdown source — the Internals section under
+ *      `/internals/**`, rendered from the `wiki` collection, not `docs` (see
+ *      `src/loaders/wiki.mjs` and `src/content.config.ts`) — do NOT emit the
+ *      alternate link.
+ *   4. Every `.md` file has well-formed content (non-empty, leading `#`).
+ *   5. Those same Internals routes have no `.md` sibling in the output.
  *
- * This site has no custom routes without a Markdown source (no API reference,
- * unlike the template it's built from) — every page comes from the `docs`
- * content collection, so there is no "does NOT emit a twin" case to test here.
+ * On (3) and (5): `@ekline/starlight-contextual-menu`'s `injectMarkdownRoutes`
+ * only generates `.md` twins for entries in the `docs` collection
+ * (`MarkdownAlternate.astro` checks `entry.collection === 'docs'` against
+ * `getCollection('docs')`), and `/internals/**` pages come from `wiki`
+ * instead — deliberately: see `src/content.config.ts`'s comment on why that
+ * collection is kept separate. Advertising a twin that route can't serve
+ * would point crawlers at a 404. This mirrors how `packages/template`'s own
+ * `markdown-twins.test.mjs` treats its Scalar API-reference routes.
  *
  * Run after `npm run build`:  `node --test tests/markdown-twins.test.mjs`
  *
@@ -21,7 +31,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 
 import { staticDir } from './helpers/static-dir.mjs';
 
@@ -53,6 +63,9 @@ function extractAlternateHref(html) {
 const htmlFiles = [...walk(STATIC_DIR, (name) => name.endsWith('.html'))];
 const mdFiles = [...walk(STATIC_DIR, (name) => name.endsWith('.md'))];
 
+const isInternalsPage = (htmlPath) =>
+	relative(STATIC_DIR, htmlPath).split(sep)[0] === 'internals';
+
 test('build output exists (did `npm run build` run?)', () => {
 	// `staticDir()` already established that the directory exists, so the
 	// question here is whether it has anything in it.
@@ -63,9 +76,9 @@ test('build output exists (did `npm run build` run?)', () => {
 test('real docs pages emit <link rel="alternate" type="text/markdown">', () => {
 	// Starlight's built-in 404 fallback isn't a `docs` collection entry (this
 	// site currently has no custom 404 page — see `astro.config.mjs`), so it
-	// has no Markdown source and is excluded here for the same reason the
-	// template excludes its API reference routes.
-	const expected = htmlFiles.filter((f) => !f.endsWith('404.html'));
+	// has no Markdown source and is excluded here for the same reason
+	// `/internals/**` is.
+	const expected = htmlFiles.filter((f) => !isInternalsPage(f) && !f.endsWith('404.html'));
 	const missing = [];
 	for (const f of expected) {
 		const html = readFileSync(f, 'utf-8');
@@ -75,6 +88,18 @@ test('real docs pages emit <link rel="alternate" type="text/markdown">', () => {
 		missing.length,
 		0,
 		`pages missing alternate link:\n  ${missing.join('\n  ')}`
+	);
+});
+
+test('Internals pages do NOT emit the alternate link', () => {
+	const offenders = htmlFiles
+		.filter(isInternalsPage)
+		.filter((f) => extractAlternateHref(readFileSync(f, 'utf-8')))
+		.map((f) => relative(STATIC_DIR, f));
+	assert.equal(
+		offenders.length,
+		0,
+		`Internals pages have an alternate link (would 404):\n  ${offenders.join('\n  ')}`
 	);
 });
 
@@ -126,6 +151,17 @@ test('every emitted .md file is non-empty and starts with `# `', () => {
 		malformed.length,
 		0,
 		`malformed .md files:\n  ${malformed.join('\n  ')}`
+	);
+});
+
+test('Internals routes have NO .md sibling in the build output', () => {
+	const offending = mdFiles
+		.map((p) => relative(STATIC_DIR, p))
+		.filter((p) => p.startsWith('internals' + sep) || p === 'internals.md');
+	assert.equal(
+		offending.length,
+		0,
+		`Internals entries unexpectedly produced .md files:\n  ${offending.join('\n  ')}`
 	);
 });
 
