@@ -10,6 +10,29 @@ This is a monorepo. It holds EkLine's docs-site template and, starting in Phase 
 - **`.github/`**, **`.claude/`**, **`.vscode/`** — repo-wide tooling: CI workflows, agent worktrees, editor settings.
 - **`LICENSE`** — this repo's own license. `packages/template/LICENSE` is a separate copy, since customers who extract that directory need one of their own.
 
+## Why `packages/` and `apps/` are separate
+
+`packages/` holds what EkLine **ships** — a customer receives a copy of the
+directory. `apps/` holds what EkLine **hosts** — nobody receives a copy, they
+visit a URL. Today that is one directory each, so the split looks like
+ceremony, but it encodes a difference that is load-bearing rather than
+stylistic:
+
+| | `packages/*` | `apps/*` |
+| --- | --- | --- |
+| Must carry its own lockfile | **Yes** — it travels alone (see the next section) | Only for our own CI |
+| Must stand alone | **Yes** — no reference to a monorepo it will not be in | No; `apps/docs` reads `../../packages/template/wiki` on purpose |
+| Blast radius of a change | Every customer | One site we control |
+
+It was questioned once and kept deliberately: the shipped-versus-hosted line is
+real, and a second template is plausible. The known cost is that the adoption
+command hardcodes the path, so flattening this later means changing a published
+URL rather than a directory name.
+
+Note the convention normally arrives with Turborepo/Nx/pnpm workspaces keying
+off it. We have none of that on purpose — see below — so these folders carry
+meaning for readers, not for tooling.
+
 ## No npm workspaces — deliberate, do not "fix" it
 
 The root `package.json` has no `workspaces` key and no dependencies of its own. It is a thin task runner (`npm run check`, `npm test`, etc., each delegating with `npm --prefix <project> run ...`). Every project under `packages/` and `apps/` is independent: its own `package.json`, its own committed `package-lock.json`, no hoisting.
