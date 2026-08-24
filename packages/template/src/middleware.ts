@@ -375,11 +375,15 @@ function redirectToSso(context: APIContext) {
  * (astro/dist/core/app/node.js:28-35). Only the adapter's `PORT` is carried
  * across — `HOST` is never read, so `HOST=127.0.0.1` still yields `localhost`.
  * That is deliberate hardening, and it does mean Host-header poisoning of
- * `redirect_uri` is not possible here. But a self-hosted deployment behind a
- * reverse proxy must set `security.allowedDomains` in `astro.config.mjs` or its
- * SSO endpoint is handed a `redirect_uri` pointing at the server's own
- * loopback. `astro dev` uses the real `Host`, which is why local testing never
- * shows this.
+ * `redirect_uri` is not possible here. But it also means **every** self-hosted
+ * `@astrojs/node` deployment must set `security.allowedDomains` in
+ * `astro.config.mjs` — not only a proxied one. The fallback above is
+ * unconditional: it fires whenever the list is empty, so a container with a
+ * published port and a bare VM on a public domain are affected exactly as much
+ * as anything behind nginx. Without it the SSO endpoint is handed a
+ * `redirect_uri` pointing at the server's own loopback, sign-in never returns,
+ * and nothing errors. `astro dev` uses the real `Host`, which is why local
+ * testing never shows this.
  */
 function callbackUrl(context: APIContext): string {
 	return new URL(withBase('/auth/callback'), context.url.origin).href;
