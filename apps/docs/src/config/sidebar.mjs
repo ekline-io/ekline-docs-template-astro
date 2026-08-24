@@ -41,6 +41,15 @@ export const docsSidebarGroups = [
 		],
 	},
 	{
+		label: 'The logged-in experience',
+		items: [
+			{ label: 'How it works', slug: 'how-it-works' },
+			{ label: 'Setting it up', slug: 'sso-setup' },
+			{ label: 'Trying it without SSO', slug: 'demo-login' },
+			{ label: 'Writing private and per-org content', slug: 'private-content' },
+		],
+	},
+	{
 		label: 'Internals',
 		items: listWikiEntries().map(({ id, title }) => ({
 			label: title,
