@@ -50,6 +50,14 @@ export const docsSidebarGroups = [
 		],
 	},
 	{
+		label: 'Reference',
+		items: [
+			{ label: 'Environment variables', slug: 'environment-variables' },
+			{ label: 'Commands', slug: 'commands' },
+			{ label: "Removing what you don't need", slug: 'removing-features' },
+		],
+	},
+	{
 		label: 'Internals',
 		items: listWikiEntries().map(({ id, title }) => ({
 			label: title,
