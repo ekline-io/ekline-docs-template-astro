@@ -33,7 +33,7 @@ The accent color drives links, the active sidebar item, and primary buttons. Use
 3. Copy the `--color-accent-*` and `--color-gray-*` values it shows.
 4. Paste them inside the `@theme { ... }` block in `src/styles/global.css`. Replace the matching lines that ship with the template.
 
-The defaults in this template alias Tailwind's `indigo` accent and `zinc` gray. Most teams swap these for brand colors.
+The defaults in this template alias Tailwind's `violet` accent and `slate` gray. Most teams swap these for brand colors.
 
 ### 2. Change fonts
 
