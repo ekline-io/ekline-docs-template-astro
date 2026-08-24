@@ -1,0 +1,51 @@
+---
+/**
+ * Starlight Head override.
+ *
+ * Adds two head-level enhancements on top of Starlight's default <head>:
+ *
+ *   1. `<ClientRouter />` — Astro view transitions for smooth SPA-style
+ *      navigation between pages.
+ *
+ *   2. `<link rel="alternate" type="text/markdown" href="…">` — pointer to
+ *      the page's Markdown twin (served by `@ekline/starlight-contextual-menu`
+ *      at `<page>.md`). Well-behaved AI crawlers (GPTBot, ClaudeBot, …) use
+ *      the `<link rel="alternate">` convention to discover non-HTML
+ *      representations of a page. The plugin's component only emits the tag
+ *      for pages that actually have a markdown twin, so custom routes with no
+ *      Markdown source are skipped automatically.
+ *
+ * Docs:
+ *   https://docs.astro.build/en/guides/view-transitions/
+ *   https://starlight.astro.build/guides/overriding-components/
+ */
+import Default from '@astrojs/starlight/components/Head.astro';
+import MarkdownAlternate from '@ekline/starlight-contextual-menu/MarkdownAlternate.astro';
+import { ClientRouter } from 'astro:transitions';
+---
+
+<Default />
+<ClientRouter />
+<MarkdownAlternate />
+
+<script>
+	// `<ClientRouter />` swaps the whole document on navigation, so the sidebar is rebuilt and
+	// its scroll offset is lost — clicking a link you had to scroll down to find snaps the pane
+	// back to the top. Carry the offset across the swap. `astro:after-swap` runs before the
+	// browser paints, so the restored position never flashes.
+	const SIDEBAR_SELECTOR = '.sidebar-pane';
+
+	let sidebarScrollTop = 0;
+
+	// Splash routes (`/`, `/404`) render no sidebar. Leaving one must not overwrite the offset
+	// saved when leaving the docs, or docs → splash → docs lands back at the top.
+	document.addEventListener('astro:before-swap', () => {
+		const sidebar = document.querySelector(SIDEBAR_SELECTOR);
+		if (sidebar) sidebarScrollTop = sidebar.scrollTop;
+	});
+
+	document.addEventListener('astro:after-swap', () => {
+		const sidebar = document.querySelector(SIDEBAR_SELECTOR);
+		if (sidebar) sidebar.scrollTop = sidebarScrollTop;
+	});
+</script>
