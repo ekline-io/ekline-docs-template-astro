@@ -1,0 +1,330 @@
+---
+/**
+ * The demo sign-in: this route plays the part the customer's product plays in
+ * production, so the template can be demonstrated (and evaluated on a staging
+ * deploy) with no real SSO endpoint behind it. It is the deployable
+ * equivalent of `tests/mock-sso/server.mjs`, plus the persona picker and the
+ * `redirect_uri` validation a deployed endpoint cannot skip.
+ *
+ * Point `DOCS_SSO_URL` at this route's own absolute URL and set
+ * `DOCS_UNSAFE_DEMO_LOGIN=1`, and the ordinary flow does the rest: the
+ * middleware redirects here with `redirect_uri` and `state`, a persona link
+ * signs the same handoff JWT a real product would, and `/auth/callback`
+ * verifies it none the wiser. Nothing in `src/middleware.ts` or
+ * `src/lib/auth/` knows this route exists — the demo exercises the real
+ * guard, the real callback and the real session issuance, which is the point.
+ *
+ * **This sign-in accepts anyone.** With the flag set on a site holding real
+ * private content, that content is world-readable — the attack is spelled out
+ * in wiki/private-docs.md, and no check in this file prevents it. The flag
+ * staying unset is the entire defence, which is why it is named UNSAFE, why
+ * the gate below fails to the same bare 404 as the rest of the auth surface,
+ * and why every token issued logs at error level.
+ */
+import { authSecrets } from '../config/auth.mjs';
+import { demoLoginConfigured } from '../config/demo-login.mjs';
+import { personas, findPersona, parseDemoRedirectUri } from '../lib/demo-login.mjs';
+import { withBase, NO_STORE } from '../lib/auth/http.mjs';
+import { SignJWT } from 'jose';
+
+// Never prerendered. A static build of this page could not read the query
+// string or sign a fresh token — and the middleware's isPrerendered refusal
+// does not cover this route (it is outside the guarded prefix), so the flag
+// has to be here.
+export const prerender = false;
+
+// The two refusals below inline the guard's bare 404 rather than importing
+// `notFound()` from `src/lib/auth/http.mjs`, for the reason
+// `src/pages/private/[...slug].astro` documents: `astro check` does not
+// analyse the body of a top-level early return in Astro frontmatter, so a
+// symbol referenced only there is reported as an unused import.
+if (!demoLoginConfigured()) {
+	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
+		status: 404,
+		headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
+	});
+}
+
+// `demoLoginConfigured()` implies `authConfigured()` implies this is set; the
+// explicit check narrows the type without a non-null assertion, for the reason
+// `/auth/callback` gives at its own secret lookup.
+const ssoSecret = authSecrets.sso;
+if (!ssoSecret) {
+	return new Response('<!doctype html><title>404</title><h1>404 — Not found</h1>', {
+		status: 404,
+		headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': NO_STORE },
+	});
+}
+
+// Everything below varies on the query string and mints credentials — nothing
+// here may be cached.
+Astro.response.headers.set('cache-control', NO_STORE);
+
+const redirectUri = Astro.url.searchParams.get('redirect_uri');
+const state = Astro.url.searchParams.get('state');
+
+// Validation order (see the design spec): round-trip parameters first, then
+// the persona. `roundTrip` is null unless `redirect_uri` parses to a
+// same-origin http(s) URL and `state` is non-empty — and it carries the
+// *parsed* target plus the narrowed state, so neither the signing branch nor
+// the template can reach the raw nullable query values. That is the point of
+// `parseDemoRedirectUri` returning a URL rather than a boolean: redirecting to
+// the raw string would hand `Location:` a value the parser had already
+// normalised (CR/LF stripped, case folded), turning a hostile query parameter
+// into a header the runtime refuses to write, instead of the clean refusal
+// below.
+//
+// A request that fails this gets the explanation page whether or not it
+// carries `?as=`; a token is only ever signed when every check passes.
+// The callback path is passed in rather than known to the lib, so `withBase`
+// stays the one place the configured `base` is applied. On a subpath
+// deployment the middleware sends `/docs/auth/callback`, and this compares
+// against the same string.
+const redirectTarget = parseDemoRedirectUri(
+	redirectUri,
+	Astro.url.origin,
+	withBase('/auth/callback')
+);
+const roundTrip =
+	redirectTarget && typeof state === 'string' && state !== ''
+		? { redirectTarget, state }
+		: null;
+
+// Set when the round trip and persona were both valid but signing failed, so
+// the page can say the demo is misconfigured rather than silently re-offering
+// a picker that cannot work.
+let signingFailed = false;
+
+if (roundTrip) {
+	const persona = findPersona(Astro.url.searchParams.get('as'));
+	if (persona) {
+		// Same claims and lifetime as tests/mock-sso/server.mjs — the contract
+		// documented in the README's sample endpoint. Five minutes, and the
+		// reason is worth keeping: `state` binds the token to this round trip
+		// but does not stop a stolen token being replayed; the short exp is
+		// what limits that (wiki/private-docs.md, "The SSO handoff").
+		//
+		// Wrapped as defence in depth, not because a known input reaches the
+		// catch. `demoLoginConfigured()` establishes only that the secret is a
+		// non-empty string, so the worry was that a truncated or
+		// whitespace-only `DOCS_SSO_SECRET` would fail here — measured against
+		// jose 6, it does not: HS256 accepts a key of any non-zero length, and
+		// no non-empty JS string encodes to zero bytes, so a single space
+		// signs happily. The branch was reached in testing only by handing
+		// `.sign()` an empty `Uint8Array` directly.
+		//
+		// It stays because that is a property of this jose version rather than
+		// a guarantee, and because the cost of being wrong is asymmetric: an
+		// unhandled rejection on the sign-in path is a stack trace where the
+		// design calls for a stated failure.
+		let token = null;
+		try {
+			token = await new SignJWT({
+				email: persona.email,
+				name: persona.name,
+				orgs: persona.orgs,
+				state: roundTrip.state,
+			})
+				.setProtectedHeader({ alg: 'HS256' })
+				.setSubject(`demo-${persona.id}`)
+				.setIssuedAt()
+				.setExpirationTime('5m')
+				.sign(new TextEncoder().encode(ssoSecret));
+		} catch (error) {
+			console.error(
+				'[demo-login] could not sign the handoff token — check DOCS_SSO_SECRET:',
+				error
+			);
+			signingFailed = true;
+		}
+
+		if (token) {
+			// Error level on purpose: if this flag is ever on where it should
+			// not be, this line is how production logs say so.
+			console.error(
+				`[demo-login] UNSAFE demo sign-in issued a handoff token for persona "${persona.id}". ` +
+					'If this is not a demo or staging deployment, unset DOCS_UNSAFE_DEMO_LOGIN now.'
+			);
+			// A copy: `searchParams.set` mutates. `roundTrip` established
+			// same-origin http(s), so this cannot leave the site.
+			const target = new URL(roundTrip.redirectTarget);
+			target.searchParams.set('token', token);
+			// Not `Astro.redirect()`: it builds its own `Response`, which drops
+			// the `cache-control` set on `Astro.response` above — and this is the
+			// one response that carries the credential, in `Location`. A
+			// conformant shared cache would not store a bare 302 anyway (RFC 9111
+			// does not list 302 as heuristically cacheable without explicit
+			// freshness), so the realistic exposure is a CDN or proxy that caches
+			// by path+query regardless of status, not a spec-following cache —
+			// but this file states the no-store invariant for every response
+			// leaving this route, so it should hold it rather than lean on that.
+			return new Response(null, {
+				status: 302,
+				headers: { location: target.href, 'cache-control': NO_STORE },
+			});
+		}
+	}
+}
+
+// Three outcomes reach the page below, and they need different statuses.
+//
+// A signing failure is a deployment fault: say so with a 500, because a 200
+// would tell an operator watching status codes that the demo works.
+// A validation failure *with parameters present* is a refusal — a foreign
+// `redirect_uri`, most likely — so 400. Absent parameters just mean somebody
+// browsed here directly, which deserves directions and a plain 200.
+if (signingFailed) {
+	Astro.response.status = 500;
+} else if (!roundTrip && (redirectUri !== null || state !== null)) {
+	Astro.response.status = 400;
+}
+
+// Links prebuilt here so the template stays declarative. Values are echoed
+// only out of a validated `roundTrip`, so the picker never propagates
+// parameters it would refuse to act on.
+const pickerLinks =
+	roundTrip && !signingFailed
+		? personas.map((persona) => ({
+				...persona,
+				href: `${Astro.url.pathname}?${new URLSearchParams({
+					as: persona.id,
+					redirect_uri: roundTrip.redirectTarget.href,
+					state: roundTrip.state,
+				})}`,
+			}))
+		: [];
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		{/* Belt to the sitemap filter's braces: this page must not be indexed.
+		    A JSX-style comment rather than an HTML one, so this note stays out
+		    of the shipped page — it is for maintainers, not readers.
+
+		    Never write a comment-closing delimiter inside one of these, not
+		    even quoted as an example: it ends the expression early and the
+		    remainder spills into the rendered page as visible text. That is
+		    measured, from this very comment, which said so while doing it. */}
+		<meta name="robots" content="noindex" />
+		<title>Demo sign-in</title>
+		<style>
+			/* On the root, not on `body`, and that is measured rather than
+			   stylistic: the viewport's UA chrome is governed by the root element
+			   and `color-scheme` does not propagate body-to-root the way
+			   `background-color` does. With it on `body`, controls and focus
+			   rings inside the page picked up the dark scheme but the viewport
+			   scrollbar stayed light — `getComputedStyle(html).colorScheme` read
+			   `normal` and the root's used `Canvas` stayed white. */
+			:root {
+				color-scheme: light dark;
+			}
+
+			body {
+				font-family: ui-sans-serif, system-ui, sans-serif;
+				max-width: 34rem;
+				margin: 4rem auto;
+				padding: 0 1rem;
+				line-height: 1.6;
+				color: #1c1c1c;
+				background: #fff;
+			}
+			.warning {
+				background: #fdf3d7;
+				border: 1px solid #e0c36e;
+				border-radius: 0.5rem;
+				padding: 0.75rem 1rem;
+				font-size: 0.9rem;
+			}
+			.persona {
+				display: block;
+				border: 1px solid #d5d8de;
+				border-radius: 0.5rem;
+				padding: 0.75rem 1rem;
+				margin: 0.75rem 0;
+				text-decoration: none;
+				color: inherit;
+			}
+			.persona:hover {
+				border-color: #6e56cf;
+			}
+			.persona strong {
+				display: block;
+			}
+			.persona span {
+				font-size: 0.85rem;
+				opacity: 0.75;
+			}
+			/* Kept last on purpose: `@media` adds no specificity, so at equal
+			   specificity the later rule in source order wins. `.persona`'s base
+			   rule above sets `border` as a shorthand, which resets
+			   `border-color` — if this block came first, the base rule's later
+			   `border-color: #3a3d45` would be overridden right back to the
+			   light value. Measured: with the media block first, `.warning`
+			   background computed to the light `#fdf3d7` and `.persona`
+			   border-color to the light `#d5d8de` even under a dark-scheme
+			   browser. */
+			@media (prefers-color-scheme: dark) {
+				body {
+					color: #e6e6e6;
+					background: #17181c;
+				}
+				.warning {
+					background: #3a2c14;
+					border-color: #8a6d3b;
+				}
+				.persona {
+					border-color: #3a3d45;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Demo sign-in</h1>
+		<p class="warning">
+			This is a demonstration sign-in: it accepts anyone, no password asked. It
+			exists so the template's private and per-org docs can be seen working,
+			and must never be enabled on a site with real private content.
+		</p>
+		{
+			signingFailed ? (
+				<p>
+					This demo sign-in is misconfigured: the handoff token could not be
+					signed. Check <code>DOCS_SSO_SECRET</code> on the deployment — the
+					server log names the underlying error.
+				</p>
+			) : roundTrip ? (
+				<>
+					<p>Pick a reader. Each one shows a different slice of the private docs:</p>
+					{pickerLinks.map((persona) => (
+						// Never prefetched: Starlight enables `prefetchAll`, and a prefetch
+						// is a real GET, so hovering this would mint a token and complete
+						// the SSO round trip before any click — see wiki/private-docs.md §
+						// "Links that change state must opt out of prefetching".
+						<a class="persona" href={persona.href} data-astro-prefetch="false">
+							<strong>
+								{persona.name} ({persona.email})
+							</strong>
+							<span>{persona.description}</span>
+						</a>
+					))}
+				</>
+			) : (
+				<p>
+					This sign-in only works as part of a round trip that starts at the
+					docs site, so it needs parameters this request did not carry (or
+					carried pointing somewhere else). Start from{' '}
+					{/* Never prefetched: hovering would GET /private/ with the reader's
+					cookies, running the full SSO round trip — see
+					wiki/private-docs.md § "Links that change state must opt out of
+					prefetching". */}
+					<a href={withBase('/private/')} data-astro-prefetch="false">
+						the private docs
+					</a>{' '}
+					and you will be sent back here properly.
+				</p>
+			)
+		}
+	</body>
+</html>

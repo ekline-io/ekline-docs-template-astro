@@ -1,9 +1,8 @@
-# build output
+# build output (cheap insurance against a stray build at the repo root;
+# each project under packages/ and apps/ has its own .gitignore for this)
 dist/
-# Vercel adapter output (`VERCEL=1` builds); see wiki/private-docs.md
-.vercel/
-# generated types
 .astro/
+.vercel/
 
 # dependencies
 node_modules/
@@ -14,19 +13,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-
-# environment variables
-.env
-.env.production
-
 # macOS-specific files
 .DS_Store
 
-# Playwright MCP browser snapshots/logs
-.playwright-mcp/
-
-# Playwright visual regression artifacts (baselines under
-# tests/visual/__screenshots__ are committed; these are not)
-test-results/
-playwright-report/
-blob-report/
+# environment variables — repo-wide, not only in the template. This repo
+# handles SSO secrets; a stray .env anywhere must not be committable.
+.env
+.env.production

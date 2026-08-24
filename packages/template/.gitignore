@@ -1,0 +1,31 @@
+# build output
+dist/
+# Vercel adapter output (`VERCEL=1` builds); see wiki/private-docs.md
+.vercel/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# environment variables
+.env
+.env.production
+
+# Playwright MCP browser snapshots/logs
+.playwright-mcp/
+
+# Playwright visual regression artifacts (baselines under
+# tests/visual/__screenshots__ are committed; these are not)
+test-results/
+playwright-report/
+blob-report/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# macOS-specific files
+.DS_Store

@@ -1,47 +1,24 @@
 {
-  "name": "ekline-docs-template-astro",
+  "name": "ekline-docs-template-monorepo",
+  "private": true,
   "type": "module",
-  "version": "2.0.0",
+  "description": "Task runner for the repo. Each project under packages/ and apps/ is independent, with its own package.json and its own committed lockfile — see docs/superpowers/plans/2026-08-21-monorepo-move.md for why this is not an npm workspace.",
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "dev:sso": "node tests/mock-sso/server.mjs",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro",
-    "test": "npm run build && node --test tests/*.test.mjs",
-    "check": "astro check",
-    "test:visual": "node --env-file=.env.test ./node_modules/.bin/astro build && playwright test",
-    "test:visual:ci": "node --env-file=.env.test ./node_modules/.bin/astro build && playwright test --grep-invert @screenshot",
-    "test:visual:update": "node --env-file=.env.test ./node_modules/.bin/astro build && playwright test --update-snapshots"
+    "template:check": "npm --prefix packages/template run check",
+    "template:test": "npm --prefix packages/template test",
+    "template:test:visual": "npm --prefix packages/template run test:visual",
+    "template:test:visual:ci": "npm --prefix packages/template run test:visual:ci",
+    "template:dev": "npm --prefix packages/template run dev",
+    "template:build": "npm --prefix packages/template run build",
+    "docs:check": "npm --prefix apps/docs run check",
+    "docs:test": "npm --prefix apps/docs test",
+    "docs:dev": "npm --prefix apps/docs run dev",
+    "docs:build": "npm --prefix apps/docs run build",
+    "check": "npm run template:check && npm run docs:check",
+    "test": "npm run template:test && npm run docs:test",
+    "install:all": "npm --prefix packages/template ci && npm --prefix apps/docs ci"
   },
-  "overrides": {
-    "@scalar/astro": {
-      "astro": "$astro"
-    }
-  },
-  "dependencies": {
-    "@astrojs/node": "10.1.1",
-    "@astrojs/sitemap": "^3.7.2",
-    "@astrojs/starlight": "^0.39.2",
-    "@astrojs/starlight-tailwind": "^5.0.0",
-    "@astrojs/vercel": "^10.0.8",
-    "@ekline/starlight-contextual-menu": "^0.3.0",
-    "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource-variable/jetbrains-mono": "^5.2.8",
-    "@scalar/astro": "^0.4.14",
-    "@scalar/openapi-parser": "^0.28.14",
-    "@scalar/workspace-store": "^0.57.1",
-    "@tailwindcss/vite": "^4.3.0",
-    "astro": "^6.2.2",
-    "jose": "^6.2.9",
-    "sharp": "^0.34.5",
-    "starlight-llms-txt": "^0.8.1",
-    "tailwindcss": "^4.3.0"
-  },
-  "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "@playwright/test": "^1.62.1",
-    "typescript": "^6.0.3"
+  "engines": {
+    "node": "22.x"
   }
 }

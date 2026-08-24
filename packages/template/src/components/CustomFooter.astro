@@ -1,0 +1,60 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import eklineMark from '../assets/ekline-mark.svg';
+---
+
+<Default><slot /></Default>
+
+<p class="ekline-credit">
+	<span
+		class="ekline-mark"
+		style={`--ekline-mark-url: url(${eklineMark.src})`}
+		aria-hidden="true"
+	></span>
+	Maintained by <a href="https://ekline.io" target="_blank" rel="noopener noreferrer">EkLine</a>
+</p>
+
+<style>
+	.ekline-credit {
+		margin-top: 2.5rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-size: var(--sl-text-xs);
+		/* `gray-3`, at full opacity, for legibility.
+		 *
+		 * This credit was `gray-4` at 85% opacity, which measured 2.63:1 in light
+		 * and 2.35:1 in dark — well under the 4.5:1 WCAG AA minimum for text this
+		 * small, and it appears on every page of the site. Stacking a
+		 * partial opacity on an already-muted grey is what pushed it under; the
+		 * credit still reads as secondary without it. */
+		color: var(--sl-color-gray-3);
+		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+	}
+
+	/* Render the mark as a CSS mask so it inherits the credit's text color in
+	 * both light and dark modes. The SVG file itself only contributes shape;
+	 * its baked-in fill is ignored. */
+	.ekline-mark {
+		flex-shrink: 0;
+		width: 16px;
+		height: 16px;
+		background-color: currentColor;
+		mask: var(--ekline-mark-url) center / contain no-repeat;
+		-webkit-mask: var(--ekline-mark-url) center / contain no-repeat;
+	}
+
+	.ekline-credit a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.ekline-credit a:hover {
+		color: var(--sl-color-white);
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+</style>

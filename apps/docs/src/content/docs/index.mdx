@@ -1,0 +1,59 @@
+---
+title: EkLine docs template
+description: An Astro + Starlight documentation site template with theming, interactive API references, and an optional logged-in tier, pre-wired so you can focus on writing.
+template: splash
+hero:
+  tagline: An Astro + Starlight docs site with theming, interactive API references, and an optional logged-in tier already wired up. Fork it, write your content, ship.
+  actions:
+    - text: Get started
+      link: /quickstart/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/ekline-io/ekline-docs-template-astro
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What you get
+
+<CardGrid>
+	<Card title="A Starlight docs site" icon="rocket">
+		Astro + Starlight, Markdown/MDX content, full-text search, dark and
+		light mode — Tailwind v4 theming in one file.
+	</Card>
+	<Card title="Interactive API references" icon="document">
+		Two example OpenAPI references, rendered by Scalar with a built-in
+		client for sending real requests. Optional — delete what you don't need.
+	</Card>
+	<Card title="An optional logged-in tier" icon="padlock">
+		Private docs for any signed-in reader, and org-scoped docs visible only
+		to that org's members — enforced server-side, never shipped in the
+		static build. Optional too.
+	</Card>
+	<Card title="Ready for search engines and AI agents" icon="magnifier">
+		Sitemap and `llms.txt` generated on every build, plus a "copy /
+		open in Claude or ChatGPT" menu on every page.
+	</Card>
+</CardGrid>
+
+## What you don't get
+
+It's a template, not a hosted product. Some things follow from that:
+
+- **No content.** The pages you'll see after creating a site are placeholders
+  that explain the template to you. Replace them with your own.
+- **No CMS.** Pages are Markdown/MDX files in your git repository, edited in a
+  code editor — not a web UI a non-technical writer can log into.
+- **No user database.** The logged-in tier checks a token signed by *your*
+  product, not a login system of its own. If you want private docs, you're
+  bringing your own sign-in.
+- **No fully static hosting if you keep the logged-in tier.** It needs a
+  server to check that token on every request, so pure static hosts like
+  GitHub Pages are off the table unless you remove the feature. Vercel and
+  any Node host work fine — see [Deploy](/deploy/).
+
+Teams comfortable with Markdown and git, who want a docs site running in
+minutes rather than days, and either don't need a logged-in tier or are happy
+to wire it to their own product's sign-in — [try the quickstart](/quickstart/).

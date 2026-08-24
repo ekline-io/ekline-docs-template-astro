@@ -1,0 +1,556 @@
+/*
+ * Global theme for the Starlight + Tailwind v4 setup.
+ *
+ * Edit this file to retheme the site. The cascade-layer order below is required
+ * for Starlight's own styles to compose correctly with Tailwind utilities — do
+ * not reorder the @layer / @import lines without reading:
+ *   https://starlight.astro.build/guides/css-and-tailwind/#tailwind-css
+ *
+ * For step-by-step theming instructions (colors, fonts, custom utilities) see
+ * /wiki/theming.md.
+ */
+
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Variable fonts: self-hosted via @fontsource so the site has no runtime
+ * dependency on Google Fonts. Inter for UI/content, JetBrains Mono for code. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+@theme {
+	/* ── Fonts ─────────────────────────────────────────────────────────── */
+	--font-sans:
+		'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+		Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--font-mono:
+		'JetBrains Mono Variable', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+		Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+	/* ── Accent palette (links, current item, primary buttons) ────────────
+	 *
+	 * Defaults to Tailwind's `violet` scale — a slightly more distinctive,
+	 * modern hue than Starlight's stock indigo. Generate a custom palette at
+	 * https://starlight.astro.build/guides/css-and-tailwind/#theming-with-css-variables
+	 * and paste the values below to match your brand.
+	 */
+	--color-accent-50: var(--color-violet-50);
+	--color-accent-100: var(--color-violet-100);
+	--color-accent-200: var(--color-violet-200);
+	--color-accent-300: var(--color-violet-300);
+	--color-accent-400: var(--color-violet-400);
+	--color-accent-500: var(--color-violet-500);
+	--color-accent-600: var(--color-violet-600);
+	--color-accent-700: var(--color-violet-700);
+	--color-accent-800: var(--color-violet-800);
+	--color-accent-900: var(--color-violet-900);
+	--color-accent-950: var(--color-violet-950);
+
+	/* ── Gray palette (backgrounds, borders, body text) ───────────────────
+	 *
+	 * Defaults to Tailwind's `slate` scale — a very slightly cool/blue-tinted
+	 * neutral that gives dark mode a warmer, less harsh feel than pure
+	 * neutral grays. Swap to `zinc` (neutral) or `stone` (warm) to taste.
+	 */
+	--color-gray-50: var(--color-slate-50);
+	--color-gray-100: var(--color-slate-100);
+	--color-gray-200: var(--color-slate-200);
+	--color-gray-300: var(--color-slate-300);
+	--color-gray-400: var(--color-slate-400);
+	--color-gray-500: var(--color-slate-500);
+	--color-gray-600: var(--color-slate-600);
+	--color-gray-700: var(--color-slate-700);
+	--color-gray-800: var(--color-slate-800);
+	--color-gray-900: var(--color-slate-900);
+	--color-gray-950: var(--color-slate-950);
+}
+
+/* ── Typography refinements ────────────────────────────────────────────────
+ *
+ * Starlight's defaults are good; these tweaks push the site closer to the
+ * tighter, more deliberate type used by modern docs (Linear, Vercel, Stripe).
+ * Override Starlight's `--sl-*` props rather than restyling elements directly,
+ * so the changes propagate everywhere Starlight uses them. See:
+ *   https://github.com/withastro/starlight/blob/main/packages/starlight/style/props.css
+ */
+:root {
+	/* Slightly larger base reads better at modern monitor sizes. */
+	--sl-text-base: 1.0625rem; /* 17px */
+	/* Tighter heading line-height for a more confident hierarchy. */
+	--sl-line-height-headings: 1.15;
+}
+
+/* Tighten heading tracking. Letter-spacing isn't exposed as a Starlight prop,
+ * so we set it on heading elements directly. -0.02em is enough to feel
+ * intentional without looking compressed. */
+:where(h1, h2, h3, h4, h5, h6) {
+	letter-spacing: -0.02em;
+}
+
+/* ── Heading scale ──────────────────────────────────────────────────────────
+ *
+ * Calibrated for the Starlight default 45rem (720px, ≈ 70ch) reading column
+ * with a 16px body. Follows the Fern / Mintlify industry consensus on
+ * H2=24px (exactly 1.5× body, bold); H1 sits between Fern's editorial 36px
+ * and Mintlify's quieter 30px.
+ */
+:root {
+	--sl-text-h1: 2.125rem; /* 34px */
+	--sl-text-h2: 1.5rem; /* 24px */
+	--sl-text-h3: 1.25rem; /* 20px */
+	--sl-text-h4: var(--sl-text-base); /* tracks body size */
+	--sl-text-h5: 1rem;
+}
+
+/* The page-title H1 lives in `.sl-container` (outside `.sl-markdown-content`)
+ * so we scope to `.content-panel` which wraps both. */
+.content-panel :where(h1, h2) {
+	font-weight: 700;
+}
+
+.content-panel :where(h3, h4) {
+	font-weight: 600;
+}
+
+/* Asymmetric heading margins: more space above than below, so each heading
+ * visually *attaches* to the paragraph it introduces instead of floating
+ * equidistantly between two paragraphs. Values match the Fern/Mintlify
+ * convention (H2 top 48 / bottom 16). */
+.sl-markdown-content :where(h2) {
+	margin-block: 3rem 1rem;
+}
+
+.sl-markdown-content :where(h3) {
+	margin-block: 2rem 0.75rem;
+}
+
+.sl-markdown-content :where(h4) {
+	margin-block: 1.5rem 0.5rem;
+}
+
+/* ── Three-column responsive layout (Fern pattern) ─────────────────────────
+ *
+ * Goal: at every viewport width, the reading column stays at the viewport's
+ * horizontal centre. Sidebar and TOC panes grow outward from the content so
+ * their nav items remain clustered next to the reading column, and their
+ * background fills cover the rest of the viewport — no awkward dead zones
+ * appear on ultra-wide displays.
+ *
+ * Geometry (all tunable from the variables below):
+ *   --sl-content-width  reading column width — Starlight default 45rem (720px)
+ *   --ek-rail-min       pane min width on narrow viewports
+ *   --ek-toc-min        TOC pane min width
+ *   --ek-rail-items     fixed width of the items cluster inside the sidebar
+ *   --ek-rail-gap       gap on either side of content
+ *
+ * `--ek-rail-grow` evaluates the formula once for both rails to use, so the
+ * browser doesn't recompute it twice on every resize.
+ *
+ * `scrollbar-gutter: stable` on `<html>` keeps `100vw` from flickering when
+ * a scrollbar appears or disappears mid-resize.
+ */
+:root {
+	--ek-rail-min: 18.75rem; /* 300px */
+	--ek-toc-min: 17.5rem; /* 280px */
+	--ek-rail-items: 17rem; /* 272px */
+	--ek-rail-gap: 10rem; /* 160px */
+	--ek-rail-grow: calc((100vw - var(--sl-content-width)) / 2 - var(--ek-rail-gap));
+	--sl-sidebar-width: max(var(--ek-rail-min), var(--ek-rail-grow));
+}
+
+html {
+	scrollbar-gutter: stable;
+}
+
+/* ── Sidebar scrollbar ─────────────────────────────────────────────────────
+ *
+ * Starlight hides the table of contents' scrollbar outright (`scrollbar-width:
+ * none` in `TwoColumnContent.astro`) but leaves the nav rail's fully visible,
+ * so the two scrolling rails look nothing alike. Reveal the nav's on
+ * interaction instead: transparent at rest, fading in on hover or when
+ * something inside it takes keyboard focus, so the affordance is still there
+ * for anyone who needs it.
+ *
+ * The reserved gutter from `PageFrame.astro` stays — it is what stops the
+ * layout shifting when the scrollbar appears, and hiding the bar without
+ * keeping the gutter would trade this polish for the shift EK-2265 removed. */
+.sidebar-pane {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+	transition: scrollbar-color 200ms ease;
+}
+
+.sidebar-pane:hover,
+.sidebar-pane:focus-within {
+	scrollbar-color: var(--sl-color-gray-4) transparent;
+}
+
+/* Chromium and WebKit take the legacy pseudo-elements instead.
+ *
+ * `scrollbar-color` hands the thumb's hover and active states to the browser,
+ * and Chrome lightens the thumb whenever the pointer is over the bar itself —
+ * so it changes shade a second time, after it has already been revealed. The
+ * pseudo-elements are the only way to pin one shade across every state.
+ *
+ * Firefox has no `::-webkit-scrollbar`, so `@supports` skips this block and it
+ * keeps the standard-property behaviour above. */
+@supports selector(::-webkit-scrollbar) {
+	/* Every state needs resetting, not just the base one: leaving `scrollbar-color`
+	 * on the hover rule flips Chrome back to the standard path mid-interaction,
+	 * restoring its 16px default width and shifting the nav under the cursor. */
+	.sidebar-pane,
+	.sidebar-pane:hover,
+	.sidebar-pane:focus-within {
+		scrollbar-width: auto;
+		scrollbar-color: auto;
+	}
+
+	.sidebar-pane::-webkit-scrollbar {
+		width: 0.5rem;
+	}
+
+	.sidebar-pane::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.sidebar-pane::-webkit-scrollbar-thumb {
+		background-color: transparent;
+		border-radius: 0.25rem;
+		transition: background-color 200ms ease;
+	}
+
+	/* One shade for every revealed state, including pointer-on-the-bar. */
+	.sidebar-pane:hover::-webkit-scrollbar-thumb,
+	.sidebar-pane:focus-within::-webkit-scrollbar-thumb,
+	.sidebar-pane:hover::-webkit-scrollbar-thumb:hover,
+	.sidebar-pane:hover::-webkit-scrollbar-thumb:active {
+		background-color: var(--sl-color-gray-4);
+	}
+}
+
+.right-sidebar-container {
+	width: max(var(--ek-toc-min), var(--ek-rail-grow));
+	max-width: none;
+}
+
+/* Starlight sets `.main-pane` to a fixed width (capped near content-width).
+ * Override so it fills the available flex space — that's what lets the
+ * centred content sit at the viewport's horizontal centre once the
+ * surrounding panes have grown. */
+.main-pane {
+	flex: 1;
+	width: auto;
+}
+
+/* Right-align the sidebar nav items within the (now possibly-wider) pane so
+ * they stay clustered next to the content as the pane background expands
+ * leftward toward the viewport edge. A fixed width is required for the
+ * `auto` margin to have an effect — otherwise the content fills the pane. */
+.sidebar-content {
+	width: var(--ek-rail-items);
+	margin-inline-start: auto;
+}
+
+/* Centre content within main-pane. Starlight wraps `.sl-markdown-content`
+ * (and the H1 / footer / etc.) in `.sl-container`, which it right-aligns by
+ * default via `margin-inline-start: auto`. We need it centred so it lands
+ * at the viewport's horizontal centre once the sidebars have grown. */
+.content-panel .sl-container {
+	margin-inline: auto;
+}
+
+/* Pad the fixed top header so its content (logo, search, utility buttons)
+ * tracks the body layout: the logo lines up with the sidebar items at the
+ * left, and the right-side utilities mirror it on the right. Without this
+ * the header would still sprawl edge-to-edge while the body is centred. */
+header.header > div.header {
+	padding-inline: max(
+		1.5rem,
+		calc(var(--sl-sidebar-width) - var(--ek-rail-items))
+	);
+}
+
+/* ── Card styling ──────────────────────────────────────────────────────────
+ *
+ * Starlight's `<Card>` component cycles colored borders/icon backgrounds per
+ * card position (orange, purple, green, red, blue) which clashes with a
+ * minimalist palette. We neutralise that here and add a subtle accent hover
+ * state instead, so all cards in a CardGrid feel like one calm system.
+ *
+ * Customers who want the rainbow cards back can delete this block.
+ */
+.card {
+	border-radius: 0.75rem; /* 12px — matches the rounding used elsewhere on the site */
+	transition:
+		border-color 120ms ease,
+		transform 120ms ease;
+}
+
+.card .icon {
+	border-radius: 0.5rem; /* keep the icon chip slightly tighter than the card */
+}
+
+/* Force every card to a single neutral border, regardless of nth-child. */
+.card,
+.card:nth-child(4n + 1),
+.card:nth-child(4n + 3),
+.card:nth-child(4n + 4),
+.card:nth-child(4n + 5) {
+	--sl-card-border: var(--sl-color-gray-5);
+	--sl-card-bg: transparent;
+}
+
+.card:hover {
+	border-color: var(--sl-color-text-accent);
+}
+
+.card .icon {
+	color: var(--sl-color-text-accent);
+}
+
+/* ── Asides ────────────────────────────────────────────────────────────────
+ *
+ * Drop Starlight's tinted background and lean on a single colored left rule
+ * + colored icon (Stripe / Linear pattern). Calmer when a page has several
+ * asides stacked. The colored icon + label still carry the variant meaning.
+ *
+ * To restore the default tint: delete this block.
+ */
+.starlight-aside {
+	background-color: transparent;
+	border-inline-start-width: 3px;
+	padding-block: 0.875rem;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────
+ *
+ * Active-item indicator: faint accent-tinted rounded pill + a 2px accent
+ * left-bar (Vercel pattern). The bar is positioned absolutely so it sits
+ * directly over Starlight's default tree-line in nested groups, replacing
+ * its gray segment at the active row instead of doubling up.
+ *
+ * Group labels keep the uppercase + tracked-out treatment so they read as
+ * section dividers; top-level direct links (e.g. Changelog) inherit the
+ * same typography so they don't render as a stand-alone heading.
+ */
+.sidebar-content li {
+	position: relative;
+}
+
+.sidebar-content :where(a[aria-current='page'], a[aria-current='page']:hover) {
+	background-color: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+	color: var(--sl-color-text-accent);
+	font-weight: 600;
+	border-radius: 0.375rem;
+}
+
+/* Promote Starlight's gray hairline tree-line to the accent color at the
+ * active row. Each `<li>` carries its own `border-inline-start`, so changing
+ * the color on the active `<li>` literally turns the grey segment purple —
+ * one column, not two parallel bars. Scoped to nested groups; top-level
+ * direct links (e.g. Changelog) have no tree-line and get the pill alone. */
+.sidebar-content ul ul li:has(> a[aria-current='page']) {
+	border-inline-start-color: var(--sl-color-text-accent);
+	border-inline-start-width: 2px;
+	/* Compensate the extra 1px so the row's text doesn't shift right. */
+	margin-inline-start: calc(0.5rem - 1px);
+}
+
+.sidebar-content .group-label > .large,
+.sidebar-content summary > .large,
+.sidebar-content a.large {
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--sl-color-gray-3);
+}
+
+/* Promote active top-level direct links (e.g. Changelog) above the
+ * gray group-label color set above. */
+.sidebar-content a.large[aria-current='page'] {
+	color: var(--sl-color-text-accent);
+}
+
+/* ── In-content link decoration ────────────────────────────────────────────
+ *
+ * Finer typographic underline for body links: thinner stroke, more
+ * breathing room from the text baseline. Only applies inside the rendered
+ * markdown content, so navigation/card links are unaffected.
+ */
+.sl-markdown-content :where(a:not(:where(.card a, .sl-link-card *, .sl-anchor-link))) {
+	text-underline-offset: 0.2em;
+	text-decoration-thickness: 1px;
+	text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 50%, transparent);
+	transition: text-decoration-color 120ms ease;
+}
+
+.sl-markdown-content :where(a:not(:where(.card a, .sl-link-card *, .sl-anchor-link))):hover {
+	text-decoration-color: var(--sl-color-text-accent);
+}
+
+/* ── Heading anchor ────────────────────────────────────────────────────────
+ *
+ * Hide the permanent anchor icon next to each heading; reveal it on heading
+ * hover (GitHub pattern) and on keyboard focus. Reduces visual chrome on
+ * pages with many sub-headings without losing the affordance.
+ */
+.sl-anchor-link {
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+.sl-heading-wrapper:hover .sl-anchor-link,
+.sl-anchor-link:focus-visible {
+	opacity: 1;
+}
+
+/* ── LinkCard hover motion ────────────────────────────────────────────────
+ *
+ * Slide the arrow icon a few pixels right on hover and tint it with the
+ * accent color. Tiny detail, but it makes the cards feel alive without
+ * adding any new chrome.
+ */
+.sl-link-card .icon {
+	transition:
+		transform 160ms ease,
+		color 160ms ease;
+}
+
+.sl-link-card:hover .icon {
+	transform: translateX(3px);
+	color: var(--sl-color-text-accent);
+}
+
+/* ── Contextual menu layout ────────────────────────────────────────────────
+ *
+ * `@ekline/starlight-contextual-menu` injects its button cluster from a
+ * deferred script and sets `display: flex` inline on the title's container, so
+ * `!important` is the only way to lay that container out ourselves.
+ *
+ * The layout attaches to the *static* title container rather than to the
+ * `.contextual-menu-parent` class the plugin adds at runtime, and the cluster's
+ * box is reserved up front. Without that, the container flips from `block` to
+ * `grid` when the script lands, which re-wraps the heading and drops the rest
+ * of the page — measured at +56px on this template when navigating between
+ * pages, at every viewport from 375px to 1024px.
+ *
+ * Both branches reserve the space the cluster will occupy: a row below the
+ * title on narrow viewports, a column beside it from Starlight's 50rem
+ * breakpoint up. Sharing a row all the way down is not an option — it leaves
+ * the title ~180px, wrapping a heading over six lines and breaking words
+ * mid-syllable.
+ *
+ * `minmax(0, …)` stops a long title word pushing the cluster past the container
+ * edge, and the title's top margin moves to the container so the row box
+ * matches the heading's content box for `align-self: center`. */
+.content-panel > .sl-container:has(> h1) {
+	display: grid !important;
+	grid-template-columns: minmax(0, 1fr);
+	/* Reserved cluster row — matches its 2rem height so injection changes nothing. */
+	grid-template-rows: auto 2rem;
+	row-gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+.content-panel > .sl-container:has(> h1) > h1 {
+	grid-column: 1;
+	grid-row: 1;
+	margin-top: 0;
+	overflow-wrap: break-word;
+}
+
+.contextual-menu-container {
+	grid-column: 1;
+	grid-row: 2;
+	justify-self: start;
+	margin: 0;
+}
+
+@media (min-width: 50rem) {
+	.content-panel > .sl-container:has(> h1) {
+		/* 9.5rem clears the widest cluster (147px measured) without the title
+		 * reflowing when it arrives. */
+		grid-template-columns: minmax(0, 1fr) 9.5rem;
+		grid-template-rows: auto;
+		column-gap: 1rem;
+		row-gap: 0;
+	}
+
+	.contextual-menu-container {
+		grid-column: 2;
+		grid-row: 1;
+		justify-self: end;
+		align-self: center;
+	}
+}
+
+/* Sidebar entries marked `data-auth-only` are for signed-in readers.
+ *
+ * They ship in the HTML of every page — public pages are prerendered once and
+ * served to everyone, so there is no per-reader server render to omit them
+ * from — and are revealed by the `data-signed-in` mark that
+ * `src/components/CustomHead.astro` puts on <html> before first paint.
+ *
+ * This is presentation, not access control. Everything behind these links is
+ * enforced by `src/middleware.ts`; hiding them only avoids offering a reader a
+ * section that would bounce them to a sign-in they may not want. Never put a
+ * customer's org name behind this rule — the markup is public regardless of
+ * whether CSS draws it. */
+.sidebar-content li:has(> a[data-auth-only]) {
+	display: none;
+}
+
+html[data-signed-in] .sidebar-content li:has(> a[data-auth-only]) {
+	/* `revert-layer`, not `revert`: `revert` rolls back to the user-agent
+	 * origin, so if Starlight ever sets `display` on sidebar list items the
+	 * revealed entry alone would drop to `list-item` while its siblings did
+	 * something else — a misalignment only signed-in readers would see.
+	 * `revert-layer` rolls back to whatever the cascade would otherwise have
+	 * applied, which is what "undo the rule above" actually means here. */
+	display: revert-layer;
+}
+
+/* Theme switcher: icon only, no "Light" / "Dark" / "Auto" label.
+ *
+ * Starlight renders a native <select> whose visible text is the selected
+ * option, sized by `--sl-select-width`. Collapsing that width leaves the two
+ * absolutely-positioned icons — the theme glyph and the caret — sitting next to
+ * each other, which is the whole control we want.
+ *
+ * `color: transparent` on the <select> rather than `font-size: 0` or a text
+ * indent: those change how the native popup measures itself, and on some
+ * platforms collapse it too. The options are safe because Starlight gives them
+ * their own `color`, so the open list stays readable.
+ *
+ * Scoped to the theme switcher deliberately. The language switcher shares this
+ * markup, and its labels are the only thing distinguishing one language from
+ * another — a customer enabling i18n needs those words. */
+starlight-theme-select label {
+	/* The two icons are absolutely positioned against *this* element, one at
+	 * each end, so its width is what sets the control's size — not the
+	 * `--sl-select-width` custom property, which Starlight applies as an inline
+	 * style a stylesheet cannot override anyway. Wide enough for both plus a
+	 * little air; any narrower and they overlap (measured at -12px). */
+	width: calc(var(--sl-label-icon-size) + var(--sl-caret-size) + 0.25rem);
+}
+
+starlight-theme-select select {
+	color: transparent;
+	/* Fill the label exactly. Starlight's padding and negative inline margin
+	 * exist to reserve room for the label text between the icons; with no text
+	 * they only push the icons apart, so both are dropped and the select
+	 * becomes the click target for the whole control. */
+	box-sizing: border-box;
+	width: 100%;
+	padding-inline: 0;
+	margin-inline: 0;
+}
+
+/* The value is still announced; only the painted text is hidden. */
+starlight-theme-select option {
+	color: var(--sl-color-gray-1);
+}
