@@ -137,6 +137,40 @@ export function listWikiEntries() {
  * The `wiki` content-collection loader. See the module docstring for why
  * this exists instead of `glob()`.
  */
+/**
+ * The URL a wiki file's relative links should point at once published.
+ *
+ * These files live beside the code they describe, so they link to it the way
+ * a reader in the repository expects — `[src/content.config.ts](../src/content.config.ts)`.
+ * GitHub resolves that correctly in its file view. Rendered at `/internals/*`
+ * on the docs site it resolves to nothing, and ships as a 404 on a public
+ * page.
+ *
+ * Rewriting them here rather than editing the wiki keeps both readers right:
+ * the in-repo link stays relative and working, and the published one points at
+ * the file on GitHub, which is where a reader of the docs site would want to
+ * end up anyway — they do not have the repository checked out.
+ *
+ * Only `./` and `../` links are touched. Absolute URLs, anchors, and
+ * site-relative links are left alone.
+ */
+const REPO_BLOB = 'https://github.com/ekline-io/ekline-docs-template-astro/blob/main/packages/template';
+
+/**
+ * @param {string} markdown Raw wiki markdown, before rendering.
+ * @returns {string} The same markdown with relative links made absolute.
+ */
+export function rewriteRelativeLinks(markdown) {
+	// `wiki/` is one level below the template root, so `../x` means `<template>/x`
+	// and `./x` (or a bare sibling) means `<template>/wiki/x`.
+	return markdown.replace(/\]\((\.\.?\/[^)\s]+)\)/g, (whole, href) => {
+		const target = href.startsWith('../')
+			? href.slice(3)
+			: `wiki/${href.replace(/^\.\//, '')}`;
+		return `](${REPO_BLOB}/${target})`;
+	});
+}
+
 export function wikiLoader() {
 	return {
 		name: 'wiki-loader',
@@ -154,7 +188,7 @@ export function wikiLoader() {
 				const fileUrl = new URL(`${id}.md`, `file://${WIKI_DIR}`);
 				const { raw, data, body } = parseWikiFile(filePath);
 				const parsedData = await parseData({ id, data, filePath });
-				const rendered = await renderMarkdown(body, { fileURL: fileUrl });
+				const rendered = await renderMarkdown(rewriteRelativeLinks(body), { fileURL: fileUrl });
 				store.set({
 					id,
 					data: parsedData,

@@ -136,3 +136,37 @@ for (const file of files) {
 		);
 	});
 }
+
+// ---------------------------------------------------------------------------
+// Relative links
+// ---------------------------------------------------------------------------
+
+test('relative links in wiki files are rewritten to the repository', () => {
+	// The wiki lives beside the code it describes and links to it relatively,
+	// which GitHub resolves and a page at /internals/ cannot. Unrewritten, each
+	// one ships as a 404 on a public page. Asserted on the built HTML, so this
+	// covers the whole pipeline rather than the helper in isolation.
+	const pages = readdirSync(join(STATIC_DIR, 'internals'), { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => join(STATIC_DIR, 'internals', entry.name, 'index.html'));
+	assert.ok(pages.length > 0, 'no internals pages were built');
+
+	for (const page of pages) {
+		const html = readFileSync(page, 'utf8');
+		const article = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+		const relative = [...article.matchAll(/href="(\.\.?\/[^"]*)"/g)].map((m) => m[1]);
+		assert.deepEqual(relative, [], `${page} still carries relative links`);
+	}
+});
+
+test('the rewrite points at the file it named, not just somewhere', () => {
+	// A rewrite producing a valid-looking but wrong URL would pass the test
+	// above. wiki/api-reference.md links ../src/config/api-reference.mjs; from
+	// wiki/, `..` is the template root, so that is where it must land.
+	const html = readFileSync(join(STATIC_DIR, 'internals', 'api-reference', 'index.html'), 'utf8');
+	assert.match(
+		html,
+		/github\.com\/ekline-io\/ekline-docs-template-astro\/blob\/main\/packages\/template\/src\/config\/api-reference\.mjs/,
+		'the ../src/config/api-reference.mjs link did not resolve to the template root'
+	);
+});
