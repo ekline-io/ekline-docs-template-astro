@@ -3,10 +3,10 @@ import { listWikiEntries } from '../loaders/wiki.mjs';
 /**
  * The sidebar, as data.
  *
- * Get started is the first real content group (Task 3) — Configure, API
- * references, The logged-in experience and Reference land in Tasks 4-7 and
- * slot in above Internals, which stays last. A Starlight sidebar entry that
- * names a `slug` fails the build if that slug isn't in the `docs`
+ * Get started and Configure are the real content groups so far (Tasks 3-4) —
+ * API references, The logged-in experience and Reference land in Tasks 5-7
+ * and slot in above Internals, which stays last. A Starlight sidebar entry
+ * that names a `slug` fails the build if that slug isn't in the `docs`
  * collection, so each entry below points at a page that actually exists
  * under `src/content/docs/`.
  *
@@ -22,6 +22,16 @@ export const docsSidebarGroups = [
 		items: [
 			{ label: 'Quickstart', slug: 'quickstart' },
 			{ label: 'Deploy', slug: 'deploy' },
+		],
+	},
+	{
+		label: 'Configure',
+		items: [
+			{ label: 'Site basics', slug: 'site-basics' },
+			{ label: 'Branding and theming', slug: 'branding' },
+			{ label: 'Navigation and the sidebar', slug: 'navigation' },
+			{ label: 'Writing content', slug: 'writing-content' },
+			{ label: 'Search and AI', slug: 'search-and-ai' },
 		],
 	},
 	{

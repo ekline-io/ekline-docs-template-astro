@@ -1,0 +1,109 @@
+---
+title: Writing content
+description: Where pages live, what frontmatter is required, when to reach for MDX, and the shipped changelog pattern.
+---
+
+import { FileTree, Steps } from '@astrojs/starlight/components';
+
+Every page is a Markdown or MDX file under `src/content/docs/`. Nothing else
+needs touching to add, edit, or remove one.
+
+<FileTree>
+- src/content/docs/
+  - index.mdx the homepage
+  - get-started/
+    - quickstart.mdx becomes `/get-started/quickstart/`
+  - guides/
+    - example.mdx becomes `/guides/example/`
+</FileTree>
+
+A subfolder becomes a segment of the page's URL. There's no separate routing
+file to edit — the folder structure *is* the URL structure.
+
+## Adding a page
+
+<Steps>
+
+1. Create a file under `src/content/docs/` — anywhere, in any existing
+   subfolder or a new one.
+
+2. Add frontmatter at the top. `title` is the only field Starlight requires:
+
+   ```md
+   ---
+   title: Refunds
+   description: How to issue a full or partial refund.
+   ---
+
+   Content starts here.
+   ```
+
+   Frontmatter is the `---`-fenced block at the top of the file — everything
+   between the two `---` lines is metadata about the page, not content that
+   gets displayed as written. `description` isn't required, but it's what
+   shows up in search engine results and link previews, so it's worth the
+   one line.
+
+3. Write the page in Markdown below the frontmatter, and save.
+
+4. If someone is running the site locally (`npm run dev`), the change
+   appears without a restart. If not — ask whoever set up the site how they
+   preview edits; most teams get a preview link on the pull request.
+
+</Steps>
+
+A new page is live at its URL as soon as it's saved, whether or not it's in
+the sidebar. To put it in the nav, see [Navigation and the
+sidebar](/navigation/).
+
+## Markdown or MDX?
+
+Plain Markdown (`.md`) covers headings, lists, links, code blocks, and
+Starlight's built-in asides:
+
+```md
+:::caution
+This action can't be undone.
+:::
+```
+
+Reach for `.mdx` when a page needs something Markdown can't express —
+numbered steps with `<Steps>`, tabs, card grids, or any other component. An
+MDX file imports what it needs at the top, same as this page does:
+
+```mdx
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+1. First do this.
+2. Then this.
+</Steps>
+```
+
+Everything else about writing the page is identical either way; `.mdx` is a
+superset, not a different way of writing prose.
+
+## The changelog page
+
+The template ships an example changelog at
+`src/content/docs/changelog.mdx` — grouped by month (newest first), with
+**Added / Changed / Fixed / Removed** subheadings so readers can skim it.
+Copy that structure for your own product's changes:
+
+```md
+## May 2026
+
+### Added
+
+- New `widgets` endpoint group.
+
+### Fixed
+
+- Pagination cursors are no longer invalidated when a widget is deleted mid-page.
+```
+
+Its frontmatter also sets `next: false`. Starlight otherwise auto-generates a
+"next page" link from whatever follows the changelog in the sidebar — worth
+setting to `false` if that next item isn't something you'd want offered as
+the thing to read after a changelog. If nothing awkward follows yours in the
+sidebar, you can delete the line.
