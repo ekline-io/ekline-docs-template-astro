@@ -3,28 +3,32 @@
  *
  * Its whole job is telling crawlers where the sitemap is, and that URL has to
  * be absolute. A static `public/robots.txt` would need the domain written into
- * it by hand — so it would be wrong for every customer who forgets, and wrong
- * again on the day the domain changes. Generating it means it is correct
- * wherever `site` points, including preview deployments.
+ * it by hand — wrong for every customer who forgets, and wrong again on the day
+ * the domain changes. Generating it means it is correct wherever `site` points,
+ * including preview deployments.
  *
- * `Disallow: /private/` is not access control — `src/middleware.ts` is, and it
- * answers a redirect or a 404 to anyone unauthenticated. This just stops
- * crawlers walking the sign-in link and collecting redirects. It names only
- * the fixed prefix, never an org, because org names are customer names (see
- * "Wrong org is a 404, never a 403" in wiki/private-docs.md).
+ * `withBase`, not a literal `/private/`: on a site built with `base: '/docs'`
+ * the guarded routes answer at `/docs/private/`, so a hardcoded path matches
+ * nothing on that host. Same blind spot the guard itself is hardened against —
+ * see "The guard reads two signals" in wiki/private-docs.md — and it fails the
+ * same way, silently and only on subpath deployments.
+ *
+ * `Disallow` is not access control. `src/middleware.ts` is, and it answers a
+ * redirect or a 404 to anyone unauthenticated; this only spares crawlers a walk
+ * they gain nothing from. It names the fixed prefix and never an org, because
+ * org names are customer names — see "Wrong org is a 404, never a 403".
+ *
+ * The body itself lives in `src/lib/robots.mjs` so it can be tested without a
+ * build; this file is only the wiring.
  */
 import type { APIRoute } from 'astro';
 
+import { withBase } from '../lib/auth/http.mjs';
+import { robotsBody } from '../lib/robots.mjs';
+
 export const prerender = true;
 
-export const GET: APIRoute = ({ site }) => {
-	// `site` is undefined only if `astro.config.mjs` has no `site` set. The
-	// template always sets one, but emitting a bare `Sitemap:` line would be
-	// worse than emitting none, so the line is conditional.
-	const sitemap = site ? `Sitemap: ${new URL('sitemap-index.xml', site).href}\n` : '';
-
-	return new Response(
-		`User-agent: *\nAllow: /\nDisallow: /private/\n\n${sitemap}`,
-		{ headers: { 'content-type': 'text/plain; charset=utf-8' } }
-	);
-};
+export const GET: APIRoute = ({ site }) =>
+	new Response(robotsBody({ privatePath: withBase('/private/'), site }), {
+		headers: { 'content-type': 'text/plain; charset=utf-8' },
+	});
