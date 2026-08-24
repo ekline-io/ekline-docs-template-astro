@@ -3,12 +3,11 @@ import { listWikiEntries } from '../loaders/wiki.mjs';
 /**
  * The sidebar, as data.
  *
- * Get started and Configure are the real content groups so far (Tasks 3-4) —
- * API references, The logged-in experience and Reference land in Tasks 5-7
- * and slot in above Internals, which stays last. A Starlight sidebar entry
- * that names a `slug` fails the build if that slug isn't in the `docs`
- * collection, so each entry below points at a page that actually exists
- * under `src/content/docs/`.
+ * IA order, top to bottom: Get started, Configure, API reference, The
+ * logged-in experience, Reference, Internals (Internals always stays last).
+ * A Starlight sidebar entry that names a `slug` fails the build if that slug
+ * isn't in the `docs` collection, so each entry below points at a page that
+ * actually exists under `src/content/docs/`.
  *
  * Internals is different: it comes from the `wiki` collection, not `docs`
  * (see `src/loaders/wiki.mjs`), so its entries can never use `{ slug }` —
@@ -32,6 +31,13 @@ export const docsSidebarGroups = [
 			{ label: 'Navigation and the sidebar', slug: 'navigation' },
 			{ label: 'Writing content', slug: 'writing-content' },
 			{ label: 'Search and AI', slug: 'search-and-ai' },
+		],
+	},
+	{
+		label: 'API reference',
+		items: [
+			{ label: 'API reference', slug: 'api-reference' },
+			{ label: 'Customizing the API reference', slug: 'api-reference-appearance' },
 		],
 	},
 	{
