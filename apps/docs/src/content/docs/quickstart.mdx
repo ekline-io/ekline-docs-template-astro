@@ -15,22 +15,14 @@ import { Steps } from '@astrojs/starlight/components';
 
    You'll be asked where to create the project — type a directory name (for
    example `my-docs`) and press Enter — then say yes to installing
-   dependencies and initializing git. It also flags the template as
-   "third-party" and warns that installing may run lifecycle scripts —
-   expected, since this isn't one of Astro's own starters.
+   dependencies and initializing git (it'll flag the template as
+   "third-party" first; expected, since this isn't one of Astro's own
+   starters).
 
-   :::caution
-   Don't use GitHub's **Use this template** button. This template lives in a
-   subdirectory of a monorepo, and the button copies the whole repository —
-   EkLine's build tooling and hosted sites included. The command above fetches
-   only the template, lockfile and all.
-   :::
-
-2. **Install dependencies and start the dev server.**
+2. **Start the dev server.**
 
    ```bash
    cd my-docs
-   npm install
    npm run dev
    ```
 
@@ -39,7 +31,7 @@ import { Steps } from '@astrojs/starlight/components';
 
 3. **Make your first edit.**
 
-   Open `src/content/docs/index.mdx` and change the `tagline` under `hero:`:
+   Open `src/content/docs/index.mdx` and change the `tagline` under `hero`:
 
    ```diff lang="yaml"
      hero:

@@ -221,7 +221,7 @@ The middleware guards a URL prefix. These are the non-obvious ways a request can
 
 On `@astrojs/node`, `context.url.origin` is **`http://localhost:<port>`** and nothing at the network layer changes it. Astro ignores `Host` *and* `X-Forwarded-Host` unless they match `security.allowedDomains`: with that list empty, `validateHost()` returns undefined and the hostname falls back to the literal `"localhost"` (`astro/dist/core/app/node.js:28-35`). Measured with `Host: docs.example.com`, and with `X-Forwarded-Host` plus `X-Forwarded-Proto: https`: identical `localhost` output every time. Only the adapter's `PORT` is carried across — `HOST` is never read, so `HOST=127.0.0.1` still yields `localhost`.
 
-Good news for security: nobody can poison `redirect_uri` with a forged `Host`. But **a self-hosted deployment behind a reverse proxy must set `security.allowedDomains`** in `astro.config.mjs`, or the SSO round trip hands the customer's endpoint a `redirect_uri` pointing at the server's own loopback and sign-in can never complete. This survives local testing precisely because `astro dev` *does* use the real `Host`.
+Good news for security: nobody can poison `redirect_uri` with a forged `Host`. But **every self-hosted `@astrojs/node` deployment must set `security.allowedDomains`** in `astro.config.mjs` — proxied or not, direct traffic included — or the SSO round trip hands the customer's endpoint a `redirect_uri` pointing at the server's own loopback and sign-in can never complete. This survives local testing precisely because `astro dev` *does* use the real `Host`.
 
 One related quirk: under `astro preview --port N`, `url.origin` always reports `http://localhost:4321` whatever `N` is — measured at four different ports. `astro dev` and the standalone Node server both report the real port; only `preview` is wrong. This used to pin the browser suite to 4321, because a preview anywhere else advertised a `redirect_uri` pointing at a port nothing was listening on. The suite now runs the adapter's standalone entry point instead and the pin is gone — but the quirk is still there, so **do not reach for `astro preview` to test anything that reads `url.origin`.**
 
@@ -316,5 +316,5 @@ would have pointed at a loopback address and sign-in could never complete.
 
 It does not: the SSO round trip completes end to end on a deployed Vercel
 preview, which it could not do if the origin were wrong. **No
-`security.allowedDomains` entry is needed on Vercel.** Self-hosted deployments
-behind a reverse proxy still need one.
+`security.allowedDomains` entry is needed on Vercel.** Every self-hosted
+`@astrojs/node` deployment still needs one, proxied or not.

@@ -20,7 +20,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid>
 	<Card title="A Starlight docs site" icon="rocket">
-		Astro 6 + Starlight, Markdown/MDX content, full-text search, dark and
+		Astro + Starlight, Markdown/MDX content, full-text search, dark and
 		light mode — Tailwind v4 theming in one file.
 	</Card>
 	<Card title="Interactive API references" icon="document">
@@ -28,9 +28,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		client for sending real requests. Optional — delete what you don't need.
 	</Card>
 	<Card title="An optional logged-in tier" icon="padlock">
-		Private docs for any signed-in reader, and per-org docs for one
-		customer at a time — enforced server-side, never shipped in the static
-		build. Optional too.
+		Private docs for any signed-in reader, and org-scoped docs visible only
+		to that org's members — enforced server-side, never shipped in the
+		static build. Optional too.
 	</Card>
 	<Card title="Ready for search engines and AI agents" icon="magnifier">
 		Sitemap and `llms.txt` generated on every build, plus a "copy /
@@ -54,12 +54,6 @@ It's a template, not a hosted product. Some things follow from that:
   GitHub Pages are off the table unless you remove the feature. Vercel and
   any Node host work fine — see [Deploy](/deploy/).
 
-## Who it's for
-
-Teams who are comfortable with Markdown and git, want a docs site running in
+Teams comfortable with Markdown and git, who want a docs site running in
 minutes rather than days, and either don't need a logged-in tier or are happy
-to wire it to their own product's sign-in. If you want a no-code editor for
-non-technical writers, or hosted user accounts, look elsewhere — this
-template doesn't provide either.
-
-Ready to see it running? [Get started](/quickstart/).
+to wire it to their own product's sign-in — [try the quickstart](/quickstart/).

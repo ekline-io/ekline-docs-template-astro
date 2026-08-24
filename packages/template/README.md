@@ -188,7 +188,7 @@ Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/p
 | Target | Adapter | Static output | Notes |
 | --- | --- | --- | --- |
 | **Vercel** | `@astrojs/vercel` (automatic — Vercel builds set `VERCEL=1`) | `.vercel/output/static/` | What the live preview uses; one-click import. |
-| **Self-hosted / Docker** | `@astrojs/node` (the default everywhere else) | `dist/client/`, with the server in `dist/server/` | Run the standalone server; set `security.allowedDomains` if you sit behind a reverse proxy. |
+| **Self-hosted / Docker** | `@astrojs/node` (the default everywhere else) | `dist/client/`, with the server in `dist/server/` | Run the standalone server; if sign-in is on, set `security.allowedDomains` in `astro.config.mjs` — every request looks like `localhost` otherwise, proxied or not. |
 | **Netlify, Cloudflare Pages** | swap in `@astrojs/netlify` / `@astrojs/cloudflare` | per that adapter | One line in `astro.config.mjs`. The auth code is adapter-agnostic, so nothing else changes. |
 | **GitHub Pages** | none — static only | `dist/` | Cannot run a server, so private docs cannot work there. Follow the removal steps above and the flat `dist/` returns. |
 

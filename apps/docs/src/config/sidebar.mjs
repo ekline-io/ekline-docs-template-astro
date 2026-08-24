@@ -33,5 +33,10 @@ export const docsSidebarGroups = [
 	},
 ];
 
+// Not part of `docsSidebarGroups` and not wired into `astro.config.mjs`'s
+// `sidebar` yet, so the "points at a page that exists" guarantee above does
+// not cover it: there is no `changelog` page under `src/content/docs/` today.
+// Add that page before wiring this in, or the build fails the same way an
+// entry inside `docsSidebarGroups` would.
 export const changelogEntry = { label: 'Changelog', slug: 'changelog' };
 
