@@ -10,6 +10,16 @@ Because EkLine is the maintainer, light EkLine attribution is appropriate (e.g. 
 
 The project was scaffolded with the official Starlight starter (`npm create astro@latest -- --template starlight`). Astro `^6.2.2`, Starlight `^0.39.2`, Node 22.x verified.
 
+## Hosted documentation
+
+The template's own docs site — every setting, what it does, and what happens
+if you leave it alone — is live at
+<https://documentation-ekline-docs-template.vercel.app>. It is built from
+`apps/docs/` in this monorepo (a sibling of this directory, not shipped with
+the template) and its Internals section renders `wiki/` in place. Point
+customer-facing configuration questions there before writing new prose in
+`README.md` or the wiki — the docs site is where that material now lives.
+
 ## Authoritative references
 
 **Always consult the Starlight docs before making any change.** This is the rule, not the exception — these docs are the source of truth and override general training knowledge. Any time you're touching config, components, content schema, plugins, theming, routing, i18n, or anything else, fetch the relevant page first and follow the recommended approach there.

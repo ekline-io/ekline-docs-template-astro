@@ -4,24 +4,28 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 
 [![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
 
-**Live preview:** <https://ekline-docs-template-astro.vercel.app/>
+**Full documentation:** <https://documentation-ekline-docs-template.vercel.app>
+— every setting in this template, what it does, and what happens if you leave
+it alone. This README covers what you need before you have a browser open;
+that site covers everything else.
 
-**Full documentation:** every setting in this template, what it does, and what happens if you leave it alone — see the hosted docs site (link once deployed; the source is `apps/docs/` in the template's repository).
+**Live preview:** <https://ekline-docs-template-astro.vercel.app/>
 
 The preview has the **demo login** enabled — click **Log in**, pick a persona,
 and see private and per-org docs work (try Acme's reader on Globex's section
-for the 404). It is the same template with `DOCS_UNSAFE_DEMO_LOGIN=1` set; see
-*Try it without wiring SSO* below. To run the logged-in experience locally:
-copy `.env.example` to `.env`, `npm run dev:sso` in one terminal, `npm run dev`
-in another, then click **Log in**.
+for the 404). It is the same template with `DOCS_UNSAFE_DEMO_LOGIN=1` set —
+see [Trying it without SSO](https://documentation-ekline-docs-template.vercel.app/demo-login/).
+To run the logged-in experience locally: copy `.env.example` to `.env`,
+`npm run dev:sso` in one terminal, `npm run dev` in another, then click
+**Log in**.
 
 ## What's pre-wired
 
 So you don't have to set these up yourself:
 
-- **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [`wiki/theming.md`](./wiki/theming.md).
-- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Two example APIs ship, one per layout, so you can see both and delete the one you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [`wiki/api-reference.md`](./wiki/api-reference.md).
-- **Private and per-org docs** behind your own SSO — server-enforced, so private pages never reach an anonymous browser. See [Private and per-org docs](#private-and-per-org-docs) below and [`wiki/private-docs.md`](./wiki/private-docs.md).
+- **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [Branding and theming](https://documentation-ekline-docs-template.vercel.app/branding/).
+- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Two example APIs ship, one per layout, so you can see both and delete the one you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/).
+- **Private and per-org docs** behind your own SSO — server-enforced, so private pages never reach an anonymous browser. See [How it works](https://documentation-ekline-docs-template.vercel.app/how-it-works/) and [Private and per-org docs](#private-and-per-org-docs) below.
 - **Sitemap** auto-generated on build (`sitemap-index.xml` + `sitemap-0.xml`).
 - **`llms.txt`** for AI assistants — `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt`.
 - **Full-text search** out of the box (Starlight ships [Pagefind](https://pagefind.app/)).
@@ -58,17 +62,17 @@ The site is live at <http://localhost:4321/> with hot reload.
 
 | What you want to change | Where to do it |
 | --- | --- |
-| Site title, sidebar, social links | `astro.config.mjs` |
+| Site title, sidebar, social links | `astro.config.mjs` — see [Site basics](https://documentation-ekline-docs-template.vercel.app/site-basics/) |
 | **Site URL** (required for sitemap + llms.txt) | `site` field in `astro.config.mjs`, or the `DOCS_SITE_URL` env var |
-| Theme colors, fonts | `src/styles/global.css` — see [`wiki/theming.md`](./wiki/theming.md) |
+| Theme colors, fonts | `src/styles/global.css` — see [Branding and theming](https://documentation-ekline-docs-template.vercel.app/branding/) |
 | Homepage content | `src/content/docs/index.mdx` |
-| **API reference** | Replace `public/openapi.yaml`, and edit `src/config/api-reference.mjs` — see [`wiki/api-reference.md`](./wiki/api-reference.md) |
-| Add a new page | Create a `.md` or `.mdx` file under `src/content/docs/` |
-| **Private / per-org pages** | `src/content/private-docs/`, `src/content/org-docs/<org>/` — see [`wiki/private-docs.md`](./wiki/private-docs.md) |
+| **API reference** | Replace `public/openapi.yaml`, and edit `src/config/api-reference.mjs` — see [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/) |
+| Add a new page | Create a `.md` or `.mdx` file under `src/content/docs/` — see [Writing content](https://documentation-ekline-docs-template.vercel.app/writing-content/) |
+| **Private / per-org pages** | `src/content/private-docs/`, `src/content/org-docs/<org>/` — see [Writing private and per-org content](https://documentation-ekline-docs-template.vercel.app/private-content/) |
 | Logo, favicon | `public/favicon.svg`, plus the `logo` field in `astro.config.mjs` |
 | Footer credit | `src/components/CustomFooter.astro` |
 
-For anything else, check the [Starlight docs](https://starlight.astro.build/) — they're the source of truth and cover sidebar groups, component overrides, content collection schema, i18n, and more.
+For a walkthrough of each setting, see the [hosted docs](https://documentation-ekline-docs-template.vercel.app). For anything not covered there, check the [Starlight docs](https://starlight.astro.build/) — the source of truth for sidebar groups, component overrides, content collection schema, i18n, and more.
 
 ## Private and per-org docs
 
@@ -77,103 +81,33 @@ The template ships a server-enforced logged-in experience:
 - `src/content/private-docs/` — pages any logged-in reader can see, at `/private/…`
 - `src/content/org-docs/<org>/` — pages only members of `<org>` can see, at `/private/orgs/<org>/…`
 
-Readers sign in through **your product** — the docs site has no user database, no signup and no passwords. Set three environment variables (see [`.env.example`](./.env.example)) and implement one endpoint in your product:
+Readers sign in through **your product** — the docs site has no user database,
+no signup and no passwords. You set three environment variables (see
+[`.env.example`](./.env.example)) and implement one endpoint in your product
+that signs a short-lived handoff token; `tests/mock-sso/server.mjs` is a
+working reference implementation, and doubles as the local dev login (copy
+`.env.example` to `.env`, run `npm run dev:sso`).
 
-```js
-// Express example — your product's /docs-sso endpoint.
-// npm install jose
-import { SignJWT } from 'jose';
+The full contract — the endpoint's code, the three things that make it work,
+and the one branch (a reader who isn't signed in yet) that a signed-in
+developer never exercises and so never tests — is on the hosted docs:
+[How it works](https://documentation-ekline-docs-template.vercel.app/how-it-works/),
+[Setting it up](https://documentation-ekline-docs-template.vercel.app/sso-setup/),
+[Trying it without SSO](https://documentation-ekline-docs-template.vercel.app/demo-login/)
+(the `DOCS_UNSAFE_DEMO_LOGIN` persona picker the live preview above uses), and
+[Writing private and per-org content](https://documentation-ekline-docs-template.vercel.app/private-content/).
 
-const secret = new TextEncoder().encode(process.env.DOCS_SSO_SECRET);
+Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md)
+— the security constraints there (prerender flags, 404-not-403, fail-closed env
+handling) are what keep private content out of the public build, and several
+are easy to undo by accident.
 
-// `requireYourProductLogin` is your existing auth middleware — the one guarding
-// the rest of your product. It is doing more work here than it looks: see
-// "Readers who are not signed in yet" below.
-app.get('/docs-sso', requireYourProductLogin, async (req, res) => {
-	const token = await new SignJWT({
-		email: req.user.email,
-		name: req.user.name,
-		orgs: [req.user.orgSlug], // folder names under src/content/org-docs/
-		state: req.query.state,
-	})
-		.setProtectedHeader({ alg: 'HS256' })
-		.setSubject(req.user.id)
-		.setIssuedAt()
-		.setExpirationTime('5m')
-		.sign(secret);
-	// Redirect to the `redirect_uri` you were given, not to a hardcoded URL.
-	const target = new URL(req.query.redirect_uri);
-	target.searchParams.set('token', token);
-	res.redirect(target.href);
-});
-```
-
-Three things about that endpoint are load-bearing:
-
-- **Honour `redirect_uri`.** It is the docs site telling you where its callback lives, and it moves with the deployment (a `base` path puts it at `/docs/auth/callback`). A hardcoded callback URL works right up until it doesn't. A real endpoint should check the value against an allowlist of your own docs domains before redirecting to it.
-- **Echo `state` back unchanged.** It binds the token to the browser that started the sign-in; the callback rejects a token whose `state` does not match.
-- **Keep `exp` short.** The handoff token travels in a URL, so five minutes is the mitigation. Nothing in the template caps it — that would mean overruling your own token policy.
-
-### Readers who are not signed in yet
-
-The endpoint above assumes `req.user` exists. Most of the time it will: readers reach private docs from inside your product, so their session cookie comes along and the whole round trip is invisible — two redirects and they are on the page.
-
-When it doesn't, `requireYourProductLogin` does what it always does and sends them to your login page. **That detour is the reader's entire login experience for the docs site, and the docs site has no part in it.** There is no login form here, no password field, nothing to configure: they see the sign-in page they already know.
-
-The one thing that has to work is the trip back:
-
-- **Your login flow must return the reader to the full original URL**, `redirect_uri` and `state` query parameters intact. Most login systems do this by default — they capture the requested URL and replay it after authentication. Some drop the query string, and some send everyone to a dashboard regardless.
-- If yours drops them, the reader signs in successfully and lands somewhere else entirely. Nothing errors. The docs site never hears about it, so nothing appears in its logs either — from the outside it just looks like sign-in "doesn't work".
-
-**Test this path deliberately.** It is the one branch that a signed-in developer never exercises: open the docs site in a private window with no product session, click a private link, and check you come back to the page you asked for rather than to your product's home page.
-
-If your login redirect can only return a path you choose, point it at `/docs-sso` and preserve the original query string:
-
-```js
-// Inside your login middleware, when there is no session yet.
-const returnTo = req.originalUrl; // '/docs-sso?redirect_uri=…&state=…'
-res.redirect(`/login?next=${encodeURIComponent(returnTo)}`);
-```
-
-`tests/mock-sso/server.mjs` is a working reference implementation of exactly this endpoint. It also doubles as the local dev login: copy `.env.example` to `.env`, run `npm run dev:sso`, and `npm run dev` has a working sign-in.
-
-#### Try it without wiring SSO
-
-A deployed equivalent of the mock exists in the template itself: set
-
-```
-DOCS_UNSAFE_DEMO_LOGIN=1
-DOCS_SSO_URL=https://<your-deployment>/demo-login
-```
-
-(plus the two secrets) and `/demo-login` becomes a persona picker that signs
-the handoff token your product would sign — three fake readers, one per org
-plus one with none, so org isolation is visible in two clicks. This is how the
-live preview above works.
-
-The name is the warning: **this sign-in accepts anyone.** Use it on demo and
-staging deployments that hold no real private content, and unset it the moment
-your real `DOCS_SSO_URL` exists. `wiki/private-docs.md` has the details, and
-the personas live in `src/lib/demo-login.mjs` if your staging site's org
-folders differ from the shipped examples.
-
-Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md) — the constraints there are what keep private content out of the public build, and several of them are easy to undo by accident.
-
-### Deploying somewhere private docs aren't configured?
-
-Nothing to do. A staging site, a public demo, a preview build, a fork that has
-not wired SSO yet — with the `DOCS_*` variables unset, the **Log in** control
-and the sidebar's **Private docs** entry are absent from the build entirely.
-
-That matters because the guard fails closed without those variables, so
-`/private/**` answers a bare 404 — correct, and exactly what would make an
-always-rendered link a dead one on every page. The routes and the guard are
-untouched either way; nothing becomes reachable.
-
-It is derived rather than configured: `astro.config.mjs` reads the variables
-through Vite's `loadEnv`, and the header asks `authConfigured()`. Both see a
-local `.env`, and both see variables exported by Vercel or CI, so local
-development and production agree without anything to remember.
+Deploying somewhere it isn't configured — a staging site, a public demo, a
+fork that hasn't wired SSO yet? Nothing to do. With the `DOCS_*` variables
+unset, the **Log in** control and the sidebar's **Private docs** entry are
+absent from the build, and the guard fails closed: `/private/**` answers a
+bare 404 rather than becoming reachable. See
+[Environment variables](https://documentation-ekline-docs-template.vercel.app/environment-variables/).
 
 ### Don't need private docs?
 
@@ -193,7 +127,7 @@ Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/p
 
 **If you are also removing the API reference**, the Playwright suite has nothing left to test: delete `playwright.config.mjs`, `tests/visual/`, `tests/helpers/test-servers.mjs`, and the three `test:visual*` scripts, then uninstall `@playwright/test`.
 
-*These instructions were executed end to end when EkLine built its own documentation site from this template, and corrected from what that run actually hit.*
+*These instructions were executed end to end when EkLine built its own documentation site from this template, and corrected from what that run actually hit.* The hosted docs' [Removing what you don't need](https://documentation-ekline-docs-template.vercel.app/removing-features/) page covers the same ground alongside removing the API reference.
 
 ## Deploy
 
@@ -208,7 +142,7 @@ Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/p
 
 There is no longer a flat `dist/` folder you can host anywhere: on Netlify, Cloudflare Pages and GitHub Pages, `VERCEL` is unset, so an unmodified template hands them the **Node** adapter — a server bundle none of them runs.
 
-See Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform, and [`wiki/private-docs.md`](./wiki/private-docs.md) for the adapter and output-path details.
+See the hosted docs' [Deploy](https://documentation-ekline-docs-template.vercel.app/deploy/) page for target-by-target notes (including a Vercel ISR setting to leave alone if sign-in is on), Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform, and [`wiki/private-docs.md`](./wiki/private-docs.md) for the adapter and output-path details.
 
 > **Before deploying, set the `site` URL** in `astro.config.mjs` to your real domain, or set `DOCS_SITE_URL` in the build environment. The sitemap and `llms.txt` files use it to emit absolute URLs.
 
@@ -238,6 +172,7 @@ It is linked rather than local on purpose: `npm create astro` strips `CHANGELOG.
 
 ## Learn more
 
+- [Hosted docs](https://documentation-ekline-docs-template.vercel.app) — every setting in this template, explained.
 - [Starlight docs](https://starlight.astro.build/) — sidebar, components, content schema, theming.
 - [Astro docs](https://docs.astro.build/) — routing, integrations, deployment.
 - [Starlight plugin showcase](https://starlight.astro.build/resources/plugins/) — search, i18n, OG images, redirects, and more.

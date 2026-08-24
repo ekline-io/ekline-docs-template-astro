@@ -1,5 +1,7 @@
 # Private and per-org docs
 
+> This is the maintainer-facing deep end: the security constraints behind the logged-in experience, for whoever edits this code next. For how to configure and use private and per-org docs as a customer, see the hosted docs' [logged-in experience section](https://documentation-ekline-docs-template.vercel.app/how-it-works/).
+
 The logged-in experience: pages any signed-in reader can see, and pages written for one customer. Read this before touching `src/middleware.ts`, `src/pages/private/`, `src/pages/auth/`, `src/lib/auth/`, or the `privateDocs` / `orgDocs` collections in [`src/content.config.ts`](../src/content.config.ts).
 
 Most of what follows was measured against a real build rather than reasoned about, and several of these constraints exist because the bypass they describe served one customer another customer's page at HTTP 200 before it was closed.

@@ -37,5 +37,9 @@ have exactly one copy — the one that sits beside the code it describes. See
 
 ## Deployment
 
-Its own Vercel project, Root Directory `apps/docs`, with `DOCS_SITE_URL` set to
-its domain so the sitemap and `llms.txt` emit absolute URLs.
+Its own Vercel project (`documentation-ekline-docs-template`), Root Directory
+`apps/docs`. No environment variables — `site` is hardcoded in
+`astro.config.mjs`, unlike the template's, which is an env var because one
+build serves many customers' environments. Here it is one domain we own, so
+keeping it in the repo means it is reviewed and cannot be forgotten at deploy
+time.
