@@ -1,0 +1,54 @@
+---
+title: Quickstart
+description: Create a site from the EkLine docs template, run it locally, and make your first edit.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+
+1. **Create your site.**
+
+   ```bash
+   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+   ```
+
+   You'll be asked where to create the project — type a directory name (for
+   example `my-docs`) and press Enter — then say yes to installing
+   dependencies and initializing git. It also flags the template as
+   "third-party" and warns that installing may run lifecycle scripts —
+   expected, since this isn't one of Astro's own starters.
+
+   :::caution
+   Don't use GitHub's **Use this template** button. This template lives in a
+   subdirectory of a monorepo, and the button copies the whole repository —
+   EkLine's build tooling and hosted sites included. The command above fetches
+   only the template, lockfile and all.
+   :::
+
+2. **Install dependencies and start the dev server.**
+
+   ```bash
+   cd my-docs
+   npm install
+   npm run dev
+   ```
+
+   Your site is live at [`localhost:4321`](http://localhost:4321) with hot
+   reload.
+
+3. **Make your first edit.**
+
+   Open `src/content/docs/index.mdx` and change the `tagline` under `hero:`:
+
+   ```diff lang="yaml"
+     hero:
+   -   tagline: This is your new documentation site. Tailwind, sitemap, and llms.txt are already wired up — replace this welcome content with your own and ship.
+   +   tagline: Hello from my first edit!
+   ```
+
+   Save the file. The dev server picks up the change without a restart.
+
+</Steps>
+
+Next: [deploy it](/deploy/).
