@@ -29,7 +29,7 @@ buttons; leave it alone and you get Tailwind's `violet` palette.
 you get Tailwind's `slate` palette.
 
 To change either: open Starlight's [CSS variable theming
-guide](https://starlight.astro.build/guides/css-and-tailwind/#theming-with-css-variables),
+guide](https://starlight.astro.build/guides/css-and-tailwind/#theming),
 generate a palette from your brand color, and paste the values it gives you
 over the matching lines in `src/styles/global.css`.
 
@@ -51,10 +51,10 @@ fetched from Google Fonts at runtime.
 To swap one: install a `@fontsource-variable/<font>` package, add an
 `@import` for it above the `@theme` block (next to the existing Inter/JetBrains
 Mono imports), then put the family name first in `--font-sans` or
-`--font-mono`. For a font that isn't on Fontsource — Google Fonts included —
-follow Starlight's [web fonts
-recipe](https://starlight.astro.build/guides/css-and-tailwind/#custom-fonts)
-instead.
+`--font-mono`. Fontsource packages the Google Fonts catalogue, so most fonts you
+want are there — Inter and JetBrains Mono both are. For anything it doesn't
+carry, follow Starlight's [CSS and Tailwind
+guide](https://starlight.astro.build/guides/css-and-tailwind/) instead.
 
 ## Logo
 
@@ -74,6 +74,10 @@ By default the logo sits next to your title text; add `replacesTitle: true`
 to show only the logo. Full shape (including the `alt` text option) is in
 [Starlight's configuration reference](https://starlight.astro.build/reference/configuration/#logo).
 
+The homepage hero image is a placeholder too — `hero.image.file` in
+`src/content/docs/index.mdx`. Point it at your own asset, or delete the
+`image:` block for a text-only hero.
+
 ## Custom CSS
 
 Anything beyond a design token goes in the same file, inside a Tailwind
@@ -90,26 +94,21 @@ layer:
 Tailwind utility classes also work directly in MDX and Astro files once the
 Vite plugin is loaded — which it already is, for every page.
 
-Starlight also exposes its own `--sl-*` variables (sidebar width, header
-height, and more) for things that aren't Tailwind tokens. Set those in the
-same file but **outside** `@theme` — see Starlight's [Styling with
-CSS](https://starlight.astro.build/guides/css-and-tailwind/#styling-with-css)
-reference for the full list.
+Starlight also exposes its own `--sl-*` variables — sidebar width, header
+height, and more — for things that aren't Tailwind tokens. Set those in the
+same file but **outside** `@theme`.
 
 :::caution
 Don't reorder the `@layer` declaration or the `@import` lines at the top of
-`src/styles/global.css`. Starlight's layer has to sit between Tailwind's
-`base` and `theme` layers or its component styles stop winning the cascade —
-see the [Starlight + Tailwind
-guide](https://starlight.astro.build/guides/css-and-tailwind/#tailwind-css).
+`src/styles/global.css`. The order is what makes the cascade predictable, and
+rearranging it changes which styles win in ways that are tedious to debug.
 :::
 
-## When CSS isn't enough
+## Going further
 
-If you're rewriting most of `global.css` anyway, a community theme may get
-you closer faster than hand-tuning every variable — `starlight-theme-rapide`
-and `starlight-theme-flexoki` are two starting points. Full list at the
-[Starlight plugin showcase](https://starlight.astro.build/resources/plugins/#themes).
+Cascade layers, the full `--sl-*` list, and what breaks if you reorder things
+are covered in [Theming](/internals/theming/).
 
-If a color change doesn't show up in the dev server, hard-refresh the
-browser — Tailwind v4's CSS layers cache aggressively.
+If you're rewriting most of `global.css` anyway, start from a community theme
+instead — see Starlight's
+[themes](https://starlight.astro.build/resources/themes/#community-themes).

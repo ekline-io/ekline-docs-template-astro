@@ -46,15 +46,26 @@ file to edit — the folder structure *is* the URL structure.
 
 3. Write the page in Markdown below the frontmatter, and save.
 
-4. If someone is running the site locally (`npm run dev`), the change
-   appears without a restart. If not — ask whoever set up the site how they
-   preview edits; most teams get a preview link on the pull request.
+4. Save the file. If the site is running locally (`npm run dev`), the change
+   appears immediately.
 
 </Steps>
 
-A new page is live at its URL as soon as it's saved, whether or not it's in
-the sidebar. To put it in the nav, see [Navigation and the
-sidebar](/navigation/).
+The page gets its own URL whether or not it's in the sidebar. To put it in
+the nav, see [Navigation and the sidebar](/navigation/).
+
+## Publishing it
+
+Saving is not publishing. Your page reaches the live site like any other
+change to the repository:
+
+1. Commit the new file on a branch.
+2. Open a pull request. Most teams get a preview link on the PR, so you can
+   read the page as it will look before anyone else sees it.
+3. Merging deploys it.
+
+If your team does this differently, ask whoever set the site up — but the
+shape is the same everywhere: nothing is live until it's merged.
 
 ## Markdown or MDX?
 

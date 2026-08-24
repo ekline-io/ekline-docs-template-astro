@@ -26,20 +26,18 @@ button, not just the index.
 
 :::caution
 The template overrides Starlight's `Search` component
-(`src/components/CustomSearch.astro`) to fix a real bug: Pagefind only binds
-itself to the search dialog on the page's first load, so under `<ClientRouter
-/>`'s client-side navigation, every page after the first would show an empty
-search box. If you replace that override with Starlight's default `Search`
-component while `<ClientRouter />` stays on, search breaks the same way
-again — silently, since the button still renders.
+(`src/components/CustomSearch.astro`) so search keeps working after
+client-side navigation. Don't swap it back for Starlight's default while
+`<ClientRouter />` is on — search breaks silently, with the button still
+rendering.
 :::
 
 ## llms.txt
 
 `starlight-llms-txt` generates `/llms.txt`, `/llms-full.txt`, and
 `/llms-small.txt` on every build — already wired into the `plugins` array,
-nothing to turn on. Both files need `site` (or `DOCS_SITE_URL`) set to emit
-correct absolute URLs; see [Site basics](/site-basics/).
+nothing to turn on. These files need `site` (or `DOCS_SITE_URL`) set to emit
+correct absolute URLs; see [Deploy](/deploy/).
 
 ```js
 starlightLlmsTxt({
