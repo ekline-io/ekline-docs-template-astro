@@ -60,7 +60,15 @@ Then get the plain static build back, or the site keeps shipping a server
 it no longer needs:
 
 1. In `astro.config.mjs`, remove the `adapter:` line, the `env:` block, the
-   two adapter imports, and the sitemap `filter`.
+   two adapter imports, the `ssoConfigured` line and its use in the
+   `sidebar` array, the three `DOCS_SSO_*` names from the `loadEnv`
+   destructure, and the sitemap `filter`.
+
+   :::caution
+   Keep the `loadEnv` call itself. It also supplies `DOCS_SITE_URL`, which
+   `site` uses — delete the whole block and the next build throws
+   `ReferenceError: DOCS_SITE_URL is not defined`.
+   :::
 2. Uninstall the adapters and the token library:
 
    ```bash
@@ -71,13 +79,26 @@ Skipping that second half leaves `dist/server/` in the build output with no
 `dist/index.html` at the root — which quietly breaks static-host deploy
 instructions that expect one.
 
+## Loose ends
+
+None of these break the build, but each is now dead weight or actively
+misleading:
+
+| File | What to do |
+| --- | --- |
+| `src/env.d.ts` | Drop the `App.Locals.session` type — it existed only for the middleware. |
+| `.env.example`, `.env.test` | Almost entirely `DOCS_SSO_*` and `DOCS_UNSAFE_DEMO_LOGIN`. Strip to what you still use, or delete. |
+| `src/content.config.ts` | The `glob` import is unused once the two collections go. |
+| `src/config/sidebar.mjs` | Its module docstring describes a private sidebar that no longer exists. |
+| `astro.config.mjs` | The long comments above the lines you removed explain a sitemap filter and an adapter split that are gone. |
+
 ## Removing both
 
 `npm run test:visual` and `playwright.config.mjs` have nothing left to test
 once both features are gone — their only two subjects are the API
-reference and the SSO round trip. Delete `playwright.config.mjs`, the
-`test:visual*` scripts, and the `@playwright/test` dependency too.
+reference and the SSO round trip. Delete `playwright.config.mjs`, `tests/visual/`,
+`tests/helpers/test-servers.mjs`, the three `test:visual*` scripts, and the
+`@playwright/test` dependency.
 
-Full removal instructions, in the template's own words, are in its
-[README, under *Don't need private
-docs?*](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/packages/template/README.md#dont-need-private-docs).
+These steps were executed end to end when EkLine built this documentation
+site from the template, and corrected from what that run actually hit.

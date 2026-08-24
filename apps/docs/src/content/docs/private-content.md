@@ -25,18 +25,22 @@ Replace this with a real guide.
 
 ## Naming an org folder
 
-The folder name is the org slug your product's token lists in its `orgs`
-claim, compared **exactly** — not lowercased, not slugified. Name folders
-in lowercase kebab-case and match them to the token's values verbatim:
+**Name org folders in lowercase kebab-case, and make your token's `orgs`
+values match exactly.**
 
-- `Acme Labs` and `acme-labs` are two different things in that comparison,
-  even though Astro's own content loader would otherwise treat them as the
-  same folder.
-- An org named `acme.co` in your token gets no section at all if the folder
-  is named anything else — silently, with no error, just a sidebar that
-  looks like the org has nothing in it.
+The two sides are normalised differently, which is the whole trap. Astro
+slugifies each folder name to build the URL; the value in your token is
+compared verbatim, with no normalisation at all. They only meet when the
+folder name is already slug-shaped:
 
-If an org's section is missing, this is the first thing to check.
+- `Acme Labs` and `acme-labs` both slugify to `acme-labs`, so two folders
+  named that way **merge into one org**.
+- An org named `acme.co` in your token gets **no section at all** — dots are
+  stripped, so the folder becomes `acmeco` and nothing matches. Renaming the
+  folder cannot fix it; the token value is what has a dot in it.
+
+Both fail silently: no error, just a sidebar that looks like the org has
+nothing in it. If an org's section is missing, check this first.
 
 `orgs/` is reserved inside `src/content/private-docs/` — it's the org-docs
 URL space, so content placed there is dropped from the collection rather

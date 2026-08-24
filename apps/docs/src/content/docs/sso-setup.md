@@ -37,7 +37,7 @@ app.get('/docs-sso', requireYourProductLogin, async (req, res) => {
 	const token = await new SignJWT({
 		email: req.user.email,
 		name: req.user.name,
-		orgs: [req.user.orgSlug], // folder names under src/content/org-docs/
+		orgs: [req.user.orgSlug], // must match the slugified folder names under src/content/org-docs/
 		state: req.query.state,
 	})
 		.setProtectedHeader({ alg: 'HS256' })
@@ -53,7 +53,7 @@ app.get('/docs-sso', requireYourProductLogin, async (req, res) => {
 });
 ```
 
-Three things about it are load-bearing:
+Five things about it are load-bearing:
 
 - **Honor `redirect_uri`.** It's the docs site telling you where its
   callback lives, and it moves with the deployment. Check it against an
@@ -62,6 +62,12 @@ Three things about it are load-bearing:
 - **Echo `state` back unchanged.** It binds the token to the browser that
   started the sign-in; the callback rejects a token whose `state` doesn't
   match.
+- **Sign with HS256, explicitly.** The callback pins the algorithm, so a
+  library that picks one for you will fail here — some choose HS512 from a
+  512-bit key, and the token is then rejected. In `jose` that is
+  `.setProtectedHeader({ alg: 'HS256' })`.
+- **Always set `sub`.** A token without a non-empty `sub` is rejected. It is
+  your product's user id, and it becomes the session's identity.
 - **Keep `exp` short.** The token travels in a URL, so five minutes, as
   above, is the mitigation. Nothing in the template caps it — that would
   mean overruling your own token policy.
