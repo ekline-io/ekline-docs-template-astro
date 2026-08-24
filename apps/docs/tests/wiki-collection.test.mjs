@@ -151,10 +151,15 @@ test('relative links in wiki files are rewritten to the repository', () => {
 		.map((entry) => join(STATIC_DIR, 'internals', entry.name, 'index.html'));
 	assert.ok(pages.length > 0, 'no internals pages were built');
 
+	// The whole document, not a slice of it. An earlier version of this test
+	// sliced out `<article>` — Starlight emits no such element, so `indexOf`
+	// returned -1, the slice was nonsense and the assertion passed with the
+	// rewrite disabled. A correctly rewritten page carries no `../` or `./`
+	// href anywhere (Starlight's own links are all site-absolute), so scanning
+	// everything is both simpler and stricter.
 	for (const page of pages) {
 		const html = readFileSync(page, 'utf8');
-		const article = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
-		const relative = [...article.matchAll(/href="(\.\.?\/[^"]*)"/g)].map((m) => m[1]);
+		const relative = [...html.matchAll(/href="(\.\.?\/[^"]*)"/g)].map((m) => m[1]);
 		assert.deepEqual(relative, [], `${page} still carries relative links`);
 	}
 });

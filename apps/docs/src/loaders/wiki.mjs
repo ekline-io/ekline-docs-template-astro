@@ -163,7 +163,7 @@ const REPO_BLOB = 'https://github.com/ekline-io/ekline-docs-template-astro/blob/
 export function rewriteRelativeLinks(markdown) {
 	// `wiki/` is one level below the template root, so `../x` means `<template>/x`
 	// and `./x` (or a bare sibling) means `<template>/wiki/x`.
-	return markdown.replace(/\]\((\.\.?\/[^)\s]+)\)/g, (whole, href) => {
+	return markdown.replace(/\]\((\.\.?\/[^)\s]+)\)/g, (_match, href) => {
 		const target = href.startsWith('../')
 			? href.slice(3)
 			: `wiki/${href.replace(/^\.\//, '')}`;
