@@ -6,6 +6,8 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 
 **Live preview:** <https://ekline-docs-template-astro.vercel.app/>
 
+**Full documentation:** every setting in this template, what it does, and what happens if you leave it alone — see the hosted docs site (link once deployed; the source is `apps/docs/` in the template's repository).
+
 The preview has the **demo login** enabled — click **Log in**, pick a persona,
 and see private and per-org docs work (try Acme's reader on Globex's section
 for the 404). It is the same template with `DOCS_UNSAFE_DEMO_LOGIN=1` set; see
@@ -158,6 +160,42 @@ folders differ from the shipped examples.
 Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md) — the constraints there are what keep private content out of the public build, and several of them are easy to undo by accident.
 
 ### Deploying somewhere private docs aren't configured?
+
+Nothing to do. A staging site, a public demo, a preview build, a fork that has
+not wired SSO yet — with the `DOCS_*` variables unset, the **Log in** control
+and the sidebar's **Private docs** entry are absent from the build entirely.
+
+That matters because the guard fails closed without those variables, so
+`/private/**` answers a bare 404 — correct, and exactly what would make an
+always-rendered link a dead one on every page. The routes and the guard are
+untouched either way; nothing becomes reachable.
+
+It is derived rather than configured: `astro.config.mjs` reads the variables
+through Vite's `loadEnv`, and the header asks `authConfigured()`. Both see a
+local `.env`, and both see variables exported by Vercel or CI, so local
+development and production agree without anything to remember.
+
+### Don't need private docs?
+
+Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/pages/private/`, `src/pages/auth/`, `src/pages/demo-login.astro`, `src/middleware.ts`, `src/config/auth.mjs`, `src/config/demo-login.mjs`, `src/lib/auth/`, `src/lib/demo-login.mjs`, `src/lib/private-sidebar.mjs`, `src/lib/sidebar-items.mjs` and `src/components/AuthControl.astro`. Then drop the `privateDocs` and `orgDocs` collections from `src/content.config.ts`, and the `privateDocsLink` entry from `src/config/sidebar.mjs` along with its conditional use in `astro.config.mjs`.
+
+**Three components still import what you just deleted**, and the build fails on the first `npm run build` if you stop here. Remove the `AuthControl` import and its `{authConfigured() && <AuthControl />}` render from `src/components/CustomHeader.astro` and `src/components/CustomMobileMenuFooter.astro`, and the hint-cookie import and its inline script from `src/components/CustomHead.astro`. If that leaves `CustomMobileMenuFooter.astro` doing nothing else, delete it and drop its `MobileMenuFooter` override from `astro.config.mjs` too. Their tests go too (`tests/auth-*.test.mjs`, `tests/demo-login.test.mjs`, `tests/private-leaks.test.mjs`, `tests/sidebar-items.test.mjs`, `tests/visual/auth.spec.mjs`, `tests/visual/demo-login.spec.mjs`, `tests/mock-sso/`), as do the `dev:sso` script in `package.json` and the mock-SSO `webServer` entry in `playwright.config.mjs`.
+
+**Then get the plain static build back**, or the site still ships a server it does not need. In `astro.config.mjs`, remove the `adapter:` line, the `env:` block, the two adapter imports, the `ssoConfigured` / `loadEnv` block at the top and its use in the `sidebar` array, and the sitemap `filter`; then uninstall `@astrojs/node`, `@astrojs/vercel` and `jose`. Skip this second half and the build keeps emitting a `dist/server/` bundle with no root `dist/index.html` — which silently breaks the deploy instructions below.
+
+**Loose ends the steps above leave behind.** None break the build, but all of them are now dead weight or actively misleading:
+
+- `src/env.d.ts` — the `App.Locals.session` type exists only for the middleware you just deleted.
+- `.env.example` and `.env.test` — almost entirely `DOCS_SSO_*` and `DOCS_UNSAFE_DEMO_LOGIN`. Strip them to what you still use, or delete them.
+- The `glob` import in `src/content.config.ts`, unused once the two collections go.
+- The module docstring in `src/config/sidebar.mjs`, which describes a private sidebar that no longer exists.
+- The long explanatory comments in `astro.config.mjs` above the lines you removed — several explain a sitemap filter and an adapter split that are no longer there.
+
+**If you are also removing the API reference**, the Playwright suite has nothing left to test: delete `playwright.config.mjs`, `tests/visual/`, `tests/helpers/test-servers.mjs`, and the three `test:visual*` scripts, then uninstall `@playwright/test`.
+
+*These instructions were executed end to end when EkLine built its own documentation site from this template, and corrected from what that run actually hit.*
+
+## Deploying somewhere private docs aren't configured?
 
 Nothing to do. A staging site, a public demo, a preview build, a fork that has
 not wired SSO yet — with the `DOCS_*` variables unset, the **Log in** control

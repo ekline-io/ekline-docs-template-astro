@@ -10,9 +10,15 @@
     "template:test:visual:ci": "npm --prefix packages/template run test:visual:ci",
     "template:dev": "npm --prefix packages/template run dev",
     "template:build": "npm --prefix packages/template run build",
-    "check": "npm run template:check",
-    "test": "npm run template:test",
-    "install:all": "npm --prefix packages/template ci"
+    "docs:check": "npm --prefix apps/docs run check",
+    "docs:test": "npm --prefix apps/docs test",
+    "docs:dev": "npm --prefix apps/docs run dev",
+    "docs:build": "npm --prefix apps/docs run build",
+    "check": "npm run template:check && npm run docs:check",
+    "test": "npm run template:test && npm run docs:test",
+    "install:all": "npm --prefix packages/template ci && npm --prefix apps/docs ci"
   },
-  "engines": { "node": "22.x" }
+  "engines": {
+    "node": "22.x"
+  }
 }

@@ -28,7 +28,7 @@ per-org docs work.
 | Path | What it is |
 | --- | --- |
 | [`packages/template/`](./packages/template) | The template EkLine ships. Self-contained: its own `package.json`, its own committed lockfile, its own `CLAUDE.md`. This is what the command above copies. |
-| `apps/` | Sites EkLine hosts, built with the template. Empty for now — the documentation site lands here. |
+| [`apps/docs/`](./apps/docs) | The hosted documentation for the template — how to configure it, what every setting does. Built with the template itself. |
 | `docs/superpowers/` | Design specs and implementation plans. Development history; never part of what a customer receives. |
 
 ## Working in this repo

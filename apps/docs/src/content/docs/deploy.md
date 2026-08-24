@@ -18,6 +18,18 @@ placeholder `https://example.com` URLs.
 | **Netlify, Cloudflare Pages** | Works, with their own adapter. | Swap the `adapter:` line in `astro.config.mjs` — one line, nothing else changes. |
 | **Static-only** (GitHub Pages, S3, anywhere with no adapter) | Cannot run. | Remove the logged-in tier first — see below. |
 
+:::danger[Never enable Vercel ISR]
+If you use the logged-in experience, leave `vercel()` called bare. Turning on
+ISR — `vercel({ isr: true })` — lets `/_isr?x_astro_path=/private/orgs/acme/`
+render any route while **bypassing Astro middleware entirely**, which is where
+this template's only access check lives
+([CVE-2026-73424](https://github.com/withastro/astro/security/advisories)).
+
+The template is not affected as shipped. There is no fixed release on the
+`@astrojs/vercel` 10.x line, so not enabling ISR *is* the mitigation. See
+[Private and per-org docs](/internals/private-docs/).
+:::
+
 ## Vercel
 
 Nothing to configure. Vercel's build sets `VERCEL=1`, which the template

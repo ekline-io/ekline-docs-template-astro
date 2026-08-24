@@ -102,3 +102,40 @@ jobs:
           name: playwright-report
           path: packages/template/playwright-report/
           retention-days: 7
+
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    # No browser step — the docs site has no Playwright suite, so this job is
+    # install, type-check and build. It exists as a separate job rather than
+    # extra steps on the one above because `defaults.run.working-directory`
+    # takes a single path, and each project here is independent with its own
+    # lockfile.
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: apps/docs
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+          cache: npm
+          # Action inputs are not covered by `defaults.run.working-directory`.
+          cache-dependency-path: apps/docs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      # `npm test` builds first, so this covers the build too — including the
+      # wiki collection, which reads `packages/template/wiki/` from outside
+      # this project's root. A checkout that somehow lacked the template would
+      # fail here rather than silently publishing an empty Internals section.
+      - name: Build and test
+        run: npm test
