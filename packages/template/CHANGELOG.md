@@ -8,6 +8,38 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.2.0
+
+### There is now hosted documentation
+
+<https://documentation-ekline-docs-template.vercel.app>
+
+Configuration guides for everything the template does — branding, navigation,
+API references and their two layout modes, the logged-in experience, and a
+reference section covering every environment variable and command. The
+constraints documents that ship in `wiki/` are published there too, under
+*Internals*, so you can read them without a checkout.
+
+The README is shorter as a result. What needed a browser is on the site now;
+what you need before you have one — the create command, the commands table,
+deployment essentials, and the full removal steps — stays in the README.
+
+### `robots.txt`
+
+Your build now emits one. It points crawlers at your sitemap and keeps them out
+of `/private/`, which spares them a walk that only ever returns redirects.
+
+It is generated from `site` rather than shipped as a static file, so it is
+correct wherever you deploy without you editing it — including preview
+deployments, and including a site built with a `base` path, where the
+disallowed prefix follows the base. Until you replace the `https://example.com`
+placeholder in `astro.config.mjs`, it deliberately advertises no sitemap at all
+rather than pointing crawlers at a domain you do not own.
+
+`Disallow` is not access control — `src/middleware.ts` is, and it answers a
+redirect or a 404 to anyone unauthenticated. Delete `src/pages/robots.txt.ts`
+if you would rather write your own.
+
 ## 2.1.0
 
 ### How you create a site from this template has changed

@@ -1,6 +1,5 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import { loadEnv } from 'vite';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import starlightContextualMenu from '@ekline/starlight-contextual-menu';
@@ -8,30 +7,21 @@ import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import { docsSidebarGroups } from './src/config/sidebar.mjs';
 
-// `loadEnv`, not `process.env`. Astro does not load `.env` files into
-// `process.env` by the time this file runs, so reading it directly reports
-// "unset" during local development — the one place `DOCS_SITE_URL` is easiest
-// to try. `loadEnv` reads the `.env` files *and* the real environment, so it
-// is right whether the value comes from a local `.env` or from Vercel/CI.
-const { DOCS_SITE_URL } = loadEnv(process.env.NODE_ENV ?? 'production', process.cwd(), '');
-
 // https://astro.build/config
 export default defineConfig({
-	// TODO: replace the `https://example.com` fallback below with your deployed
-	// site URL — the string only, leaving `DOCS_SITE_URL ||` in place — or set
-	// `DOCS_SITE_URL` in the build environment and leave this line alone. It
-	// comes from the same `loadEnv` above, so a local `.env` works too.
-	// Required for sitemap and llms-txt to emit absolute URLs.
+	// Hardcoded, unlike the template's, and deliberately so. The template makes
+	// this an env var because one build serves many customers' environments and
+	// its `site` ships as a placeholder each of them replaces. This site has one
+	// domain that EkLine owns, so the env var bought nothing and cost a silent
+	// failure: forget to set it on the Vercel project and every page ships a
+	// `<link rel="canonical">` pointing at a domain we do not own, telling search
+	// engines the real page lives elsewhere. That happened — the first production
+	// build emitted `https://example.com/` canonicals and sitemap entries.
 	//
-	// Replacing the whole expression with a bare string also works, but it
-	// silently stops `DOCS_SITE_URL` doing anything — which is how a preview
-	// deployment ends up emitting production URLs in its sitemap with no error
-	// to notice.
-	//
-	// `||`, not `??`: `loadEnv` returns `''` for a bare `DOCS_SITE_URL=`, and
-	// Astro rejects an empty `site` outright (its schema is `z.string().url()`).
-	// An empty assignment should mean "unset", not "fail the build".
-	site: DOCS_SITE_URL || 'https://example.com',
+	// In the repo it is reviewed and cannot be forgotten at deploy time. Preview
+	// deployments emit production canonicals, which is fine here: previews should
+	// not be indexed anyway.
+	site: 'https://documentation-ekline-docs-template.vercel.app',
 	integrations: [
 		sitemap(),
 		starlight({

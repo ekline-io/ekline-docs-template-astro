@@ -1,5 +1,7 @@
 # API reference
 
+> This is the maintainer-facing deep end: constraints for whoever edits the API-reference code next. For how to configure and customize the API reference as a customer, see the hosted docs' [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/) and [Customizing the API reference](https://documentation-ekline-docs-template.vercel.app/api-reference-appearance/) pages.
+
 API references are rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro).
 
 Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its slug, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.

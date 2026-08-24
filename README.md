@@ -23,12 +23,16 @@ EkLine's own sites along with it.
 demo login enabled, so you can sign in as a fake reader and see the private and
 per-org docs work.
 
+**Documentation:** <https://documentation-ekline-docs-template.vercel.app> —
+every setting in the template, what it does, and what happens if you leave it
+alone.
+
 ## What is in here
 
 | Path | What it is |
 | --- | --- |
 | [`packages/template/`](./packages/template) | The template EkLine ships. Self-contained: its own `package.json`, its own committed lockfile, its own `CLAUDE.md`. This is what the command above copies. |
-| [`apps/docs/`](./apps/docs) | The hosted documentation for the template — how to configure it, what every setting does. Built with the template itself. |
+| [`apps/docs/`](./apps/docs) | The hosted documentation for the template — how to configure it, what every setting does. Built with the template itself. Live at <https://documentation-ekline-docs-template.vercel.app>. |
 | `docs/superpowers/` | Design specs and implementation plans. Development history; never part of what a customer receives. |
 
 ## Working in this repo

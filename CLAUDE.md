@@ -5,7 +5,7 @@ This is a monorepo. It holds EkLine's docs-site template and, starting in Phase 
 ## Layout
 
 - **`packages/template/`** — the Starlight (Astro) documentation template EkLine ships to customers, via `npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template`. This is the product. It has its own [`CLAUDE.md`](packages/template/CLAUDE.md), which governs everything under that directory — read it before touching any code there.
-- **`apps/docs/`** — the hosted documentation for the template: how to configure it, what every setting does. Built with the template itself, and it renders `packages/template/wiki/` in place as its Internals section, so those files have one copy. Has its own `CLAUDE.md` covering the personas it is written for.
+- **`apps/docs/`** — the hosted documentation for the template: how to configure it, what every setting does. Live at <https://documentation-ekline-docs-template.vercel.app>. Built with the template itself, and it renders `packages/template/wiki/` in place as its Internals section, so those files have one copy. Has its own `CLAUDE.md` covering the personas it is written for.
 - **`docs/superpowers/`** — planning and design history for this repo's own development (specs, plans). It documents how this repo was built and never ships to a customer.
 - **`.github/`**, **`.claude/`**, **`.vscode/`** — repo-wide tooling: CI workflows, agent worktrees, editor settings.
 - **`LICENSE`** — this repo's own license. `packages/template/LICENSE` is a separate copy, since customers who extract that directory need one of their own.
