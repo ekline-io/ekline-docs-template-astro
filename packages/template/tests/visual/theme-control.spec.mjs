@@ -17,6 +17,10 @@
  *   - **Keyboard reaches every option.** Both layouts are a radio group, so
  *     arrow keys move through it. In the `menu` layout that is the only reason
  *     the third option is reachable at all without a mouse.
+ *   - **It does not leak.** The menu layout listens on `window`, which outlives
+ *     the element the swap replaces. Nothing else here would notice those
+ *     listeners piling up — the control keeps working perfectly while it fills
+ *     memory with the popovers of pages the reader has left.
  *
  * These follow `src/config/theme.mjs` rather than assuming a layout: the config
  * is a plain module with no Astro imports, so the suite can read the same value
@@ -96,19 +100,92 @@ test.describe('the theme control', () => {
 		expect(await checkedThemes(page)).toContain('light');
 	});
 
+	test('the control does not leak window listeners across navigations', async ({ page }) => {
+		test.skip(themeControl !== 'menu', 'Only the menu layout listens on window.');
+
+		await page.goto(PAGE);
+
+		// Wrap every window `scroll` listener registered from here on, so we can
+		// count how many actually fire. `AbortController.abort()` removes what was
+		// registered — the wrapper — so a listener that is properly torn down stops
+		// being counted. Counting registrations instead would prove nothing: the
+		// fix does not register fewer, it removes them again.
+		await page.evaluate(() => {
+			window.__fired = 0;
+			const original = window.addEventListener.bind(window);
+			window.addEventListener = function (type, listener, options) {
+				if (type !== 'scroll') return original(type, listener, options);
+				return original(
+					type,
+					(event) => {
+						window.__fired++;
+						return listener(event);
+					},
+					options
+				);
+			};
+		});
+
+		// Two client-side navigations. Each builds a fresh pair of controls; the
+		// pair it replaces must take its window listeners with it.
+		//
+		// Waits on the new page's own heading, not on a control count — the count
+		// is two before the navigation as well, so asserting it is satisfied the
+		// instant it is made and races the swap. That is not hypothetical: this
+		// test passed on retry against the unfixed component until the wait was
+		// made specific to the destination.
+		for (const [name, path] of [
+			['Quickstart', '/get-started/quickstart/'],
+			['Authentication', '/get-started/authentication/'],
+		]) {
+			await page.getByRole('link', { name, exact: true }).first().click();
+			await expect(page).toHaveURL(new RegExp(`${path}$`));
+			await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+		}
+
+		const { fired, live } = await page.evaluate(() => {
+			window.__fired = 0;
+			window.dispatchEvent(new Event('scroll'));
+			return {
+				fired: window.__fired,
+				live: document.querySelectorAll('ekline-theme-select').length,
+			};
+		});
+
+		// One handler per control that is actually on the page. Before the
+		// listeners moved to `connectedCallback`/`disconnectedCallback` this was
+		// two per navigation and grew without bound, each stale closure pinning a
+		// detached popover in memory and running on every scroll for the rest of
+		// the session.
+		expect(fired).toBe(live);
+	});
+
 	test('every option is reachable by keyboard', async ({ page }) => {
 		await page.goto(PAGE);
 		await choose(page, 'light');
 
 		// Reopen if there is a trigger: picking closes the menu, and the options
 		// are only focusable while it is open.
+		//
+		// Then wait for the control's own focus management rather than calling
+		// `focus()` and pressing keys straight away. A popover is `display: none`
+		// until it is shown, and `click()` resolves as soon as the click is
+		// dispatched — so focusing an option too early silently does nothing,
+		// focus stays on the trigger, and the first arrow press is swallowed.
+		// That race is why this test once reported Auto where it expected Dark.
 		const trigger = control(page).locator('.trigger');
-		if (await trigger.count()) await trigger.click();
+		const light = control(page).locator('input[value="light"]');
+
+		if (await trigger.count()) {
+			await trigger.click();
+			await expect(light).toBeFocused();
+		} else {
+			await light.focus();
+		}
 
 		// Arrow keys move through a radio group, checking as they go. Light · Auto
 		// · Dark, so two presses past Light is Dark — which is the option a
 		// keyboard reader cannot reach if arrow navigation ever breaks.
-		await control(page).locator('input[value="light"]').focus();
 		await page.keyboard.press('ArrowDown');
 		await page.keyboard.press('ArrowDown');
 

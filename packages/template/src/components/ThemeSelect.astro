@@ -202,6 +202,12 @@ const options = [
 	}
 
 	class EklineThemeSelect extends HTMLElement {
+		/** Repositions the open menu; null in the segmented layout, which has none. */
+		private reposition: (() => void) | null = null;
+
+		/** Aborts this element's *window* listeners when it leaves the document. */
+		private windowListeners: AbortController | null = null;
+
 		constructor() {
 			super();
 			syncControls(loadTheme());
@@ -301,13 +307,46 @@ const options = [
 
 			// `position: fixed` coordinates go stale the moment anything moves. The
 			// header is sticky so ordinary page scrolling does not move the trigger,
-			// but the mobile menu is its own scroll container and does. Capture
-			// phase, because those scrolls do not bubble.
-			const reposition = () => {
+			// but the mobile menu is its own scroll container and does.
+			//
+			// Held rather than registered here: these are the element's only
+			// listeners on something that outlives it, so they belong to the
+			// connected lifecycle below. See `connectedCallback`.
+			this.reposition = () => {
 				if (menu.matches(':popover-open')) place();
 			};
-			addEventListener('scroll', reposition, { capture: true, passive: true });
-			addEventListener('resize', reposition, { passive: true });
+		}
+
+		/**
+		 * Attach the window listeners, and take them away again on disconnect.
+		 *
+		 * Every other listener in this file is on the element or its own children,
+		 * so it is collected with the element. These two are on `window`, which
+		 * outlives it — and `<ClientRouter />` builds a fresh element on every
+		 * navigation, so registering them in the constructor leaked two listeners
+		 * per control per page, each one pinning that page's detached popover in
+		 * memory and running on every scroll event for the rest of the session.
+		 * Measured at 4 leaked listeners after two in-page navigations.
+		 *
+		 * `connectedCallback` can fire more than once for one element if it is
+		 * moved, so the previous controller is aborted before a new one replaces
+		 * it — re-attaching must not double the listeners either.
+		 */
+		connectedCallback(): void {
+			if (!this.reposition) return; // Segmented layout: no menu to reposition.
+
+			this.windowListeners?.abort();
+			const { signal } = (this.windowListeners = new AbortController());
+
+			// Capture phase, because scrolls inside the mobile menu's own scroll
+			// container do not bubble to `window`.
+			addEventListener('scroll', this.reposition, { capture: true, passive: true, signal });
+			addEventListener('resize', this.reposition, { passive: true, signal });
+		}
+
+		disconnectedCallback(): void {
+			this.windowListeners?.abort();
+			this.windowListeners = null;
 		}
 	}
 
