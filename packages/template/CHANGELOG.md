@@ -8,6 +8,56 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.3.0
+
+### A new light / dark control, and a config for it
+
+The header's theme control was Starlight's native `<select>` with its label
+collapsed away — an icon, a caret, and an operating-system dropdown no
+stylesheet could reach. It has been replaced.
+
+What you get by default is a trigger the same size as the old one, opening a
+popover the site actually themes: Light, Auto and Dark stacked, with a check on
+the current one. Two other shapes are one line away, in a new
+`src/config/theme.mjs`:
+
+```js
+export const themeControl = 'menu'; // 'menu' | 'segmented' | 'none'
+export const pinnedTheme = 'auto'; // 'light' | 'dark' | 'auto'
+```
+
+`'segmented'` puts all three choices on screen at once, in a pill with a
+sliding thumb: any theme in one click and the current one legible at rest, for
+about 92px of header width rather than 28.
+
+`'none'` takes the control out of the header and the mobile menu and pins the
+site to `pinnedTheme`. The pin beats a theme a reader chose earlier, so
+everyone sees the same site — and their old preference is ignored rather than
+erased, so turning the control back on hands it back to them.
+`pinnedTheme: 'auto'` is the middle option: no control, but the site still
+follows each reader's operating system.
+
+Readers who have chosen nothing still get Auto, and a reader who chose a theme
+on your site before this upgrade keeps it — the storage key and its convention
+are unchanged.
+
+### If you have customised the theme control
+
+- **`src/styles/global.css` lost a block.** The rules that collapsed
+  Starlight's `<select>` to an icon are gone, because the `<select>` is. If you
+  copied or extended them, they now target an element the template does not
+  render.
+- **Starlight's `ThemeProvider` is overridden too**, at
+  `src/components/ThemeProvider.astro`. It writes `data-theme` before first
+  paint as upstream does, and additionally enforces the pin and re-applies the
+  theme after every `<ClientRouter />` swap. Upstream survived those swaps only
+  because the theme control's custom element was rebuilt by them, which stops
+  being true once `themeControl` is `'none'`.
+
+Configuration guidance is on the hosted docs under
+[Branding and theming](https://documentation-ekline-docs-template.vercel.app/branding/);
+the mechanics are in `wiki/theming.md`.
+
 ## 2.2.0
 
 ### There is now hosted documentation
