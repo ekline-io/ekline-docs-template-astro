@@ -78,6 +78,41 @@ The homepage hero image is a placeholder too — `hero.image.file` in
 `src/content/docs/index.mdx`. Point it at your own asset, or delete the
 `image:` block for a text-only hero.
 
+## Light / dark switcher
+
+The header carries a control for Light, Auto and Dark. What it looks like —
+and whether readers get one at all — is two lines in `src/config/theme.mjs`:
+
+```js
+export const themeControl = 'menu'; // 'menu' | 'segmented' | 'none'
+export const pinnedTheme = 'auto'; // 'light' | 'dark' | 'auto'
+```
+
+`'menu'` is the default: one icon and a caret in the header, with Light, Auto
+and Dark in a popover on click. It costs about 28px. `'segmented'` spends
+about 92px instead and buys back the click — all three choices sit in a pill,
+so any theme is one click away and the current one is visible at rest. Reach
+for it when the header has room.
+
+A reader who has never chosen gets Auto, which follows their operating system.
+
+`'none'` removes the control from the header and the mobile menu, and pins the
+site to `pinnedTheme`:
+
+```js
+export const themeControl = 'none';
+export const pinnedTheme = 'dark'; // every reader, every page
+```
+
+The pin wins over a theme a reader chose before you set it, so the site looks
+the same to everyone. Their old preference is remembered rather than erased —
+switch the control back on and they get it back. `pinnedTheme: 'auto'` is the
+middle option: no control, but the site still follows each reader's operating
+system.
+
+Whichever you pick, the API reference follows along — Scalar is bridged to the
+same theme, so the two never disagree.
+
 ## Custom CSS
 
 Anything beyond a design token goes in the same file, inside a Tailwind

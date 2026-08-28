@@ -45,6 +45,28 @@ declare module 'virtual:starlight/components/ThemeSelect' {
 	export default ThemeSelect;
 }
 
+/**
+ * The theme applier, defined by `src/components/ThemeProvider.astro` as an
+ * inline script in <head> so it runs before first paint.
+ *
+ * `src/components/ThemeSelect.astro` calls it after storing a choice: the
+ * select owns what the reader picked, the provider owns what the document
+ * shows. Optional because a customer can override `ThemeProvider` back to
+ * Starlight's, which defines `StarlightThemeProvider` instead.
+ */
+interface Window {
+	EkTheme?: {
+		/** Re-read the preference (or the pin) and write `html[data-theme]`. */
+		apply(): void;
+		/** `'light' | 'dark' | 'auto'` — what the site is honouring. */
+		preference(): string;
+		/** The `localStorage` key the preference is stored at. */
+		storageKey: string;
+		/** The pinned theme, or `null` when the reader chooses. */
+		forced: string | null;
+	};
+}
+
 declare module 'virtual:starlight/pagefind-config' {
 	export const pagefindUserConfig: Partial<
 		Extract<import('@astrojs/starlight/types').StarlightConfig['pagefind'], object>
