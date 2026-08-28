@@ -107,7 +107,7 @@ Scalar is MIT licensed. That requires the copyright notice to travel with the so
 
 ### What runs automatically
 
-The template repository's `.github/workflows/ci.yml` (at the monorepo root, so not part of your copy) runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so a failure there also blocks the deploy.
+Nothing, until you wire it up — no CI configuration ships with your copy. The template's own [CI workflow](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/.github/workflows/ci.yml) runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`; that file lives at the template repository's root, so it did not travel with the directory. It is a reasonable set to copy. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so once you deploy there, a failure blocks the deploy.
 
 The browser tests matter most. Every integration bug this reference has had — a blank reference after client-side navigation, white seams in dark mode, the API client rendering underneath the sidebar, method badges coming out white-on-white — produced a page that **built perfectly**. `npm test` reads build output and cannot see paint order, theme classes, or scroll behaviour. Only the browser suite can.
 

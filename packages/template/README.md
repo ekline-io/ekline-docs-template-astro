@@ -36,19 +36,28 @@ So you don't have to set these up yourself:
 
 1. Create your site from the template:
    ```bash
-   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
    ```
    Not the GitHub **"Use this template"** button: this template lives in a
    subdirectory of a monorepo, so the button would hand you the whole
    repository — the docs site, the build tooling and all — rather than the
    template. The command above fetches exactly `packages/template/`, lockfile
    included.
+
+   Keep the `--no-ai` flag. Without it `create-astro` writes a generic
+   `AGENTS.md` that points coding assistants at general Astro documentation,
+   which contradicts the Starlight rules this template puts in `CLAUDE.md` —
+   and those rules are what stop an assistant configuring Starlight from
+   memory instead of from its current docs.
 2. Install dependencies:
    ```bash
    cd <your-project>
    npm install
    ```
-3. Start the dev server:
+3. Name the package. `create-astro` sets `name` in `package.json` to whatever
+   you called the directory, so change it to your project if that isn't what
+   you want.
+4. Start the dev server:
    ```bash
    npm run dev
    ```
@@ -57,6 +66,15 @@ Put it under version control whenever you like — the command leaves you a plai
 directory, not a clone, so its history is yours from the first commit.
 
 The site is live at <http://localhost:4321/> with hot reload.
+
+Setting this up from a script, or handing it to a coding agent? Step 1 prompts
+by default. This form does not:
+
+```bash
+npm create astro@latest -- \
+  --template ekline-io/ekline-docs-template-astro/packages/template my-docs \
+  --no-install --no-git --skip-houston --no-ai --yes
+```
 
 ## Customize it
 

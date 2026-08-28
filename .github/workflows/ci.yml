@@ -47,6 +47,17 @@ jobs:
           # the cache needs the lockfile's path spelled out.
           cache-dependency-path: packages/template/package-lock.json
 
+      # Runs at the repo root, not in the template, and needs no dependencies —
+      # it is plain Node over the markdown under packages/template/. Placed
+      # before the install so a docs-only regression reports in seconds.
+      #
+      # It catches prose that describes this monorepo to a reader who does not
+      # have it: a link into apps/, a workflow path under .github/. Those all
+      # resolve here and break in a customer's copy, where nothing fails loudly.
+      - name: Check what ships to customers
+        working-directory: .
+        run: npm run check:shipped
+
       - name: Install dependencies
         run: npm ci
 
