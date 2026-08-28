@@ -193,6 +193,17 @@ export default defineConfig({
 				// upstream component only initializes on `DOMContentLoaded`,
 				// which doesn't fire on subsequent <ClientRouter /> navigations.
 				Search: './src/components/CustomSearch.astro',
+				// Replaces Starlight's native <select> with the light/dark control
+				// configured in `src/config/theme.mjs` — a popover menu by default,
+				// a segmented pill, or nothing at all. It owns the theme logic that
+				// used to live in upstream's component: read that file, and the
+				// config, before changing either.
+				ThemeSelect: './src/components/ThemeSelect.astro',
+				// Applies the theme before first paint, and enforces the pinned
+				// theme when `src/config/theme.mjs` hides the control. Overriding
+				// this is also what re-applies `data-theme` after a view transition
+				// once there is no control on the page to do it.
+				ThemeProvider: './src/components/ThemeProvider.astro',
 			},
 			plugins: [
 				// Adds a "Copy / View / Open in Claude / Open in ChatGPT" dropdown to

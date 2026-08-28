@@ -53,11 +53,25 @@ async function waitForReference(page, title) {
 /**
  * Drive the site's own theme control, the way a reader would.
  *
- * Starlight renders the control twice — once in the header, once inside the
- * mobile menu — so the selector has to pick one rather than fail strict mode.
+ * The control is rendered twice — once in the header, once inside the mobile
+ * menu — so the selector has to pick one rather than fail strict mode. Every
+ * caller is desktop-only, where `.first()` is the header instance; the mobile
+ * one is inside a `md:sl-hidden` wrapper and would not be clickable.
+ *
+ * Layout-agnostic on purpose. `src/config/theme.mjs` decides whether the three
+ * options are always on screen (`segmented`) or behind a trigger (`menu`), and
+ * a helper that assumed one would break the API reference suite over a change
+ * that has nothing to do with the API reference.
+ *
+ * Clicks the option's label rather than checking its radio directly: the radio
+ * is transparent and covers the row, so this is the same event sequence a
+ * reader produces, and it fails if the control stops being clickable at all.
  */
 async function setTheme(page, theme) {
-	await page.locator('starlight-theme-select select').first().selectOption(theme);
+	const control = page.locator('ekline-theme-select').first();
+	const trigger = control.locator('.trigger');
+	if (await trigger.count()) await trigger.click();
+	await control.locator(`label[data-theme-option="${theme}"]`).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 	// The theme bridge rewrites Scalar's classes on the next frame.
 	await page.waitForFunction((t) => document.body.classList.contains(`${t}-mode`), theme);

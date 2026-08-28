@@ -1,0 +1,606 @@
+---
+/**
+ * Starlight ThemeSelect override — a segmented control or a popover menu,
+ * instead of a native dropdown.
+ *
+ * Upstream renders a native `<select>`. It works, but it reads as a form field
+ * in a header full of links and icons, and its open state is an OS-drawn popup
+ * this site cannot theme. Both layouts here replace that.
+ *
+ * Which one renders — and whether anything renders at all — comes from
+ * `src/config/theme.mjs`. Edit that, not this.
+ *
+ *   - **`segmented`** — all three choices visible in a pill with a sliding
+ *     thumb. One click to any theme, current state legible at rest, ~90px wide.
+ *   - **`menu`** — one icon and a caret, the three choices stacked in a popover
+ *     on click. A third of the width, one extra click.
+ *   - **`none`** — nothing rendered. `ThemeProvider.astro` pins the theme.
+ *
+ * The two layouts are one control with two skins, not two components: the same
+ * fieldset of radios, the same `change` handler, the same selectors. That is
+ * deliberate — the alternative is two implementations of the same behaviour,
+ * one of which is always the less tested.
+ *
+ * The order is Light · Auto · Dark, not upstream's Dark / Light / Auto. Auto
+ * sits in the middle because that is what it *is* — whichever of the two poles
+ * the operating system is currently reporting. In the segmented layout the
+ * thumb's travel then means something rather than being alphabetical accident.
+ *
+ * ## What this file owns, and what it does not
+ *
+ * The reader's **choice**: reading it, storing it, and keeping every control on
+ * the page agreed about it. Applying a theme to the document belongs to
+ * `ThemeProvider.astro` (`window.EkTheme`), which also owns the pinned case
+ * where this file renders nothing at all. Splitting it that way is what makes a
+ * pin a real pin instead of a default this control could wander away from.
+ *
+ * `localStorage['starlight-theme']` keeps upstream's key and convention — `''`
+ * for auto — because the provider reads it before first paint and because a
+ * reader upgrading to this template should keep the theme they chose.
+ *
+ * Rendered twice per page: once in `CustomHeader.astro`, once inside the
+ * mobile menu via Starlight's own `MobileMenuFooter`. They are kept in sync by
+ * `syncControls`, which updates every instance in the document, not just the
+ * one clicked.
+ */
+import { Icon } from '@astrojs/starlight/components';
+import { themeControl } from '../config/theme.mjs';
+
+const t = Astro.locals.t;
+const isMenu = themeControl === 'menu';
+
+/* Radio groups are keyed by `name` across the whole document, so the header and
+ * mobile-menu instances need different ones — sharing a name would merge them
+ * into a single six-radio group and let arrow keys walk from one control into
+ * the other. Random rather than a counter: Astro renders components in
+ * isolation, so a module-level counter is not reliably shared between them. */
+const group = `ek-theme-${crypto.randomUUID().slice(0, 8)}`;
+const menuId = `${group}-menu`;
+
+const options = [
+	{ value: 'light', icon: 'sun', label: t('themeSelect.light') },
+	{ value: 'auto', icon: 'laptop', label: t('themeSelect.auto') },
+	{ value: 'dark', icon: 'moon', label: t('themeSelect.dark') },
+] as const;
+---
+
+{
+	themeControl !== 'none' && (
+		<ekline-theme-select data-layout={themeControl}>
+			{isMenu && (
+				<button
+					type="button"
+					class="trigger"
+					popovertarget={menuId}
+					aria-controls={menuId}
+					aria-expanded="false"
+				>
+					<span class="sr-only">{t('themeSelect.accessibleLabel')}</span>
+					{/* All three ship; CSS shows the one matching the checked radio.
+					    Swapping the glyph in JS instead would leave the trigger
+					    showing the wrong theme until scripts run. */}
+					{/* Wrapped in a span because Starlight's `Icon` forwards only `class`
+					    — a `data-` attribute passed to it is silently dropped, and the
+					    CSS below would then have nothing to key off. */}
+					{options.map(({ value, icon }) => (
+						<span class="trigger-icon" data-theme-icon={value}>
+							<Icon name={icon} />
+						</span>
+					))}
+					<Icon name="down-caret" class="trigger-caret" />
+				</button>
+			)}
+
+			{/* One wrapper for both layouts: a popover in `menu`, `display: contents`
+			    in `segmented`. `popover` puts the menu in the top layer, which is the
+			    only way it escapes the mobile menu's scroll container — and brings
+			    light-dismiss and Escape with it. */}
+			<div class="surface" id={isMenu ? menuId : undefined} popover={isMenu ? 'auto' : undefined}>
+				{/* A fieldset/legend pair, so the group is announced with its purpose
+				    before the three options — the role a `<select>`'s own label used
+				    to play. */}
+				<fieldset class="theme-select">
+					<legend class="sr-only">{t('themeSelect.accessibleLabel')}</legend>
+					<div class="track">
+						{/* Decorative: the checked segment is what conveys state to
+						    assistive technology, and the thumb would only repeat it. */}
+						<span class="thumb" aria-hidden="true" />
+						{options.map(({ value, icon, label }) => (
+							<label class="option" data-theme-option={value}>
+								{/* Real radios, not buttons: arrow-key navigation, group
+								    semantics and the checked state all come for free, and
+								    `:has(:checked)` below can drive both layouts with no JS. */}
+								<input
+									type="radio"
+									name={group}
+									value={value}
+									checked={value === 'auto'}
+									autocomplete="off"
+								/>
+								<Icon name={icon} class="option-icon" />
+								<span class:list={['option-label', !isMenu && 'sr-only']}>{label}</span>
+								{isMenu && (
+									<svg class="option-check" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+										<path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+									</svg>
+								)}
+							</label>
+						))}
+					</div>
+				</fieldset>
+			</div>
+		</ekline-theme-select>
+	)
+}
+
+{
+	/* Inlined, and immediately after the markup, so the correct option is checked
+	   during parse. The module script below is deferred: without this, a reader
+	   who chose Dark would see the segmented thumb painted under Auto and slide
+	   across on load, or the menu trigger show the wrong glyph. */
+	themeControl !== 'none' && (
+		<script is:inline>
+			{/* Wrapped in an IIFE deliberately. Classic inline scripts share global
+			    scope, so a bare `const theme` here would collide with any other
+			    inline snippet a customer adds — and the resulting parse error would
+			    take this whole script with it, restoring the flash it prevents. */}
+			(() => {
+				const stored =
+					typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+				const theme = stored === 'light' || stored === 'dark' ? stored : 'auto';
+				document
+					.querySelectorAll(`ekline-theme-select input[value="${theme}"]`)
+					.forEach((input) => {
+						input.checked = true;
+					});
+			})();
+		</script>
+	)
+}
+
+<script>
+	type Theme = 'auto' | 'dark' | 'light';
+
+	/** Key in `localStorage` to store colour theme preference at. Shared with
+	 *  `ThemeProvider.astro`, which reads it before first paint. */
+	const storageKey = 'starlight-theme';
+
+	/** Get a typesafe theme string from any JS value (unknown values become `'auto'`). */
+	const parseTheme = (theme: unknown): Theme =>
+		theme === 'auto' || theme === 'dark' || theme === 'light' ? theme : 'auto';
+
+	/** Load the reader's stored choice. */
+	const loadTheme = (): Theme =>
+		parseTheme(typeof localStorage !== 'undefined' && localStorage.getItem(storageKey));
+
+	/** Store the reader's choice. Auto is stored as `''` — upstream's convention,
+	 *  which `ThemeProvider.astro`'s pre-paint script expects, so it falls through
+	 *  to the system preference rather than pinning a colour. */
+	function storeTheme(theme: Theme): void {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(storageKey, theme === 'light' || theme === 'dark' ? theme : '');
+		}
+	}
+
+	/** Point every control on the page at `theme`. Both layouts and both
+	 *  instances read their whole appearance off the checked radio, so this is
+	 *  the only sync they need. */
+	function syncControls(theme: Theme): void {
+		document
+			.querySelectorAll<HTMLInputElement>(`ekline-theme-select input[value="${theme}"]`)
+			.forEach((input) => {
+				input.checked = true;
+			});
+	}
+
+	/** Applying a theme belongs to `ThemeProvider.astro`. It is an inline script
+	 *  in <head>, so it has always run by the time this deferred module does —
+	 *  but guard anyway: a customer who overrides `ThemeProvider` back to
+	 *  Starlight's should get a control that still stores choices, not a
+	 *  TypeError that takes the rest of this script with it. */
+	function applyTheme(): void {
+		window.EkTheme?.apply();
+	}
+
+	class EklineThemeSelect extends HTMLElement {
+		/** Repositions the open menu; null in the segmented layout, which has none. */
+		private reposition: (() => void) | null = null;
+
+		/** Aborts this element's *window* listeners when it leaves the document. */
+		private windowListeners: AbortController | null = null;
+
+		constructor() {
+			super();
+			syncControls(loadTheme());
+
+			this.addEventListener('change', (event) => {
+				if (!(event.target instanceof HTMLInputElement)) return;
+				const theme = parseTheme(event.target.value);
+				storeTheme(theme);
+				syncControls(theme);
+				applyTheme();
+			});
+
+			// Closing the menu is bound to *pointer* activation, and the `detail`
+			// check is what makes that true. Moving through a radio group with the
+			// arrow keys checks each option as it goes and fires a synthetic `click`
+			// on it — so a plain `click` listener (or a `change` one) dismisses the
+			// menu on the first Down press and leaves a keyboard reader unable to
+			// reach the third option at all. Activation behaviour gives those
+			// synthetic clicks `detail: 0`; a real press gives at least 1.
+			//
+			// The result is the behaviour each input deserves: a click picks and
+			// closes, arrows preview each theme live, and Enter or Escape dismisses.
+			this.addEventListener('click', (event) => {
+				const target = event.target;
+				if (event.detail > 0 && target instanceof Element && target.closest('.option')) {
+					// The popover API returns focus to the trigger for us.
+					this.menu?.hidePopover();
+				}
+			});
+
+			// Enter is the keyboard's "I'm done here". Escape already closes the
+			// popover natively, but that reads as cancelling rather than confirming,
+			// and the choice has been applied either way.
+			this.addEventListener('keydown', (event) => {
+				if (event.key === 'Enter') this.menu?.hidePopover();
+			});
+
+			if (this.dataset.layout === 'menu') this.wireMenu();
+		}
+
+		get menu(): HTMLElement | null {
+			return this.querySelector<HTMLElement>('[popover]');
+		}
+
+		/** Anchor the popover to its trigger, and keep the trigger's ARIA honest. */
+		wireMenu(): void {
+			const trigger = this.querySelector<HTMLButtonElement>('.trigger');
+			const menu = this.menu;
+			if (!trigger || !menu) return;
+
+			// Positioned in script rather than with CSS anchor positioning, which is
+			// not yet available in every browser this template supports.
+			//
+			// The inline axis needs no measurement: aligning the menu's inline-end
+			// edge to the trigger's is a `translateX(-100%)`, and the trigger's
+			// position is known. The block axis does need the menu's height, to flip
+			// above the trigger when there is no room below — which is the normal
+			// case in the mobile menu, where this control sits at the bottom of the
+			// screen. A closed popover is `display: none` and measures zero, so the
+			// height is cached from the previous open and the first open is covered
+			// by `data-placing` below.
+			const GAP = 8;
+			let height = 0;
+
+			const place = () => {
+				const rect = trigger.getBoundingClientRect();
+				const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+				height = menu.offsetHeight || height;
+
+				let top = rect.bottom + GAP;
+				if (height && top + height > innerHeight - GAP) {
+					top = Math.max(GAP, rect.top - GAP - height);
+				}
+
+				menu.style.top = `${top}px`;
+				menu.style.left = `${rtl ? rect.left : rect.right}px`;
+				menu.style.transform = rtl ? 'none' : 'translateX(-100%)';
+			};
+
+			menu.addEventListener('beforetoggle', (event) => {
+				if ((event as ToggleEvent).newState !== 'open') return;
+				// Hidden until the post-show pass has real measurements, so a menu
+				// that needs to flip is never painted below the trigger first.
+				menu.dataset.placing = '';
+				place();
+			});
+
+			menu.addEventListener('toggle', (event) => {
+				const open = (event as ToggleEvent).newState === 'open';
+				trigger.setAttribute('aria-expanded', String(open));
+				if (!open) return;
+				place();
+				delete menu.dataset.placing;
+				// Focus the current choice so arrow keys work the moment it opens.
+				menu.querySelector<HTMLInputElement>('input:checked')?.focus();
+			});
+
+			// `position: fixed` coordinates go stale the moment anything moves. The
+			// header is sticky so ordinary page scrolling does not move the trigger,
+			// but the mobile menu is its own scroll container and does.
+			//
+			// Held rather than registered here: these are the element's only
+			// listeners on something that outlives it, so they belong to the
+			// connected lifecycle below. See `connectedCallback`.
+			this.reposition = () => {
+				if (menu.matches(':popover-open')) place();
+			};
+		}
+
+		/**
+		 * Attach the window listeners, and take them away again on disconnect.
+		 *
+		 * Every other listener in this file is on the element or its own children,
+		 * so it is collected with the element. These two are on `window`, which
+		 * outlives it — and `<ClientRouter />` builds a fresh element on every
+		 * navigation, so registering them in the constructor leaked two listeners
+		 * per control per page, each one pinning that page's detached popover in
+		 * memory and running on every scroll event for the rest of the session.
+		 * Measured at 4 leaked listeners after two in-page navigations.
+		 *
+		 * `connectedCallback` can fire more than once for one element if it is
+		 * moved, so the previous controller is aborted before a new one replaces
+		 * it — re-attaching must not double the listeners either.
+		 */
+		connectedCallback(): void {
+			if (!this.reposition) return; // Segmented layout: no menu to reposition.
+
+			this.windowListeners?.abort();
+			const { signal } = (this.windowListeners = new AbortController());
+
+			// Capture phase, because scrolls inside the mobile menu's own scroll
+			// container do not bubble to `window`.
+			addEventListener('scroll', this.reposition, { capture: true, passive: true, signal });
+			addEventListener('resize', this.reposition, { passive: true, signal });
+		}
+
+		disconnectedCallback(): void {
+			this.windowListeners?.abort();
+			this.windowListeners = null;
+		}
+	}
+
+	customElements.define('ekline-theme-select', EklineThemeSelect);
+</script>
+
+<style>
+	@layer starlight.components {
+		ekline-theme-select {
+			/* One segment's box. The segmented layout's geometry is derived from it,
+			 * so the whole control resizes from this line. */
+			--ek-segment: 1.75rem;
+			--ek-track-padding: 0.1875rem;
+
+			/* Dark theme. The header sits on `--sl-color-gray-6`, so a groove has to
+			 * go *below* that (`black`) and anything raised *above* it (`gray-5`).
+			 * Using `gray-6` for the track — the obvious guess — paints it exactly
+			 * the colour of the header and the whole control disappears.
+			 *
+			 * Named props rather than values inline because light mode inverts which
+			 * token means "lower" and which means "higher": no single Starlight
+			 * token is one step down from the nav surface in both themes. */
+			--ek-track-bg: var(--sl-color-black);
+			--ek-raised-bg: var(--sl-color-gray-5);
+			--ek-raised-border: var(--sl-color-gray-4);
+			--ek-hover-bg: var(--sl-color-gray-5);
+
+			display: flex;
+			align-items: center;
+		}
+
+		/* Light theme: the nav is `gray-7` (97% lightness), so one step down is
+		 * `gray-6` (94%) and anything raised is the page background — plain white.
+		 * Not `--sl-color-white`, which in this theme resolves to near *black*: it
+		 * names the highest-contrast text colour, not the hue. */
+		:global(:root[data-theme='light']) ekline-theme-select {
+			--ek-track-bg: var(--sl-color-gray-6);
+			--ek-raised-bg: var(--sl-color-bg);
+			--ek-raised-border: var(--sl-color-gray-5);
+			--ek-hover-bg: var(--sl-color-gray-6);
+		}
+
+		.theme-select {
+			border: 0;
+			padding: 0;
+			margin: 0;
+			min-inline-size: 0; /* Fieldsets default to `min-content`; this sets its own. */
+			display: flex;
+		}
+
+		.option {
+			position: relative; /* Above the thumb, which shares the same stacking context. */
+			display: flex;
+			align-items: center;
+			border-radius: 999rem;
+			cursor: pointer;
+			color: var(--sl-color-gray-3);
+			transition: color 150ms ease;
+		}
+
+		/* Clipped by `opacity`, not `display: none` — the radios stay focusable, so
+		 * arrow keys still move through the group. */
+		.option input {
+			position: absolute;
+			inset-block-start: 0;
+			inset-inline-start: 0;
+			inline-size: 100%;
+			block-size: 100%;
+			margin: 0;
+			opacity: 0;
+			cursor: pointer;
+			appearance: none;
+		}
+
+		.option-icon {
+			font-size: 0.875rem;
+			pointer-events: none;
+			flex-shrink: 0;
+		}
+
+		.option:hover,
+		.option:has(:checked) {
+			color: var(--sl-color-white);
+		}
+
+		/* Keyboard focus only. A pointer user has already seen what they clicked;
+		 * a ring on every click would just be noise. */
+		.option:has(:focus-visible) {
+			outline: 2px solid var(--sl-color-text-accent);
+			outline-offset: 2px;
+		}
+
+		/* ── Segmented layout ──────────────────────────────────────────────── */
+
+		[data-layout='segmented'] .surface {
+			display: contents;
+		}
+
+		[data-layout='segmented'] .track {
+			position: relative;
+			display: grid;
+			grid-template-columns: repeat(3, var(--ek-segment));
+			padding: var(--ek-track-padding);
+			border-radius: 999rem;
+			background-color: var(--ek-track-bg);
+			/* One hairline step from the groove in both themes — `gray-5` is 23%
+			 * lightness in dark (a rim above a 10% track) and 77% in light (a rim
+			 * below a 94% one). Without it the light-mode pill is 94% on a 97% nav
+			 * and the control reads as three loose icons rather than one switch. */
+			border: 1px solid var(--sl-color-gray-5);
+			/* Auto is the middle segment and the default, so it is also the fallback
+			 * position — the thumb is never unplaced, including before scripts run. */
+			--ek-index: 1;
+		}
+
+		[data-layout='segmented'] .track:has(input[value='light']:checked) {
+			--ek-index: 0;
+		}
+
+		[data-layout='segmented'] .track:has(input[value='dark']:checked) {
+			--ek-index: 2;
+		}
+
+		[data-layout='segmented'] .thumb {
+			position: absolute;
+			inset-block: var(--ek-track-padding);
+			inline-size: var(--ek-segment);
+			border-radius: 999rem;
+			background-color: var(--ek-raised-bg);
+			/* The only shadow in the header. That is where this control spends its
+			 * one bit of boldness: a physical switch among flat links. Starlight's
+			 * own token, so it stays weighted correctly per theme. */
+			box-shadow: var(--sl-shadow-sm);
+			/* `left` via a logical property, not `translateX`: correct under RTL with
+			 * no second rule, and the travel is 28px — far too small for the
+			 * compositing win from transforms to matter. */
+			inset-inline-start: calc(var(--ek-track-padding) + var(--ek-index) * var(--ek-segment));
+			transition: inset-inline-start 220ms cubic-bezier(0.32, 0.72, 0, 1);
+		}
+
+		[data-layout='segmented'] .option {
+			justify-content: center;
+			block-size: 1.5rem;
+		}
+
+		/* ── Menu layout ───────────────────────────────────────────────────── */
+
+		.trigger {
+			display: flex;
+			align-items: center;
+			gap: 0.125rem;
+			padding: 0.3125rem 0.25rem 0.3125rem 0.4375rem;
+			border: 0;
+			border-radius: 0.375rem;
+			background-color: transparent;
+			color: var(--sl-color-gray-2);
+			cursor: pointer;
+			line-height: 0;
+		}
+
+		.trigger:hover,
+		[data-layout='menu']:has([popover]:popover-open) .trigger {
+			color: var(--sl-color-white);
+			background-color: var(--ek-hover-bg);
+		}
+
+		.trigger:focus-visible {
+			outline: 2px solid var(--sl-color-text-accent);
+			outline-offset: 2px;
+		}
+
+		.trigger-icon {
+			display: none;
+			font-size: 0.875rem;
+			line-height: 0;
+		}
+
+		ekline-theme-select:has(input[value='light']:checked) .trigger-icon[data-theme-icon='light'],
+		ekline-theme-select:has(input[value='auto']:checked) .trigger-icon[data-theme-icon='auto'],
+		ekline-theme-select:has(input[value='dark']:checked) .trigger-icon[data-theme-icon='dark'] {
+			display: block;
+		}
+
+		.trigger-caret {
+			font-size: 0.9375rem;
+			opacity: 0.6;
+		}
+
+		.surface[popover] {
+			position: fixed;
+			inset: auto; /* The script sets `top` / `left`; without this the UA centres it. */
+			margin: 0;
+			padding: 0.25rem;
+			min-inline-size: 9rem;
+			/* Its own rim rather than the track's: in dark mode the popover's fill
+			 * *is* `gray-5`, so reusing that border would be invisible. */
+			border: 1px solid var(--ek-raised-border);
+			border-radius: 0.625rem;
+			background-color: var(--ek-raised-bg);
+			box-shadow: var(--sl-shadow-md);
+			color: var(--sl-color-gray-2);
+		}
+
+		/* Set between "shown" and "measured and placed" — one frame, and only on
+		 * the first open, after which the height is cached. `visibility` rather
+		 * than `display`, because the menu has to be laid out to be measured. */
+		.surface[popover][data-placing] {
+			visibility: hidden;
+		}
+
+		[data-layout='menu'] .track {
+			display: grid;
+			gap: 0.0625rem;
+			inline-size: 100%;
+		}
+
+		/* The thumb is the segmented layout's signature. A menu says the same thing
+		 * with a check mark, and a sliding highlight here would only be mistaken
+		 * for a hover state. */
+		[data-layout='menu'] .thumb {
+			display: none;
+		}
+
+		[data-layout='menu'] .option {
+			gap: 0.5rem;
+			padding: 0.375rem 0.5rem;
+			border-radius: 0.375rem;
+			font-size: var(--sl-text-sm);
+			white-space: nowrap;
+		}
+
+		[data-layout='menu'] .option:hover {
+			background-color: var(--ek-hover-bg);
+		}
+
+		.option-check {
+			inline-size: 0.875em;
+			block-size: 0.875em;
+			margin-inline-start: auto;
+			opacity: 0;
+			flex-shrink: 0;
+		}
+
+		.option:has(:checked) .option-check {
+			opacity: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		@layer starlight.components {
+			[data-layout='segmented'] .thumb {
+				transition: none;
+			}
+		}
+	}
+</style>

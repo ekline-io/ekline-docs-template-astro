@@ -65,6 +65,62 @@ Starlight exposes a long list of `--sl-*` variables for things like sidebar widt
 }
 ```
 
+## The light / dark / auto control
+
+The control in the header is not Starlight's. Upstream renders a native
+`<select>`; this template replaces it in `src/components/ThemeSelect.astro`,
+because a `<select>` reads as a form field in a header full of links and its
+open state is an OS-drawn popup no stylesheet can reach.
+
+Which control renders is one line in `src/config/theme.mjs`:
+
+```js
+export const themeControl = 'menu'; // 'menu' | 'segmented' | 'none'
+export const pinnedTheme = 'auto'; // 'light' | 'dark' | 'auto'
+```
+
+| Value | What readers get | Header width |
+| --- | --- | --- |
+| `'menu'` (default) | One icon and a caret; the three choices open in a popover. | ~28px |
+| `'segmented'` | All three choices in a pill with a sliding thumb. One click to any theme, current one legible at rest. | ~92px |
+| `'none'` | No control at all. The site is pinned to `pinnedTheme`. | none |
+
+Readers who have never chosen get Auto either way — the site follows their
+operating system until they say otherwise.
+
+`pinnedTheme` is read only when `themeControl` is `'none'`, and it is a hard
+pin: it wins over a theme the reader chose earlier, so everyone sees the same
+site. The stored preference is ignored rather than cleared, so switching the
+config back gives each reader their choice again. `pinnedTheme: 'auto'` pins
+the site to the reader's operating system — still switching with them, still
+with no control.
+
+### How the pieces divide up
+
+Two components, and the split is load-bearing:
+
+- **`ThemeSelect.astro`** owns the reader's *choice* — reading it, storing it
+  under `localStorage['starlight-theme']`, and keeping the header and
+  mobile-menu copies of the control agreed about it. Both layouts are one
+  control with two skins: the same fieldset of radios, the same handler, so
+  arrow-key navigation and group semantics come from the platform rather than
+  from script.
+- **`ThemeProvider.astro`** (also a Starlight override) owns what the document
+  *shows*: it writes `html[data-theme]` from an inline script in `<head>`,
+  before first paint, and it is what enforces the pin. It also re-applies the
+  theme after every `<ClientRouter />` swap, since Astro replaces `<html>`'s
+  attributes on navigation — upstream survives that only because its control's
+  custom element is rebuilt by the swap, which stops being true the moment
+  `themeControl` is `'none'`.
+
+Anything downstream reads `html[data-theme]` and does not care which control is
+on screen — including the Scalar bridge in `ScalarApiReference.astro`, which
+observes that attribute.
+
+The storage key and its convention (`''` for auto) are upstream's, deliberately:
+a site upgrading to this template keeps the theme each reader had already
+chosen.
+
 ## Verifying changes
 
 ```bash

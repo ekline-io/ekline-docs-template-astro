@@ -1,0 +1,72 @@
+---
+/**
+ * Starlight ThemeProvider override — applies the theme before first paint.
+ *
+ * Upstream's version reads `localStorage` and the system preference and writes
+ * `data-theme` on `<html>`. This does the same, plus two things it cannot:
+ *
+ *   1. Honours a **pinned theme** (`src/config/theme.mjs`). With
+ *      `themeControl: 'none'` the pin wins over anything a reader stored, so
+ *      every reader sees the same site and there is no control to change it.
+ *   2. **Re-applies after a `<ClientRouter />` swap.** Astro replaces `<html>`'s
+ *      attributes on every navigation, so `data-theme` is lost each time.
+ *      Upstream survives this by accident — its theme control's custom element
+ *      is rebuilt by the swap and re-applies the theme from its constructor —
+ *      which stops being true the moment there is no control on the page.
+ *      `astro:after-swap` runs before paint, so nothing flashes.
+ *
+ * Everything downstream reads `html[data-theme]` and is unaffected by any of
+ * this, including the Scalar bridge in `ScalarApiReference.astro`.
+ *
+ * `window.EkTheme` is the small surface `ThemeSelect.astro` drives: the select
+ * owns the reader's *choice*, this owns *what is applied*. Keeping the second
+ * in one place is what lets the pin be a real pin rather than a default the
+ * control can wander away from.
+ */
+import { forcedTheme } from '../config/theme.mjs';
+---
+
+{/* Inlined, and the last thing in <head>, to avoid a flash of the wrong theme. */}
+<script is:inline define:vars={{ ekForcedTheme: forcedTheme }}>
+	// The `define:vars` name is prefixed deliberately. It becomes a `const` at
+	// global scope, which classic inline scripts share, so a generic name would
+	// throw "already been declared" against any analytics or consent snippet a
+	// customer adds — and that parse error would take this script with it,
+	// leaving the site unthemed.
+	window.EkTheme = (() => {
+		/** Shared with `ThemeSelect.astro`. `''` means auto, as upstream stores it. */
+		const storageKey = 'starlight-theme';
+
+		const systemTheme = () =>
+			matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+
+		/** The reader's stored choice, or `'auto'` when they have not made one. */
+		const storedTheme = () => {
+			const value = typeof localStorage !== 'undefined' && localStorage.getItem(storageKey);
+			return value === 'light' || value === 'dark' ? value : 'auto';
+		};
+
+		/** What the site should honour: the pin if there is one, else the reader. */
+		const preference = () => ekForcedTheme || storedTheme();
+
+		const apply = () => {
+			const choice = preference();
+			document.documentElement.dataset.theme = choice === 'auto' ? systemTheme() : choice;
+		};
+
+		apply();
+		document.addEventListener('astro:after-swap', apply);
+		// `auto` tracks the operating system live, whether it was the reader's
+		// choice or the pin.
+		matchMedia('(prefers-color-scheme: light)').addEventListener('change', apply);
+
+		return { apply, preference, storageKey, forced: ekForcedTheme };
+	})();
+
+	// Compatibility stub. Upstream defines `StarlightThemeProvider.updatePickers`
+	// for its own `<select>`, which this site no longer renders — but a
+	// third-party Starlight plugin that ships its own theme picker will call it,
+	// and a missing global is a TypeError that takes the rest of its script down.
+	// Left as a no-op rather than removed for exactly that reason.
+	window.StarlightThemeProvider = { updatePickers() {} };
+</script>
