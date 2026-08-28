@@ -4,11 +4,21 @@ This is a monorepo. It holds EkLine's docs-site template and, starting in Phase 
 
 ## Layout
 
-- **`packages/template/`** — the Starlight (Astro) documentation template EkLine ships to customers, via `npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template`. This is the product. It has its own [`CLAUDE.md`](packages/template/CLAUDE.md), which governs everything under that directory — read it before touching any code there.
+- **`packages/template/`** — the Starlight (Astro) documentation template EkLine ships to customers, via `npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai`. This is the product. It has its own [`CLAUDE.md`](packages/template/CLAUDE.md), which governs everything under that directory — read it before touching any code there. That file **ships**, so it is written for the customer; the maintainer's half lives here, under [Working in `packages/template`](#working-in-packagestemplate).
 - **`apps/docs/`** — the hosted documentation for the template: how to configure it, what every setting does. Live at <https://documentation-ekline-docs-template.vercel.app>. Built with the template itself, and it renders `packages/template/wiki/` in place as its Internals section, so those files have one copy. Has its own `CLAUDE.md` covering the personas it is written for.
 - **`docs/superpowers/`** — planning and design history for this repo's own development (specs, plans). It documents how this repo was built and never ships to a customer.
 - **`.github/`**, **`.claude/`**, **`.vscode/`** — repo-wide tooling: CI workflows, agent worktrees, editor settings.
 - **`LICENSE`** — this repo's own license. `packages/template/LICENSE` is a separate copy, since customers who extract that directory need one of their own.
+
+## Working in `packages/template`
+
+Everything under that directory is copied verbatim into a customer's repository, **its `CLAUDE.md` and `README.md` included**. That makes those two files a shipped surface with a reader who is not you, and it is the reason this section exists rather than living alongside the code it describes.
+
+- **Write shipped prose in the customer's second person.** In their repo, "this directory is EkLine's template, which we ship to customers" is simply false, and an agent that believes it will decline to add the product-specific content that is the whole point of their site. `packages/template/CLAUDE.md` addresses the site's owner; the maintainer framing stays here.
+- **Never name a monorepo path in shipped prose.** `apps/`, `.github/`, "a sibling of this directory" — none of these exist once the directory travels. `npm run check:shipped` enforces this and explains the exceptions; run it after editing anything under `packages/template/*.md` or `packages/template/wiki/`. It cannot see framing problems, only paths, so the first rule above stays a review question.
+- **Keep it template-shaped.** Content, sidebar entries, and example pages should be obvious placeholders a customer can swap out. EkLine attribution belongs in attribution-shaped places — the footer credit, the LICENSE — and nowhere else. Product-specific EkLine copy or assets do not belong in a customer's docs site.
+- **The hosted docs at <https://documentation-ekline-docs-template.vercel.app> are built from `apps/docs/`**, which renders `packages/template/wiki/` in place. Configuration material belongs there rather than in the template's `README.md`, so it has one home.
+- **CI is `.github/workflows/ci.yml`** and runs `check`, `test`, `test:visual:ci`, and `check:shipped` on every PR. It lives at this root and so is not part of a customer's copy — which is exactly why shipped docs must not describe it as present.
 
 ## Why `packages/` and `apps/` are separate
 

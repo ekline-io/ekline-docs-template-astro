@@ -10,7 +10,7 @@ import { Steps } from '@astrojs/starlight/components';
 1. **Create your site.**
 
    ```bash
-   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+   npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
    ```
 
    You'll be asked where to create the project — type a directory name (for
@@ -18,6 +18,12 @@ import { Steps } from '@astrojs/starlight/components';
    dependencies and initializing git (it'll flag the template as
    "third-party" first; expected, since this isn't one of Astro's own
    starters).
+
+   Keep `--no-ai`. Without it, `create-astro` adds a generic `AGENTS.md`
+   pointing coding assistants at general Astro documentation, which
+   contradicts the Starlight rules the template ships in `CLAUDE.md`. One
+   more thing to know: whatever you name the directory becomes the `name`
+   in your `package.json`, so change it later if that isn't what you want.
 
 2. **Start the dev server.**
 

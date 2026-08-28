@@ -7,7 +7,7 @@ what every setting does, and how the pieces fit together.
 This is not the template. If you are here to build a docs site, run:
 
 ```bash
-npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
 ```
 
 ## Running it

@@ -8,7 +8,7 @@ The home of EkLine's recommended [Astro](https://astro.build/) +
 Then you want the template, not this repository:
 
 ```bash
-npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
 ```
 
 That fetches [`packages/template/`](./packages/template) — the whole product,
