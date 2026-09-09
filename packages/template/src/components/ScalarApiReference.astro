@@ -27,8 +27,10 @@ import { ScalarComponent } from '@scalar/astro';
 
 interface Props {
 	/**
-	 * Path to the OpenAPI document. Served as a static asset from `public/`, so
-	 * customers swap one file rather than touching component code.
+	 * URL of the OpenAPI document as the browser fetches it. Derived by
+	 * `specUrlFor()` in `src/config/api-reference.mjs` from where the document
+	 * lives — a file in `public/`, a file the build serves from `/api-spec/`,
+	 * or a remote URL — so you change the config, not this component.
 	 */
 	url?: string;
 	/**

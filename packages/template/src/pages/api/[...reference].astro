@@ -20,7 +20,7 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ScalarApiReference from '../../components/ScalarApiReference.astro';
 import ApiSearchIndex from '../../components/ApiSearchIndex.astro';
-import { enabledReferences } from '../../config/api-reference.mjs';
+import { enabledReferences, specUrlFor } from '../../config/api-reference.mjs';
 
 export function getStaticPaths() {
 	return enabledReferences.map((reference) => ({
@@ -100,7 +100,7 @@ const isFullWidth = reference.layout === 'full';
 		})();
 	</script>
 	<ScalarApiReference
-		url={reference.specUrl}
+		url={specUrlFor(reference)}
 		showSidebar={isFullWidth}
 		layout={reference.layout}
 	/>

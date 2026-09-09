@@ -24,6 +24,8 @@ import {
 	enabledReferences,
 	listsOperationsInSidebar,
 	routeFor,
+	specUrlFor,
+	isRemoteSpec,
 } from '../src/config/api-reference.mjs';
 import { staticDir } from './helpers/static-dir.mjs';
 
@@ -34,8 +36,12 @@ const STATIC_DIR = staticDir(join(__dirname, '..'));
 const htmlFor = (reference) =>
 	join(STATIC_DIR, routeFor(reference).replace(/^\/|\/$/g, ''), 'index.html');
 
-/** Absolute path of the document a reference is served from. */
-const specFor = (reference) => join(STATIC_DIR, reference.specUrl.replace(/^\//, ''));
+/**
+ * Absolute path of the document a reference is served from — for the
+ * references the build output contains. A reference whose browser URL is
+ * remote (`serve: 'live'`, or an absolute `specUrl`) has nothing on disk.
+ */
+const specFor = (reference) => join(STATIC_DIR, specUrlFor(reference).replace(/^\//, ''));
 
 test('more than one reference is configured', () => {
 	// The template ships two so both layouts are visible on real content. If you
@@ -45,8 +51,12 @@ test('more than one reference is configured', () => {
 
 test("every reference's OpenAPI document is emitted as a static asset", () => {
 	for (const reference of enabledReferences) {
+		// Nothing to check on disk for a document the browser fetches from its
+		// origin; the "points at its own document" test below covers that case.
+		if (isRemoteSpec(specUrlFor(reference))) continue;
+
 		const spec = specFor(reference);
-		assert.ok(existsSync(spec), `${reference.id}: ${reference.specUrl} missing from the build output`);
+		assert.ok(existsSync(spec), `${reference.id}: ${specUrlFor(reference)} missing from the build output`);
 
 		const content = readFileSync(spec, 'utf-8');
 		assert.match(content, /^openapi:\s*3\./m, `${reference.id}: not an OpenAPI 3.x document`);
@@ -66,9 +76,10 @@ test('every reference points at its own document', () => {
 	// someone reads the page.
 	for (const reference of enabledReferences) {
 		const html = readFileSync(htmlFor(reference), 'utf-8');
+		const url = specUrlFor(reference);
 		assert.ok(
-			html.includes(reference.specUrl),
-			`${reference.id}: ${routeFor(reference)} does not reference ${reference.specUrl} — ` +
+			html.includes(url),
+			`${reference.id}: ${routeFor(reference)} does not reference ${url} — ` +
 				`it would 404 on its document at runtime`
 		);
 	}
