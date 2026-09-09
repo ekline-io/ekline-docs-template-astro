@@ -47,17 +47,24 @@
  * — Scalar's sidebar is virtualised, so it stays quick where a fully expanded
  * Starlight tree would not.
  *
- * ## Why two entries ship
+ * ## Why three entries ship
  *
- * So you can see both layouts running on real content before choosing. They are
- * two different example APIs rather than one document shown twice, because a
- * control for flipping between layouts is not something a docs site should ship
- * to its readers.
+ * The first two show the two layouts running on real content, so you can choose
+ * between them by looking rather than by reading. They are two different example
+ * APIs rather than one document shown twice, because a control for flipping
+ * between layouts is not something a docs site should ship to its readers.
  *
- * **Delete the one you do not want.** Remove its entry here and its file from
+ * The third is a **remote** document, there to show that a spec you do not host
+ * gets the same generated sidebar and search entries as a bundled one. It is the
+ * only entry that reaches the network, and it is set to `serve: 'live'` so that
+ * a host it cannot reach costs it its sidebar rather than failing your build.
+ *
+ * **Delete the ones you do not want.** Remove an entry here and its file from
  * `public/`, and the route, its sidebar entries and its search entries all go
- * with it. Keeping both is also fine — plenty of products document more than
- * one API, and that is exactly what this list is for.
+ * with it. Keeping several is also fine — plenty of products document more than
+ * one API, and that is exactly what this list is for. The remote example is the
+ * one to delete first: it documents someone else's pet store, and removing it
+ * takes your build's only third-party dependency with it.
  *
  * To change a layout rather than remove it, set `layout` to `'docs'` or
  * `'full'`. Nothing else needs to change.
@@ -112,6 +119,43 @@ export const apiReferences = [
 		title: 'Admin API',
 		description:
 			'Interactive reference for the Example Admin API, rendered full-width with Scalar.',
+	},
+	{
+		/**
+		 * The third example exists to show the remote case working.
+		 *
+		 * The two above are files in `public/`. This one is a URL, so you can see
+		 * that a document you do not host still gets the same generated operation
+		 * sidebar and the same search entries as a bundled one — the build fetches
+		 * it to produce them either way.
+		 *
+		 * `serve: 'live'` rather than the default `'snapshot'`, deliberately, and
+		 * the reason matters if you copy this entry. Under `'snapshot'` the build
+		 * has to serve a copy itself, so a host it cannot reach **fails the
+		 * build** — right for your own API, wrong for an example that would then
+		 * break the first build of anyone working offline. `'live'` only warns
+		 * and degrades: an unreachable host costs this reference its operation
+		 * sidebar and its search entries until the next build that can reach it,
+		 * and the site still builds.
+		 *
+		 * It is a real public API run by the OpenAPI Initiative, not something
+		 * EkLine controls. **Delete this entry once you have seen it work** —
+		 * there is no reason to ship someone else's pet store in your
+		 * documentation, and removing it takes the build's only dependency on a
+		 * third-party host with it.
+		 */
+		id: 'petstore',
+		enabled: true,
+		slug: 'petstore',
+		/** @type {ApiLayout} */
+		layout: 'docs',
+		spec: 'https://petstore3.swagger.io/api/v3/openapi.json',
+		/** @type {ServeMode} */
+		serve: 'live',
+		label: 'Petstore API (remote)',
+		title: 'Petstore API',
+		description:
+			'Interactive reference for a remotely hosted OpenAPI document, fetched from its origin.',
 	},
 ];
 

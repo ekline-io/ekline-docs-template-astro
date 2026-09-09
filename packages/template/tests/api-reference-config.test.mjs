@@ -14,6 +14,7 @@ import {
 	specUrlFor,
 	emittedFileFor,
 	needsEmit,
+	isRemoteSpec,
 	validateReferences,
 	emittedReferences,
 	enabledReferences,
@@ -241,11 +242,37 @@ test('a valid list passes', () => {
 
 // --- the shipped config -----------------------------------------------------
 
-test('the shipped references live in public/ and emit nothing', () => {
+test('no shipped reference sets specUrl', () => {
+	// The whole point of the derivation is that one field says where a document
+	// is. A shipped entry carrying the override would teach the opposite.
 	assert.ok(enabledReferences.length >= 1);
-	assert.deepEqual(emittedReferences, []);
 	for (const reference of enabledReferences) {
-		assert.ok(specUrlFor(reference).startsWith('/'), `${reference.id}: expected a site-root URL`);
 		assert.ok(!('specUrl' in reference), `${reference.id}: shipped entries no longer set specUrl`);
+	}
+});
+
+test('the shipped config emits nothing, so a first build serves no document itself', () => {
+	// Two references are files in `public/`, which Astro serves, and the remote
+	// one is `serve: 'live'`, which the reader's browser fetches from its
+	// origin. Nothing is left for the build to serve — which is what keeps the
+	// hard-failure path out of a customer's very first build.
+	assert.deepEqual(emittedReferences, []);
+});
+
+test('the remote example is live, not snapshotted', () => {
+	// Load-bearing, not incidental. Under `'snapshot'` the build must serve a
+	// copy, so a host it cannot reach fails the build — and this example points
+	// at a third-party host, so that would break the first build of anyone
+	// offline. `'live'` degrades to a missing sidebar instead.
+	const remote = enabledReferences.filter((reference) => isRemoteSpec(reference.spec));
+	assert.equal(remote.length, 1, 'expected exactly one remote example reference');
+	assert.equal(remote[0].serve, 'live', `${remote[0].id}: a shipped remote example must not snapshot`);
+	assert.equal(specUrlFor(remote[0]), remote[0].spec, 'a live reference is fetched from its origin');
+	assert.equal(needsEmit(remote[0]), false);
+});
+
+test('every bundled reference resolves to a site-root path', () => {
+	for (const reference of enabledReferences.filter((r) => !isRemoteSpec(r.spec))) {
+		assert.ok(specUrlFor(reference).startsWith('/'), `${reference.id}: expected a site-root URL`);
 	}
 });

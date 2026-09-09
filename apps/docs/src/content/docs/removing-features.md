@@ -11,7 +11,7 @@ hosting — see [Deploy](/deploy/).
 
 | Delete | |
 | --- | --- |
-| `public/openapi.yaml`, `public/openapi-admin.yaml` | The two example documents. |
+| `public/openapi.yaml`, `public/openapi-admin.yaml` | The two bundled example documents. (The third example is a remote URL — deleting its entry from the config is all it takes.) |
 | `src/pages/api/` | The route. |
 | `src/pages/api-spec/` | The endpoint that serves documents kept outside `public/`. |
 | `src/config/api-reference.mjs` | The reference list. |

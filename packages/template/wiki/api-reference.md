@@ -74,8 +74,18 @@ The template ships **two** example APIs, each demonstrating one layout:
 | --- | --- | --- | --- | --- |
 | Example Payments API | `''` | `/api/` | `docs` | Starlight's sidebar, shared with the rest of the docs |
 | Example Admin API | `'admin'` | `/api/admin/` | `full` | Scalar's own sidebar, full width |
+| Petstore API (remote) | `'petstore'` | `/api/petstore/` | `docs` | Starlight's sidebar, generated from a document fetched over the network |
 
 References are addressed by **`slug`, not a full path** — every route this template builds lives under `/api/`, because that is where the route file is. An empty slug is `/api/` itself. `routeFor()` turns a slug into the one URL the page, the sidebar and the search index all use, so those three cannot end up disagreeing. Two references sharing a slug fails the build rather than silently making one unreachable.
+
+The third is the odd one out, and deliberately so: its `spec` is a URL rather
+than a file, so it demonstrates that a document you do not host produces the
+same generated operation sidebar and the same search entries as a bundled one.
+It is `serve: 'live'`, not the default `'snapshot'`, because a snapshot the
+build cannot fetch fails that build — correct for a real API, wrong for an
+example that would otherwise break the first build of anyone working offline.
+It is also the only thing in the shipped configuration that touches the
+network, so deleting it is what makes a build hermetic again.
 
 **`docs` is the right default for most sites.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination. Every operation appears in the sidebar, generated from the document, and is reachable from any page in the site.
 

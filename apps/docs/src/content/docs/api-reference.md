@@ -68,8 +68,8 @@ it, so drop it the next time you touch the entry.
 
 ## Two layouts
 
-The template ships two example references, one per layout, so you can see
-both running on real content before choosing:
+The template ships three example references. Two are bundled files, one per
+layout, so you can see both running on real content before choosing:
 
 | Layout | What it looks like | Suits |
 | --- | --- | --- |
@@ -84,14 +84,26 @@ There's deliberately no reader-facing control for switching between them.
 That would be meta-UI about the documentation, not documentation. Pick one
 layout per reference and leave it.
 
-## Keep one, or keep both
+### The third example is remote
+
+`/api/petstore/` points at a URL rather than a file, so you can see the
+remote case working before you wire up your own. It uses `serve: 'live'`
+rather than the default — an example that fails your build when a
+third-party host is down would be a poor first impression, and `live`
+only warns and loses its sidebar until the next build that can reach it.
+
+It's someone else's pet store, and the only part of the shipped
+configuration that touches the network. Delete its entry once you've seen
+it work.
+
+## Keep one, or keep several
 
 Delete the entry you don't want from `apiReferences`, and delete its
 document from `public/`. Its route, sidebar entries and search entries all
 go with it — the shipped Payments and Admin examples are meant for you to
 remove at least one of.
 
-Keeping both is fine too; plenty of products document more than one API.
+Keeping several is fine too; plenty of products document more than one API.
 
 :::note
 Two references sharing a `slug` fails the build with a named error rather
