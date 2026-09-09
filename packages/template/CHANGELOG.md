@@ -40,12 +40,50 @@ fetch the URL directly so the reference is always current.
 If the build is responsible for serving a document and can't obtain it — a
 snapshot URL that's unreachable, a file that isn't there — the build now fails
 naming the source and the reason, rather than shipping a blank reference. A
-remote fetch is capped at 30 seconds.
+remote fetch is capped at 30 seconds, and a URL that answers with an HTML page
+(a sign-in screen, a single-page app's catch-all) is rejected as not being a
+document rather than quietly rendering an empty reference.
+
+Derived URLs carry your site's `base`, so a docs site deployed on a subpath
+serves its documents from under that prefix like everything else.
 
 **Upgrading:** an entry that still sets `specUrl` keeps working unchanged; the
 value is used as-is. See
 [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/)
 for the three cases.
+
+### A third example reference, fetched over the network
+
+The two example references were both files in `public/`, so the remote case was
+documented but never visible. There's now a third at `/api/petstore/` pointing
+at a public OpenAPI document over the internet, so you can see that a spec you
+don't host produces the same generated operation sidebar and the same search
+entries as a bundled one.
+
+It uses `serve: 'live'` rather than the default, deliberately: a snapshot the
+build can't fetch fails that build, which is right for your own API and wrong
+for an example that would then break the first build of anyone working offline.
+
+**It is the only part of this template that reaches the network**, so your
+build and your tests now depend on that host being up. It documents someone
+else's pet store — delete its entry from `src/config/api-reference.mjs` once
+you've seen it work, and your build has no third-party dependency again.
+
+### Config mistakes are now caught by name
+
+Errors that used to build green and misbehave quietly now stop the build and
+say which reference and which field:
+
+- `serve` set on a `spec` that is a file rather than a URL. It only decides how
+  a *remote* document reaches the browser, so on a file it does nothing —
+  previously `'live'` was rejected but `'snapshot'` was silently ignored.
+- Two references sharing an `id`, or an `id` containing anything but letters,
+  digits, dots, dashes and underscores. `id` names the file this site serves
+  the document from, so a slash in it silently pointed the page at a path
+  nothing served.
+- A `spec` that starts `http://` or `https://` but isn't a parseable URL.
+
+If your existing configuration trips one of these, the message names the fix.
 
 ## 2.3.0
 
