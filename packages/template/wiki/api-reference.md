@@ -6,18 +6,51 @@ API references are rendered by [Scalar](https://scalar.com/) through its officia
 
 Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its slug, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.
 
-## Swap in your own spec
+## Where the document comes from
 
-Replace `public/openapi.yaml` with your own document. That is the only required change: the route, the sidebar's operation list, and the search entries all regenerate on the next build.
+`spec` takes a path or an `http(s)://` URL. Three things consume it, and they
+share one read or fetch per build through `loadSource()` in
+`src/lib/openapi-sidebar.mjs`: the sidebar generator, the search index, and —
+when the site has to serve the document itself — the endpoint at
+`src/pages/api-spec/[file].js`.
 
-To rename it, or point at a spec hosted elsewhere, change both fields on that reference together:
+The URL the browser fetches is derived by `specUrlFor()` in
+`src/config/api-reference.mjs`. First rule that matches:
 
-```js
-spec: './public/openapi.yaml',   // read at build time, to generate the sidebar
-specUrl: '/openapi.yaml',        // fetched by the browser, at runtime
-```
+| # | When | The browser fetches | Emitted by the endpoint? |
+| --- | --- | --- | --- |
+| 1 | `specUrl` is set | that value, verbatim | no |
+| 2 | a URL with `serve: 'live'` | the URL | no |
+| 3 | a path under `public/` | the path minus `public/` | no — Astro serves `public/` |
+| 4 | anything else | `/api-spec/<id>.<ext>` | yes |
 
-JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are upgraded to 3.1 automatically.
+`emittedReferences` is the rule-4 set. The endpoint's `getStaticPaths()` and
+the build tests both read it, so what the config promises and what the build
+output contains cannot disagree. As shipped, both examples are rule 3 and the
+endpoint emits nothing.
+
+**What is emitted is the raw document** — the bytes as read or fetched, not the
+normalized, dereferenced copy the sidebar is built from. Scalar upgrades old
+documents itself, and the "Download OpenAPI Document" link should hand readers
+the file they would recognise.
+
+**Failure policy.** The build fails when the site is responsible for serving a
+document it cannot obtain — rule 4, where the endpoint throws naming the source
+and the emitted path, because the alternative is a blank reference page.
+Everything else warns and degrades as it always has: a `public/` file that is
+missing, or a `live` URL the build machine cannot reach, leaves the reference
+linked but without an operation sidebar or search entries. A fetch is capped at
+30 seconds so a hung host cannot hang a build. The sidebar's warning fires
+before the endpoint's error in a rule-4 failure — one redundant line, in
+exchange for the generator staying ignorant of serve modes.
+
+External file `$ref`s (`./schemas/pet.yaml`) do not resolve — `dereference`
+reports `EXTERNAL_REFERENCE_NOT_FOUND` — for bundled and remote documents
+alike. Tags and operations live in the root document, so the sidebar is
+unaffected. Pre-existing; noted so it is not mistaken for a regression.
+
+JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are
+upgraded to 3.1 automatically.
 
 ## Two references, two layouts
 

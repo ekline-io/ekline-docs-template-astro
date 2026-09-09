@@ -13,10 +13,11 @@ hosting — see [Deploy](/deploy/).
 | --- | --- |
 | `public/openapi.yaml`, `public/openapi-admin.yaml` | The two example documents. |
 | `src/pages/api/` | The route. |
+| `src/pages/api-spec/` | The endpoint that serves documents kept outside `public/`. |
 | `src/config/api-reference.mjs` | The reference list. |
 | `src/lib/openapi-sidebar.mjs` | The generated sidebar group. |
 | `src/components/ScalarApiReference.astro`, `src/components/ApiSearchIndex.astro` | The Scalar wrapper and its search bridge. |
-| `tests/openapi-sidebar.test.mjs`, `tests/scalar-api-reference.test.mjs`, `tests/visual/api-reference.spec.mjs` | Their tests. |
+| `tests/openapi-sidebar.test.mjs`, `tests/api-reference-config.test.mjs`, `tests/api-spec-endpoint.test.mjs`, `tests/api-spec-equivalence.test.mjs`, `tests/scalar-api-reference.test.mjs`, `tests/visual/api-reference.spec.mjs` | Their tests. |
 
 Then, in `astro.config.mjs`: remove the `apiReferenceSidebar` block, its
 imports from `src/config/api-reference.mjs` and `src/lib/openapi-sidebar.mjs`,
