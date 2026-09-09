@@ -226,11 +226,11 @@ document is entirely absent and the outcome is a blank reference page, and
 "your spec URL is unreachable" is worth hearing at build time rather than
 from a reader.
 
-The sidebar generator's warning still fires for these references before the
+Warnings from the sidebar generator and search index still fire for these references before the
 endpoint throws, because `astro.config.mjs` builds the sidebar first. The
-build output is then one warning followed by the fatal error; the error is
+build output is then two warnings followed by the fatal error; the error is
 the one that names the fix. Acceptable — keeping the generator ignorant of
-serve modes is worth a redundant line.
+serve modes is worth redundant lines.
 
 The generator's existing warning is reworded to name the consequence for
 remote documents in one place:

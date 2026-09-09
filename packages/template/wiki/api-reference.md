@@ -40,8 +40,8 @@ and the emitted path, because the alternative is a blank reference page.
 Everything else warns and degrades as it always has: a `public/` file that is
 missing, or a `live` URL the build machine cannot reach, leaves the reference
 linked but without an operation sidebar or search entries. A fetch is capped at
-30 seconds so a hung host cannot hang a build. The sidebar's warning fires
-before the endpoint's error in a rule-4 failure — one redundant line, in
+30 seconds so a hung host cannot hang a build. The sidebar and search index each emit a warning
+before the endpoint's error in a rule-4 failure — two redundant lines, in
 exchange for the generator staying ignorant of serve modes.
 
 External file `$ref`s (`./schemas/pet.yaml`) do not resolve — `dereference`
