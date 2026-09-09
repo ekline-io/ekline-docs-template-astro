@@ -1101,7 +1101,227 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Documentation — hosted how-to, maintainer wiki, removal table
+### Task 5: Prove the three sources are indistinguishable — the equivalence test
+
+**Files:**
+- Create: `packages/template/tests/api-spec-equivalence.test.mjs`
+
+**Interfaces:**
+- Consumes: `openApiSidebarGroup`, `openApiOperations` (unchanged signatures, Task 1); `specUrlFor`, `needsEmit` (Task 2).
+- Produces: nothing code-facing. This is the regression guard for the feature's central promise.
+
+**Why this task exists.** Every other test checks one source in isolation. This one
+checks the *claim the feature is sold on*: that where a document comes from changes
+nothing a reader sees. The left navigation and the site search are both generated from
+the same two functions, so if a future change makes a remote document take a different
+code path — a different parser entry point, a normalisation step applied to fetched
+bytes only, a cache keyed wrongly — this test fails and the four in Tasks 1-3 do not.
+
+It asserts equivalence across all four configurations at once, and asserts that the
+**only** thing that legitimately differs between them is the URL the browser fetches.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `packages/template/tests/api-spec-equivalence.test.mjs`:
+
+```js
+/**
+ * The three places a document can live must be indistinguishable to a reader.
+ *
+ * `spec` accepts a file in `public/`, a file anywhere else on disk, or a URL —
+ * and a URL is served two ways (`snapshot`, `live`). All four are read at build
+ * time by the same loader, so the generated operation sidebar and the search
+ * index they feed must come out identical. That equality is the whole promise
+ * of the feature; the tests in the other suites each cover one source alone and
+ * would all still pass if the sources quietly diverged.
+ *
+ * The one thing that may differ is `specUrlFor()` — where the browser fetches
+ * the document from — and that is asserted too, so this test fails if a future
+ * change makes the sources differ in any *other* way.
+ *
+ * Run:  node --test tests/api-spec-equivalence.test.mjs
+ */
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { openApiSidebarGroup, openApiOperations } from '../src/lib/openapi-sidebar.mjs';
+import { specUrlFor, needsEmit } from '../src/config/api-reference.mjs';
+
+const BASE = '/api/';
+const BUNDLED = './public/openapi.yaml';
+
+/** The exact bytes every source below serves, so any difference is the code's. */
+const DOCUMENT = readFileSync(BUNDLED, 'utf-8');
+
+let server;
+let remoteUrl;
+let diskCopy;
+
+before(async () => {
+	// One copy of the shipped document on disk outside `public/`...
+	diskCopy = join(mkdtempSync(join(tmpdir(), 'api-spec-equivalence-')), 'openapi.yaml');
+	writeFileSync(diskCopy, DOCUMENT, 'utf-8');
+
+	// ...and one served over HTTP, standing in for a customer's API host.
+	server = createServer((_, res) => {
+		res.setHeader('Content-Type', 'application/yaml');
+		res.end(DOCUMENT);
+	});
+	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	remoteUrl = `http://127.0.0.1:${server.address().port}/openapi.yaml`;
+});
+
+after(async () => {
+	server.closeAllConnections();
+	await new Promise((resolve) => server.close(resolve));
+});
+
+/**
+ * The four configurations, each a complete reference entry.
+ *
+ * They deliberately share one `id`: the emitted filename is keyed by `id`, so
+ * this also pins that two sources of the same document would be served at the
+ * same path — the sources differ in where the document comes from, nothing else.
+ */
+function sources() {
+	const common = {
+		id: 'payments',
+		enabled: true,
+		slug: '',
+		layout: 'docs',
+		label: 'API reference',
+		title: 'API reference',
+		description: 'Example.',
+	};
+	return [
+		{ name: 'bundled in public/', reference: { ...common, spec: BUNDLED } },
+		{ name: 'a file outside public/', reference: { ...common, spec: diskCopy } },
+		{
+			name: 'a remote URL, snapshotted',
+			reference: { ...common, spec: remoteUrl, serve: 'snapshot' },
+		},
+		{ name: 'a remote URL, live', reference: { ...common, spec: remoteUrl, serve: 'live' } },
+	];
+}
+
+test('every source produces the same left navigation', async () => {
+	const [baseline, ...rest] = sources();
+	const expected = await openApiSidebarGroup({ spec: baseline.reference.spec, base: BASE });
+
+	// Guard the baseline itself: comparing four empty fallbacks would pass while
+	// proving nothing. The shipped document has tags and many operations.
+	assert.ok(expected.items?.length > 1, 'baseline sidebar should be a group of tags, not a fallback link');
+
+	for (const { name, reference } of rest) {
+		const actual = await openApiSidebarGroup({ spec: reference.spec, base: BASE });
+		assert.deepEqual(actual, expected, `${name}: sidebar differs from the bundled document's`);
+	}
+});
+
+test('every source produces the same search entries', async () => {
+	// `ApiSearchIndex.astro` renders one heading per entry here, and each id is
+	// the anchor Scalar assigns — so identical operations means identical search
+	// results landing on identical anchors.
+	const [baseline, ...rest] = sources();
+	const expected = await openApiOperations({ spec: baseline.reference.spec });
+
+	assert.ok(expected.length >= 10, `baseline should index many operations, got ${expected.length}`);
+
+	for (const { name, reference } of rest) {
+		const actual = await openApiOperations({ spec: reference.spec });
+		assert.deepEqual(actual, expected, `${name}: search entries differ from the bundled document's`);
+	}
+});
+
+test('every sidebar link resolves to an indexed search anchor', async () => {
+	// The sidebar and the search index are generated separately. If they ever
+	// disagree, a reader clicks a sidebar entry that search cannot find, or
+	// finds a result with no sidebar row — invisible until someone reports it.
+	for (const { name, reference } of sources()) {
+		const group = await openApiSidebarGroup({ spec: reference.spec, base: BASE });
+		const operations = await openApiOperations({ spec: reference.spec });
+		const anchors = new Set(operations.map((operation) => operation.anchor));
+
+		const linked = (entry) =>
+			entry.link ? [entry] : (entry.items ?? []).flatMap(linked);
+		const operationLinks = linked(group)
+			.map((entry) => entry.link)
+			.filter((link) => link.includes('#'));
+
+		assert.ok(operationLinks.length > 0, `${name}: expected operation links`);
+		for (const link of operationLinks) {
+			const anchor = decodeURIComponent(link.slice(link.indexOf('#') + 1));
+			assert.ok(anchors.has(anchor), `${name}: sidebar links #${anchor}, which search does not index`);
+		}
+	}
+});
+
+test('the only thing that differs between sources is where the browser fetches from', async () => {
+	const byName = Object.fromEntries(sources().map((source) => [source.name, source.reference]));
+
+	assert.equal(specUrlFor(byName['bundled in public/']), '/openapi.yaml');
+	assert.equal(specUrlFor(byName['a file outside public/']), '/api-spec/payments.yaml');
+	assert.equal(specUrlFor(byName['a remote URL, snapshotted']), '/api-spec/payments.yaml');
+	assert.equal(specUrlFor(byName['a remote URL, live']), remoteUrl);
+
+	// And which of them the build has to serve a copy of.
+	assert.equal(needsEmit(byName['bundled in public/']), false);
+	assert.equal(needsEmit(byName['a file outside public/']), true);
+	assert.equal(needsEmit(byName['a remote URL, snapshotted']), true);
+	assert.equal(needsEmit(byName['a remote URL, live']), false);
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails on a clean checkout of Tasks 1-4**
+
+Run: `node --test tests/api-spec-equivalence.test.mjs`
+Expected: **PASS**, because Tasks 1-4 already built the behaviour this asserts.
+
+This is the one test in the plan written after its implementation rather than
+before it, and that is deliberate — it is a characterisation test for a promise
+spanning four tasks, not a driver for new code. To confirm it actually has teeth
+rather than passing vacuously, break the behaviour on purpose and watch it fail:
+
+In `src/lib/openapi-sidebar.mjs`, temporarily make the fetch branch alter what it
+returns — inside `fetchSource`, change the final line to
+`return (await response.text()).replace(/summary:/g, 'summary: REMOTE ');` — then
+re-run the test.
+
+Expected: `every source produces the same left navigation` and `every source
+produces the same search entries` both FAIL, naming `a remote URL, snapshotted`.
+**Revert that edit** (`git checkout -- src/lib/openapi-sidebar.mjs`) and re-run to
+confirm green again. Do not commit the temporary edit.
+
+- [ ] **Step 3: Run the whole suite**
+
+Run: `npm test`
+Expected: the build succeeds and every `tests/*.test.mjs` passes, the new file included.
+
+Note for the implementer: `npm test` runs `astro build` first. If the build is slow
+or already current, `node --test tests/*.test.mjs` alone exercises every unit suite;
+run the full `npm test` at least once before committing.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/api-spec-equivalence.test.mjs
+git commit -m "test: the three spec sources produce identical nav and search
+
+The feature's central claim is that where a document lives changes nothing a
+reader sees. Each other suite covers one source alone and would still pass if
+they diverged; this one compares all four configurations against the bundled
+baseline, and pins that specUrlFor is the only thing allowed to differ.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: Documentation — hosted how-to, maintainer wiki, removal table
 
 **Files:**
 - Modify: `apps/docs/src/content/docs/api-reference.md` (frontmatter `description`; replace the `## Add your document` section)
@@ -1278,7 +1498,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Verify the two unshipped paths against a real remote document
+### Task 7: Verify the two unshipped paths against a real remote document
 
 **Files:**
 - Temporarily modify (then revert, never commit): `packages/template/src/config/api-reference.mjs`
@@ -1344,14 +1564,14 @@ Expected: clean. Then `npm test` once more to confirm the shipped configuration 
 
 ---
 
-### Task 7: Release notes and version
+### Task 8: Release notes and version
 
 **Files:**
 - Modify: `packages/template/CHANGELOG.md:11` (insert a `2.4.0` section above `## 2.3.0`)
 - Modify: `packages/template/package.json`, `packages/template/package-lock.json` (version, via `npm version`)
 
 **Interfaces:**
-- Consumes: the customer-facing vocabulary from Task 5.
+- Consumes: the customer-facing vocabulary from Task 6.
 - Produces: the `2.4.0` release commit, matching the `chore: release 2.3.0` precedent.
 
 This task assumes the change ships as its own minor version. If it is being folded into a larger release, skip the version bump and add the CHANGELOG section under that release's heading instead.
