@@ -168,7 +168,20 @@ function publicUrlFor(spec) {
  */
 export function emittedFileFor(reference) {
 	const source = String(reference.spec);
-	const path = isRemoteSpec(source) ? new URL(source).pathname : source;
+	// `isRemoteSpec` only checks the scheme, so `https://` and `https://[bad`
+	// both reach here and `new URL` throws `TypeError: Invalid URL` on them —
+	// an unattributed stack trace from inside this module, naming neither the
+	// reference nor the field. The extension is cosmetic, so fall back to
+	// reading it off the raw string; `validateReferences` reports the malformed
+	// URL properly, by name.
+	let path = source;
+	if (isRemoteSpec(source)) {
+		try {
+			path = new URL(source).pathname;
+		} catch {
+			path = source;
+		}
+	}
 	const extension = /\.json$/i.test(path) ? 'json' : 'yaml';
 	return `${reference.id}.${extension}`;
 }
@@ -251,6 +264,18 @@ export function validateReferences(references) {
 	const ids = new Set();
 
 	for (const reference of enabled) {
+		// `id` names the file the build emits — `/api-spec/<id>.<ext>` — so a
+		// slash in it silently nests that file one level down from the route the
+		// page asks for, and `.` or `..` derives a path that resolves somewhere
+		// else entirely. Both build green and 404 at runtime.
+		if (!/^[A-Za-z0-9._-]+$/.test(String(reference.id)) || /^\.+$/.test(String(reference.id))) {
+			throw new Error(
+				`[api-reference] "${reference.id}" is not a usable \`id\`. It names the file this ` +
+					`site serves the document from, so use letters, digits, dots, dashes or ` +
+					`underscores — no slashes, and not "." or "..".`
+			);
+		}
+
 		if (ids.has(reference.id)) {
 			throw new Error(
 				`[api-reference] Two references share the id "${reference.id}". ` +
@@ -275,11 +300,31 @@ export function validateReferences(references) {
 					`Use 'snapshot' (serve a copy the build fetched) or 'live' (the browser fetches the URL).`
 			);
 		}
-		if (serve === 'live' && !isRemoteSpec(reference.spec)) {
+		if (serve !== undefined && !isRemoteSpec(reference.spec)) {
+			// Both modes, not just 'live'. `serve` decides how a *remote* document
+			// reaches the browser, so on a file it does nothing — and accepting
+			// 'snapshot' here while rejecting 'live' teaches the opposite, leaving
+			// a customer who set it believing the build is snapshotting something.
 			throw new Error(
-				`[api-reference] "${reference.id}" sets serve: 'live' but its spec is a file, not a URL. ` +
+				`[api-reference] "${reference.id}" sets serve: '${serve}' but its spec is a file, ` +
+					`not a URL — serve only decides how a remote document reaches the browser. ` +
 					`Remove serve, or point spec at the URL the browser should fetch.`
 			);
+		}
+
+		if (isRemoteSpec(reference.spec)) {
+			// Caught here so a malformed URL is reported by reference and field
+			// rather than as a `TypeError: Invalid URL` from wherever it is first
+			// parsed. `isRemoteSpec` only tests the scheme, so `https://` reaches
+			// this point looking remote.
+			try {
+				new URL(reference.spec);
+			} catch {
+				throw new Error(
+					`[api-reference] "${reference.id}" has a spec that starts like a URL but cannot ` +
+						`be parsed as one: "${reference.spec}".`
+				);
+			}
 		}
 	}
 }

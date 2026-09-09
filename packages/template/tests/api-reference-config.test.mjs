@@ -156,6 +156,55 @@ test("serve: 'live' on a file is a config error", () => {
 	);
 });
 
+test("serve: 'snapshot' on a file is a config error too", () => {
+	// Not just 'live'. `serve` decides how a *remote* document reaches the
+	// browser, so on a file it does nothing — and accepting one mode while
+	// rejecting the other would teach that it does.
+	assert.throws(
+		() => validateReferences([ref({ serve: 'snapshot' })]),
+		/"payments" sets serve: 'snapshot' but its spec is a file, not a URL/
+	);
+});
+
+test('a spec that starts like a URL but cannot be parsed is a config error', () => {
+	// `isRemoteSpec` only tests the scheme, so these look remote and would
+	// otherwise reach `new URL` and throw a bare `TypeError: Invalid URL`
+	// naming neither the reference nor the field.
+	for (const spec of ['https://', 'https://[bad']) {
+		assert.throws(
+			() => validateReferences([ref({ spec })]),
+			/"payments" has a spec that starts like a URL but cannot be parsed as one/,
+			`expected ${spec} to be rejected by name`
+		);
+	}
+});
+
+test('an id that would escape the emitted path is a config error', () => {
+	// `id` names the file at `/api-spec/<id>.<ext>`, so a slash nests it a level
+	// below the route the page asks for and a dot-segment resolves elsewhere.
+	// Both build green and 404 at runtime.
+	for (const id of ['a/b', '..', '.', 'a b']) {
+		assert.throws(
+			() => validateReferences([ref({ id })]),
+			/is not a usable `id`/,
+			`expected id ${JSON.stringify(id)} to be rejected`
+		);
+	}
+});
+
+test('ordinary ids are accepted', () => {
+	for (const id of ['payments', 'admin-v2', 'v1.0', 'internal_api']) {
+		assert.doesNotThrow(() => validateReferences([ref({ id })]), `id ${id} should be fine`);
+	}
+});
+
+test('a malformed remote spec still yields a filename rather than throwing', () => {
+	// The extension is cosmetic, so `emittedFileFor` must degrade rather than
+	// throw — `validateReferences` is where a bad URL gets reported.
+	assert.equal(emittedFileFor(ref({ spec: 'https://' })), 'payments.yaml');
+	assert.equal(emittedFileFor(ref({ spec: 'https://[bad' })), 'payments.yaml');
+});
+
 test('an unknown serve value is a config error', () => {
 	assert.throws(
 		() => validateReferences([ref({ spec: 'https://api.example.com/openapi.yaml', serve: 'cached' })]),

@@ -124,28 +124,61 @@ export function isRemoteSpec(spec) {
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
- * Fetch a remote document as text, turning the three ways this fails into
- * one-line messages a customer can act on. `fetch` itself reports a refused
- * connection as a bare "fetch failed" with the code buried in `cause`, and a
- * timeout as a DOMException whose message never mentions the duration.
+ * Content types that are never an OpenAPI document, however successful the
+ * response looked.
+ *
+ * A URL behind a sign-in page, a captive portal, or a single-page app's
+ * catch-all route answers `200 OK` with HTML. Nothing downstream notices: the
+ * parser finds no operations, so the sidebar degrades to a plain link with a
+ * warning about an unprocessable document — and under `serve: 'snapshot'` that
+ * HTML is emitted *as* the spec, so the build stays green and the reference
+ * renders blank. Saying "this was HTML" is the difference between a customer
+ * checking their URL and a customer debugging their document.
+ */
+const NOT_A_DOCUMENT = /^(?:text\/html|application\/xhtml\+xml)\b/i;
+
+/**
+ * Fetch a remote document as text, turning the ways this fails into one-line
+ * messages a customer can act on. `fetch` itself reports a refused connection
+ * as a bare "fetch failed" with the code buried in `cause`, and a timeout as a
+ * DOMException whose message never mentions the duration.
+ *
+ * Reading the body is inside the same `try` as the request on purpose. The
+ * timeout signal stays attached to the response stream, so a host that sends
+ * headers promptly and then stalls mid-body aborts *here* rather than at the
+ * `fetch` call — and outside the catch that would surface as a bare
+ * "The operation was aborted due to timeout", naming no duration.
  */
 async function fetchSource(url, timeoutMs) {
-	let response;
 	try {
-		response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+		const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+		}
+
+		const contentType = response.headers.get('content-type') ?? '';
+		if (NOT_A_DOCUMENT.test(contentType)) {
+			throw new Error(
+				`the server answered ${response.status} with ${contentType.split(';')[0]}, not an ` +
+					`OpenAPI document — check the URL resolves to the document itself rather than ` +
+					`a page about it, and that it needs no sign-in`
+			);
+		}
+
+		return await response.text();
 	} catch (error) {
 		if (error?.name === 'TimeoutError') {
 			throw new Error(`timed out after ${timeoutMs}ms`, { cause: error });
 		}
+		// Already one of ours (a status or content-type error) — re-throw as is
+		// rather than wrapping a message that is already the one to show.
+		if (!(error instanceof TypeError) && error?.cause === undefined) throw error;
 		const code = error?.cause?.code;
 		throw new Error(code ? `${error.message} (${code})` : error?.message ?? String(error), {
 			cause: error,
 		});
 	}
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
-	}
-	return response.text();
 }
 
 /**

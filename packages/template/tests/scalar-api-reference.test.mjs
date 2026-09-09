@@ -77,10 +77,31 @@ test('every reference points at its own document', () => {
 	for (const reference of enabledReferences) {
 		const html = readFileSync(htmlFor(reference), 'utf-8');
 		const url = specUrlFor(reference);
+		// Read the value Scalar was actually configured with, rather than asking
+		// whether the page contains that string anywhere. A bare
+		// `html.includes(url)` is satisfied by any superstring, so it could not
+		// tell this reference's document from a longer path ending in it.
+		//
+		// Compared with `endsWith`, not equality, and deliberately: this suite
+		// runs under `node --test`, where `import.meta.env` is undefined, so
+		// `specUrlFor` returns the path with no `base` on it while a site that
+		// sets one serves the document below that prefix. Equality would fail
+		// every base-configured build for being correct. The suffix is enough
+		// for what this test is for — catching a reference wired to another
+		// reference's document — because the derived paths differ in their last
+		// segment.
+		const configured = [...html.matchAll(/&#34;url&#34;:&#34;([^&]*?)&#34;/g)].map(
+			(match) => match[1]
+		);
+		assert.equal(
+			configured.length,
+			1,
+			`${reference.id}: expected exactly one configured document URL, got ${JSON.stringify(configured)}`
+		);
 		assert.ok(
-			html.includes(url),
-			`${reference.id}: ${routeFor(reference)} does not reference ${url} — ` +
-				`it would 404 on its document at runtime`
+			configured[0].endsWith(url),
+			`${reference.id}: ${routeFor(reference)} configures Scalar with ` +
+				`"${configured[0]}", which is not ${url} — it would 404 on its document at runtime`
 		);
 	}
 });

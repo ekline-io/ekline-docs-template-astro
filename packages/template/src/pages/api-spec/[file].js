@@ -58,8 +58,8 @@ export function getStaticPaths() {
 	}));
 }
 
-/** @param {{ props: { reference: (typeof emittedReferences)[number] } }} context */
-export async function GET({ props }) {
+/** @param {{ params: { file: string }, props: { reference: (typeof emittedReferences)[number] } }} context */
+export async function GET({ params, props }) {
 	const { reference } = props;
 
 	let body;
@@ -74,8 +74,11 @@ export async function GET({ props }) {
 		);
 	}
 
-	const extension = emittedFileFor(reference).split('.').pop();
+	// `params.file` is the name `getStaticPaths` built from `emittedFileFor`,
+	// which only ever ends `.json` or `.yaml` — so this reads the extension off
+	// the route rather than rebuilding the filename to look at it again.
+	const extension = params.file.endsWith('.json') ? 'json' : 'yaml';
 	return new Response(body, {
-		headers: { 'Content-Type': CONTENT_TYPES[extension] ?? CONTENT_TYPES.yaml },
+		headers: { 'Content-Type': CONTENT_TYPES[extension] },
 	});
 }

@@ -179,3 +179,50 @@ test('a fetch that never completes times out instead of hanging the build', asyn
 		await remote.close();
 	}
 });
+
+test('a timeout while the body streams still names the duration', async () => {
+	// The timeout signal stays attached to the response stream, so a host that
+	// sends headers promptly and then stalls aborts during `response.text()`,
+	// not at the `fetch` call. Outside the mapping catch that surfaced as a bare
+	// "The operation was aborted due to timeout", naming no duration.
+	const remote = await serve((_, res) => {
+		res.writeHead(200, { 'Content-Type': 'application/yaml' });
+		res.write('openapi: 3.1.0\n');
+		// never end
+	});
+	try {
+		await assert.rejects(loadSource(remote.url, { timeoutMs: 200 }), /timed out after 200ms/);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('an HTML page answered with 200 is rejected, not treated as a document', async () => {
+	// A spec URL behind a sign-in page or a single-page app's catch-all answers
+	// 200 with HTML. Accepting it degrades the sidebar with a warning about an
+	// unprocessable document, and under `serve: 'snapshot'` emits that HTML as
+	// the spec — a green build and a blank reference.
+	const remote = await serve((_, res) => {
+		res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+		res.end('<!doctype html><title>Sign in</title>');
+	});
+	try {
+		await assert.rejects(loadSource(remote.url), /answered 200 with text\/html, not an OpenAPI document/);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('a non-2xx response still reports its status', async () => {
+	// Pinned alongside the two above: all three failures share one catch now, so
+	// a change to the mapping must not swallow the status.
+	const remote = await serve((_, res) => {
+		res.statusCode = 503;
+		res.end('busy');
+	});
+	try {
+		await assert.rejects(loadSource(remote.url), /HTTP 503/);
+	} finally {
+		await remote.close();
+	}
+});
