@@ -32,6 +32,7 @@ const DOCUMENT = readFileSync(BUNDLED, 'utf-8');
 
 let server;
 let remoteUrl;
+let liveUrl;
 let diskCopy;
 
 before(async () => {
@@ -45,7 +46,15 @@ before(async () => {
 		res.end(DOCUMENT);
 	});
 	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	// Two distinct paths on the same server, not one URL reused: the loader
+	// memoises a fetched document by its URL string, so a snapshotted and a
+	// live reference pointing at the *same* URL would share that cache entry
+	// — the "live" configuration would pass by reading the snapshot's already-
+	// fetched result rather than genuinely fetching for itself. Different
+	// URLs serving identical bytes force each configuration through its own
+	// fetch, which is the thing "live" is actually supposed to prove.
 	remoteUrl = `http://127.0.0.1:${server.address().port}/openapi.yaml`;
+	liveUrl = `http://127.0.0.1:${server.address().port}/live/openapi.yaml`;
 });
 
 after(async () => {
@@ -77,11 +86,11 @@ function sources() {
 			name: 'a remote URL, snapshotted',
 			reference: { ...common, spec: remoteUrl, serve: 'snapshot' },
 		},
-		{ name: 'a remote URL, live', reference: { ...common, spec: remoteUrl, serve: 'live' } },
+		{ name: 'a remote URL, live', reference: { ...common, spec: liveUrl, serve: 'live' } },
 	];
 }
 
-test('every source produces the same left navigation', async () => {
+test('every source produces the same left navigation', async (t) => {
 	const [baseline, ...rest] = sources();
 	const expected = await openApiSidebarGroup({ spec: baseline.reference.spec, base: BASE });
 
@@ -89,13 +98,20 @@ test('every source produces the same left navigation', async () => {
 	// proving nothing. The shipped document has tags and many operations.
 	assert.ok(expected.items?.length > 1, 'baseline sidebar should be a group of tags, not a fallback link');
 
+	// A subtest per source, not a shared loop: `assert.deepEqual` throws on the
+	// first mismatch, so one shared loop would report only the first source that
+	// diverged and hide the rest. This test's whole job is to say *which*
+	// sources diverged, so each one gets its own subtest and its own chance to
+	// fail — one failing subtest never stops the others from running.
 	for (const { name, reference } of rest) {
-		const actual = await openApiSidebarGroup({ spec: reference.spec, base: BASE });
-		assert.deepEqual(actual, expected, `${name}: sidebar differs from the bundled document's`);
+		await t.test(name, async () => {
+			const actual = await openApiSidebarGroup({ spec: reference.spec, base: BASE });
+			assert.deepEqual(actual, expected, `${name}: sidebar differs from the bundled document's`);
+		});
 	}
 });
 
-test('every source produces the same search entries', async () => {
+test('every source produces the same search entries', async (t) => {
 	// `ApiSearchIndex.astro` renders one heading per entry here, and each id is
 	// the anchor Scalar assigns — so identical operations means identical search
 	// results landing on identical anchors.
@@ -104,9 +120,13 @@ test('every source produces the same search entries', async () => {
 
 	assert.ok(expected.length >= 10, `baseline should index many operations, got ${expected.length}`);
 
+	// See the comment above: a subtest per source so a mismatch in one doesn't
+	// prevent the others from being checked and reported.
 	for (const { name, reference } of rest) {
-		const actual = await openApiOperations({ spec: reference.spec });
-		assert.deepEqual(actual, expected, `${name}: search entries differ from the bundled document's`);
+		await t.test(name, async () => {
+			const actual = await openApiOperations({ spec: reference.spec });
+			assert.deepEqual(actual, expected, `${name}: search entries differ from the bundled document's`);
+		});
 	}
 });
 
@@ -139,7 +159,7 @@ test('the only thing that differs between sources is where the browser fetches f
 	assert.equal(specUrlFor(byName['bundled in public/']), '/openapi.yaml');
 	assert.equal(specUrlFor(byName['a file outside public/']), '/api-spec/payments.yaml');
 	assert.equal(specUrlFor(byName['a remote URL, snapshotted']), '/api-spec/payments.yaml');
-	assert.equal(specUrlFor(byName['a remote URL, live']), remoteUrl);
+	assert.equal(specUrlFor(byName['a remote URL, live']), liveUrl);
 
 	// And which of them the build has to serve a copy of.
 	assert.equal(needsEmit(byName['bundled in public/']), false);
