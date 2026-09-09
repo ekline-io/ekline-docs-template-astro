@@ -188,15 +188,18 @@ export function loadSource(spec, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
 }
 
 /**
- * Read and fully resolve an OpenAPI document, once per `spec` per build.
+ * Read and fully resolve an OpenAPI document, once per `spec` per **module instance**.
  *
  * `normalize` accepts YAML or JSON, `upgrade` lifts Swagger 2.0 and OpenAPI 3.0
  * documents to 3.1, and `dereference` resolves `$ref`s — so a customer's spec
- * works whatever shape it arrives in. Built on `loadSource`, so a document
- * that is also served by the endpoint is still only read or fetched once.
+ * works whatever shape it arrives in. Built on `loadSource`, so the raw document's
+ * read or fetch is shared within each instance.
  *
- * Memoised separately because dereferencing dominates the cost on a large
- * spec and the sidebar and the search index each need the result.
+ * What the memoisation still buys: within one module instance, concurrent callers
+ * — the sidebar or the search index — do not re-dereference a document they have
+ * already parsed. Dereferencing dominates the cost on a large spec, so the cache
+ * is worth having even within a single caller. Failures are dropped from the cache
+ * so a dev server can retry after a fix.
  */
 const documentCache = new Map();
 
