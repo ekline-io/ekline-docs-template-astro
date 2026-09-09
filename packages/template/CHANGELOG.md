@@ -8,6 +8,42 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.4.0
+
+### One field says where your OpenAPI document is
+
+Each API reference used to carry two fields for one document — `spec`, a path
+the build read to generate the sidebar, and `specUrl`, the address the reader's
+browser fetched — and they accepted different kinds of value. Only a file in
+`public/` satisfied both. A remote URL built green but lost the operation
+sidebar and dropped out of search; a file elsewhere in your repository filled
+the sidebar and rendered a blank page.
+
+Now `spec` is the only field, and it takes a path or an `https://` URL:
+
+```js
+spec: './public/openapi.yaml', // bundled, as before
+spec: '../api/openapi.yaml', // elsewhere in your repo — served for you at /api-spec/
+spec: 'https://api.example.com/openapi.yaml', // remote — fetched at build time
+```
+
+The browser URL is derived, so the two can no longer disagree. A remote
+document gets the same generated sidebar and search entries as a bundled one,
+and an optional `serve` chooses how readers load it: `'snapshot'` (the default)
+serves the copy the build fetched from your own site — no CORS setup, and
+nothing goes blank when the API host is down — while `'live'` has the browser
+fetch the URL directly so the reference is always current.
+
+If the build is responsible for serving a document and can't obtain it — a
+snapshot URL that's unreachable, a file that isn't there — the build now fails
+naming the source and the reason, rather than shipping a blank reference. A
+remote fetch is capped at 30 seconds.
+
+**Upgrading:** an entry that still sets `specUrl` keeps working unchanged; the
+value is used as-is. See
+[API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/)
+for the three cases.
+
 ## 2.3.0
 
 ### A new light / dark control, and a config for it
