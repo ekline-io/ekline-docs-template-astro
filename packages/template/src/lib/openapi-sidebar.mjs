@@ -10,10 +10,10 @@
  *
  * ## Why this is generated rather than written by hand
  *
- * This is a template. Customers replace `public/openapi.yaml` with their own
- * document, and the sidebar has to follow without anyone editing config. So the
- * entries are derived from the spec at build time — add an endpoint, rebuild,
- * and it appears.
+ * This is a template. You point `spec` at your own document — a file in
+ * `public/`, a file elsewhere in your repository, or a URL — and the sidebar
+ * has to follow without anyone editing config. So the entries are derived
+ * from the spec at build time — add an endpoint, rebuild, and it appears.
  *
  * ## Why it uses Scalar's own navigation builder
  *
@@ -79,9 +79,11 @@ const METHOD_VARIANT = {
  * say which.
  */
 function warn(spec, error, consequence) {
+	const remote = isRemoteSpec(spec);
 	console.warn(
-		`[openapi-sidebar] Could not process "${spec}": ${error?.message ?? error}\n` +
-			`  ${consequence}`
+		`[openapi-sidebar] Could not ${remote ? 'fetch' : 'read'} "${spec}": ${error?.message ?? error}\n` +
+			`  ${consequence}` +
+			(remote ? '\n  The build machine must be able to reach this URL.' : '')
 	);
 }
 
@@ -109,39 +111,96 @@ function anchorFor(id) {
 	return value.startsWith(ID_PREFIX) ? value.slice(ID_PREFIX.length) : null;
 }
 
+/** Is this `spec` value fetched over the network rather than read from disk? */
+export function isRemoteSpec(spec) {
+	return /^https?:\/\//i.test(String(spec));
+}
+
 /**
- * Read and fully resolve an OpenAPI document, once per path per build.
+ * Longest a build waits on one remote document. A customer's API host that
+ * hangs must not hang their build with it; thirty seconds is generous for a
+ * file and short enough to notice.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
+ * Fetch a remote document as text, turning the three ways this fails into
+ * one-line messages a customer can act on. `fetch` itself reports a refused
+ * connection as a bare "fetch failed" with the code buried in `cause`, and a
+ * timeout as a DOMException whose message never mentions the duration.
+ */
+async function fetchSource(url, timeoutMs) {
+	let response;
+	try {
+		response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+	} catch (error) {
+		if (error?.name === 'TimeoutError') {
+			throw new Error(`timed out after ${timeoutMs}ms`, { cause: error });
+		}
+		const code = error?.cause?.code;
+		throw new Error(code ? `${error.message} (${code})` : error?.message ?? String(error), {
+			cause: error,
+		});
+	}
+	if (!response.ok) {
+		throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+	}
+	return response.text();
+}
+
+/**
+ * The raw document, once per `spec` value per build.
+ *
+ * Three things need it — the sidebar, the search index, and the endpoint that
+ * serves documents kept outside `public/` — and they run from different places
+ * at different moments. Memoising the promise means one read or one fetch,
+ * shared, with concurrent callers waiting on the same request rather than
+ * racing. Failures are dropped from the cache so a dev server can retry after
+ * the customer fixes the path or the host comes back.
+ *
+ * `timeoutMs` exists for the test suite; every real caller takes the default.
+ */
+const sourceCache = new Map();
+
+export function loadSource(spec, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+	const cached = sourceCache.get(spec);
+	if (cached) return cached;
+
+	const pending = isRemoteSpec(spec) ? fetchSource(spec, timeoutMs) : readFile(spec, 'utf-8');
+
+	pending.catch(() => sourceCache.delete(spec));
+	sourceCache.set(spec, pending);
+	return pending;
+}
+
+/**
+ * Read and fully resolve an OpenAPI document, once per `spec` per build.
  *
  * `normalize` accepts YAML or JSON, `upgrade` lifts Swagger 2.0 and OpenAPI 3.0
  * documents to 3.1, and `dereference` resolves `$ref`s — so a customer's spec
- * works whatever shape it arrives in.
+ * works whatever shape it arrives in. Built on `loadSource`, so a document
+ * that is also served by the endpoint is still only read or fetched once.
  *
- * Memoised because the sidebar and the search index each need the document and
- * are built from different places (config evaluation, then component render).
- * Dereferencing dominates the cost on a large spec, and paying it twice per
- * build is pure waste. The promise is cached, not the result, so concurrent
- * callers share one read rather than racing.
+ * Memoised separately because dereferencing dominates the cost on a large
+ * spec and the sidebar and the search index each need the result.
  */
 const documentCache = new Map();
 
-function loadDocument(specPath) {
-	const cached = documentCache.get(specPath);
+function loadDocument(spec) {
+	const cached = documentCache.get(spec);
 	if (cached) return cached;
 
 	const pending = (async () => {
-		const raw = await readFile(specPath, 'utf-8');
+		const raw = await loadSource(spec);
 		const { specification } = upgrade(normalize(raw));
 		// `dereference` is synchronous despite the name — no `await` here.
 		const { schema } = dereference(specification);
 		return schema ?? specification;
 	})();
 
-	// Drop failures from the cache so a later call can retry — a dev server
-	// rebuilds after the customer fixes the file, and a cached rejection would
-	// keep reporting the old error forever.
-	pending.catch(() => documentCache.delete(specPath));
+	pending.catch(() => documentCache.delete(spec));
 
-	documentCache.set(specPath, pending);
+	documentCache.set(spec, pending);
 	return pending;
 }
 
@@ -153,7 +212,7 @@ function loadDocument(specPath) {
  * the reverse) is the kind of drift nobody notices until a reader reports it.
  *
  * @param {object} options
- * @param {string} options.spec Path to the OpenAPI document on disk.
+ * @param {string} options.spec Path to the OpenAPI document on disk, or an http(s) URL.
  * @returns Operations with the anchor each one lives at. Empty if the document
  *   cannot be read — callers render nothing rather than failing the build.
  */
@@ -204,7 +263,7 @@ export async function openApiOperations({ spec }) {
  * Build a Starlight sidebar group from an OpenAPI document.
  *
  * @param {object} options
- * @param {string} options.spec       Path to the OpenAPI document on disk.
+ * @param {string} options.spec       Path to the OpenAPI document on disk, or an http(s) URL.
  * @param {string} options.base       Route the reference is rendered at, e.g. `/api/`.
  * @param {string} [options.label]    Group label in the sidebar.
  * @param {boolean} [options.collapsed] Start the group collapsed. On by default —
@@ -230,7 +289,7 @@ export async function openApiSidebarGroup({
 	try {
 		document = await loadDocument(spec);
 	} catch (error) {
-		warn(spec, error, 'The API reference is still linked, but without per-operation entries.');
+		warn(spec, error, 'The reference is still linked, but has no operation sidebar.');
 		return fallback;
 	}
 
@@ -269,7 +328,7 @@ export async function openApiSidebarGroup({
 
 		return { label, collapsed, items: [{ label: 'Overview', link: base }, ...groups] };
 	} catch (error) {
-		warn(spec, error, 'The API reference is still linked, but without per-operation entries.');
+		warn(spec, error, 'The reference is still linked, but has no operation sidebar.');
 		return fallback;
 	}
 }
