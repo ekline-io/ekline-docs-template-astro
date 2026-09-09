@@ -18,7 +18,7 @@
 - A URL is anything matching `/^https?:\/\//i`. `serve` accepts `'snapshot'`, `'live'`, or `undefined` (= `'snapshot'`). Emitted files live at `/api-spec/<id>.<ext>`, `<ext>` ∈ {`yaml`, `json`}, default `yaml`. Fetch timeout default `30_000` ms.
 - Failure rule: **the build fails when the template is responsible for serving a document it cannot obtain** (rule-4 references). Every other failure warns and degrades.
 - Both shipped references stay in `public/` and gain no `serve` field. `specUrl` is removed from them but stays honoured as an override when a customer sets it.
-- Commit messages: conventional prefix (`feat:`, `test:`, `docs:`, `chore:`). Recent history appends a ticket like `(EK-2405)`; append one if you have it. End every commit with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- Commit messages: conventional prefix (`feat:`, `test:`, `docs:`, `chore:`). Recent history appends a ticket like `(EK-2405)`; append one if you have it. End every commit with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 - Verified 2026-09-09 on this repo: a `src/pages/api-spec/[file].js` endpoint with `params.file = 'probe.yaml'` emits `dist/client/api-spec/probe.yaml` exactly; an empty `getStaticPaths()` emits nothing and prints **no** warning. Trust these; do not re-probe.
 
 ---
@@ -273,7 +273,7 @@ loadSource() fetches http(s) specs with a 30s timeout and is memoised so the
 sidebar, search index and (next) the serving endpoint share one request.
 A fetched document yields the same sidebar as the same bytes on disk.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -741,7 +741,7 @@ specUrlFor() derives what the browser fetches; serve: 'snapshot' | 'live'
 chooses how a remote document reaches it. Bad combinations fail the build
 by name. An explicit specUrl still wins, so existing configs are untouched.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -962,7 +962,7 @@ or a snapshotted remote URL, so the browser can fetch what the sidebar was
 built from. It throws — failing the build — when the document cannot be
 obtained, since the alternative is a blank reference page.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -1096,7 +1096,7 @@ Expected: passes. Nothing visual changed — both shipped references are still `
 git add 'src/pages/api/[...reference].astro' src/components/ScalarApiReference.astro src/components/ApiSearchIndex.astro tests/scalar-api-reference.test.mjs
 git commit -m "feat: the reference page loads its document from the derived URL
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -1316,7 +1316,7 @@ reader sees. Each other suite covers one source alone and would still pass if
 they diverged; this one compares all four configurations against the bundled
 baseline, and pins that specUrlFor is the only thing allowed to differ.
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -1493,7 +1493,7 @@ From the repo root:
 git add apps/docs/src/content/docs/api-reference.md apps/docs/src/content/docs/removing-features.md packages/template/wiki/api-reference.md
 git commit -m "docs: where an OpenAPI document can live, and how each case is served
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -1640,5 +1640,5 @@ In `packages/template`: `npm run check && npm test`. From the repo root: `npm ru
 git add CHANGELOG.md package.json package-lock.json
 git commit -m "chore: release 2.4.0
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
