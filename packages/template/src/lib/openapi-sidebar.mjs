@@ -149,14 +149,28 @@ async function fetchSource(url, timeoutMs) {
 }
 
 /**
- * The raw document, once per `spec` value per build.
+ * The raw document, once per `spec` value per **module instance**.
  *
  * Three things need it — the sidebar, the search index, and the endpoint that
- * serves documents kept outside `public/` — and they run from different places
- * at different moments. Memoising the promise means one read or one fetch,
- * shared, with concurrent callers waiting on the same request rather than
- * racing. Failures are dropped from the cache so a dev server can retry after
- * the customer fixes the path or the host comes back.
+ * serves documents kept outside `public/` — but only two of them actually
+ * share this cache. The search index and the endpoint both run from the
+ * Rollup-bundled SSR copy of the app, so they see the same `sourceCache` map
+ * and the same in-flight promise. The sidebar is generated in
+ * `astro.config.mjs`, which the Astro config loader evaluates as its own,
+ * separate module instance with its own `sourceCache` — so the sidebar always
+ * performs its own read or fetch, no matter what the search index or the
+ * endpoint already did. For a remote document that means two HTTP requests
+ * per build, not one, so a customer relying on the 30-second fetch timeout as
+ * a build-time cap should budget for up to 60 seconds of worst-case stall;
+ * and under `serve: 'snapshot'` against a fast-moving document, there is a
+ * window where the sidebar was generated from one version of it while the
+ * snapshot the endpoint emits is a different one.
+ *
+ * What the memoisation still buys: concurrent callers *within* one module
+ * instance — the search index and the endpoint — wait on the same request
+ * rather than each firing their own, and a failure is dropped from the cache
+ * so a dev server can retry after the customer fixes the path or the host
+ * comes back.
  *
  * `timeoutMs` exists for the test suite; every real caller takes the default.
  */

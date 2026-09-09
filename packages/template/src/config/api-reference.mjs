@@ -134,15 +134,29 @@ function serveModeFor(reference) {
 
 /**
  * Where under the site root a `public/` path is served, or `null` when the
- * path is not under this project's `public/`.
+ * path is not under this project's `public/` — including when it is, but not
+ * in a way a browser could actually request.
  *
  * Anchored, so `./not-public/x` and `../public/x` — a sibling project's
  * directory — do not match. Written for POSIX separators, which is how this
  * file is written on every platform.
+ *
+ * The captured remainder is also rejected if any segment is empty or `..`:
+ * `./public//openapi.yaml` would otherwise derive `//openapi.yaml`, which a
+ * browser resolves as a *protocol-relative* URL — a cross-origin request to a
+ * host named `openapi.yaml` — and `public/../secret.yaml` would derive
+ * `/../secret.yaml`, which normalises to `/secret.yaml`, outside `public/`
+ * and not served by anything. Both read fine at build time (`readFile`
+ * doesn't care), so without this check the build stays green and the
+ * reference renders blank. Returning `null` here sends the reference through
+ * rule 4 instead, which always works.
  */
 function publicUrlFor(spec) {
 	const match = /^(?:\.\/)?public\/(.+)$/.exec(String(spec));
-	return match ? `/${match[1]}` : null;
+	if (!match) return null;
+	const segments = match[1].split('/');
+	if (segments.some((segment) => segment === '' || segment === '..')) return null;
+	return `/${match[1]}`;
 }
 
 /**
@@ -181,11 +195,35 @@ export function needsEmit(reference) {
  * URL silently lost the sidebar and a file outside `public/` rendered blank.
  * Rules, first match wins: an explicit `specUrl`; a live remote URL; a
  * `public/` file at the site root; otherwise the file the build emits.
+ *
+ * Rules 3 and 4 are site-root-relative paths, so on a site built with a
+ * `base` they need that `base` prefixed on or the browser requests the
+ * unprefixed path and 404s — the same bug class `withBase()` in
+ * `src/lib/auth/http.mjs` exists to prevent for redirects. Rules 1 and 2 are
+ * left alone: an explicit `specUrl` is the customer's own string to get
+ * right, and a remote URL is already absolute.
+ *
+ * `base` defaults to `import.meta.env.BASE_URL`, read lazily inside the
+ * function rather than at module scope — `astro.config.mjs` imports this
+ * module for `enabledReferences` and friends, and `import.meta.env` is not
+ * necessarily populated at that point in the config loader. Reading it here,
+ * only when a caller actually asks for a URL, keeps that import working. It
+ * is also `undefined` outright under `node --test` (no Vite substitution), so
+ * the optional chaining and fallback let the test suite call this with no
+ * options and get the pre-`base` behaviour, or pass one explicitly to assert
+ * the prefixed behaviour. `BASE_URL` may or may not carry a trailing slash
+ * depending on `trailingSlash`, so this strips one the way `withBase()` does
+ * rather than assuming either form.
+ *
+ * @param {object} [options]
+ * @param {string} [options.base]
  */
-export function specUrlFor(reference) {
+export function specUrlFor(reference, { base = import.meta.env?.BASE_URL ?? '/' } = {}) {
 	if (reference.specUrl) return reference.specUrl;
 	if (isRemoteSpec(reference.spec) && serveModeFor(reference) === 'live') return reference.spec;
-	return publicUrlFor(reference.spec) ?? `/api-spec/${emittedFileFor(reference)}`;
+	const prefix = base.replace(/\/$/, '');
+	const path = publicUrlFor(reference.spec) ?? `/api-spec/${emittedFileFor(reference)}`;
+	return `${prefix}${path}`;
 }
 
 /**

@@ -160,9 +160,25 @@ loads so it fails `astro build` and `astro dev` before anything renders:
 
 `src/lib/openapi-sidebar.mjs` gains an exported `loadSource(spec, { timeoutMs })`
 that returns the raw text, memoised per `spec` value exactly as `loadDocument`
-is memoised today — the promise, so concurrent callers share one read.
-`loadDocument` is rebuilt on top of it. The sidebar, the search index and the
-emit endpoint therefore share **one** read or fetch per document per build.
+is memoised today — the promise, so concurrent callers *within one module
+instance* share one read.
+`loadDocument` is rebuilt on top of it.
+
+**Correction, post-implementation (verified on a real build):** this does
+*not* give the sidebar, the search index and the emit endpoint one shared read
+or fetch. `astro.config.mjs`, which builds the sidebar, is evaluated by the
+Astro config loader as its own module instance; the search index and the emit
+endpoint both run from the page build's Rollup-bundled SSR copy. Those are two
+separate instances of this module, each with its own `sourceCache` map — so
+the search index and the endpoint share one read or fetch, and the sidebar
+always performs a second one. For a remote document that is two HTTP requests
+per build, so the 30-second timeout is a per-request cap, not a per-build one,
+and under `serve: 'snapshot'` there is a window where the sidebar was built
+from one version of a fast-moving document and the emitted snapshot is
+another. Consolidating the two module instances' reads is out of scope for
+this fix — it would change how `astro.config.mjs` builds the sidebar — so this
+stays two reads by design for now; a future change that wants one read has to
+solve the module-instance split first, not just memoisation.
 
 - A path is read with `readFile`, as today.
 - A URL is fetched with `fetch(url, { signal: AbortSignal.timeout(timeoutMs) })`,
@@ -278,8 +294,9 @@ remote documents in one place:
   stay in `public/`.
 - `wiki/api-reference.md` — "Swap in your own spec" becomes "Where the
   document comes from": the derivation table, the failure rule, that the
-  emitted bytes are raw, that the three consumers share one fetch, and the
-  pre-existing external-`$ref` limitation.
+  emitted bytes are raw, which two of the three consumers actually share a
+  fetch (the search index and the endpoint — not the sidebar, per the
+  correction above), and the pre-existing external-`$ref` limitation.
 - `CHANGELOG.md` — a `2.4.0` entry, customer-facing: one field instead of
   two, the three places a document can live, `snapshot` versus `live`, and
   that an existing `specUrl` keeps working.

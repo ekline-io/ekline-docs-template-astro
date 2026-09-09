@@ -20,8 +20,15 @@
  * It serves the **raw** document — the bytes as read or fetched, not the
  * normalized, dereferenced copy the sidebar is built from. Scalar upgrades
  * older documents itself, and the "Download OpenAPI Document" link should hand
- * readers the file they would recognise. `loadSource` is memoised, so the
- * sidebar, the search index and this endpoint share one read or fetch.
+ * readers the file they would recognise. `loadSource` is memoised, so this
+ * endpoint and the search index — both built from the Rollup-bundled SSR
+ * copy of the app — share one read or fetch. The sidebar does not join that
+ * cache: `astro.config.mjs` builds it from the module instance the Astro
+ * config loader evaluates, a separate `sourceCache` from the one this file and
+ * the search index share, so the sidebar always performs its own read or
+ * fetch. For a remote document that is two HTTP requests per build, not one —
+ * worth knowing if you are budgeting the 30-second fetch timeout against a
+ * slow host, since the worst case is now two of those in series.
  *
  * ## Why this throws
  *

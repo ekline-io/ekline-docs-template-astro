@@ -19,11 +19,14 @@ browser fetched — and they accepted different kinds of value. Only a file in
 sidebar and dropped out of search; a file elsewhere in your repository filled
 the sidebar and rendered a blank page.
 
-Now `spec` is the only field, and it takes a path or an `https://` URL:
+Now `spec` is the only field, and it takes a path or an `http(s)://` URL —
+pick whichever of these three matches where your document actually is:
 
 ```js
 spec: './public/openapi.yaml', // bundled, as before
+// — or —
 spec: '../api/openapi.yaml', // elsewhere in your repo — served for you at /api-spec/
+// — or —
 spec: 'https://api.example.com/openapi.yaml', // remote — fetched at build time
 ```
 

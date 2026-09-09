@@ -75,6 +75,62 @@ test('a public/ path is matched as a path, not a substring', () => {
 	assert.equal(specUrlFor(ref({ spec: '../public/openapi.yaml' })), '/api-spec/payments.yaml');
 });
 
+// --- publicUrlFor (via specUrlFor/needsEmit): reject an unrequestable remainder ---
+
+test('an empty segment in the public/ remainder falls through to rule 4', () => {
+	// `./public//openapi.yaml` would otherwise derive `//openapi.yaml`, which a
+	// browser resolves as protocol-relative — a cross-origin request to a host
+	// named "openapi.yaml" — not a request for this site's own file.
+	const reference = ref({ spec: './public//openapi.yaml' });
+	assert.equal(specUrlFor(reference), '/api-spec/payments.yaml');
+	assert.equal(needsEmit(reference), true);
+});
+
+test('a .. segment in the public/ remainder falls through to rule 4', () => {
+	// `public/../secret.yaml` would otherwise derive `/../secret.yaml`, which
+	// normalises to `/secret.yaml` — outside `public/` and served by nothing.
+	const reference = ref({ spec: 'public/../secret.yaml' });
+	assert.equal(specUrlFor(reference), '/api-spec/payments.yaml');
+	assert.equal(needsEmit(reference), true);
+});
+
+// --- specUrlFor: base prefixing (Finding 1) ---------------------------------
+
+test('rule 3 (a public/ path) is prefixed with a configured base', () => {
+	const reference = ref({ spec: './public/openapi.yaml' });
+	assert.equal(specUrlFor(reference, { base: '/docs' }), '/docs/openapi.yaml');
+	// `BASE_URL` may or may not carry a trailing slash depending on
+	// `trailingSlash` — both spellings must derive the same URL.
+	assert.equal(specUrlFor(reference, { base: '/docs/' }), '/docs/openapi.yaml');
+});
+
+test('rule 4 (the emitted endpoint) is prefixed with a configured base', () => {
+	const reference = ref({ spec: '../api/openapi.yaml' });
+	assert.equal(specUrlFor(reference, { base: '/docs' }), '/docs/api-spec/payments.yaml');
+	assert.equal(specUrlFor(reference, { base: '/docs/' }), '/docs/api-spec/payments.yaml');
+});
+
+test('rule 1 (an explicit specUrl) ignores a configured base', () => {
+	// The customer wrote this string themselves; it is used verbatim regardless
+	// of where the site is deployed.
+	const reference = ref({ spec: '../api/openapi.yaml', specUrl: '/custom/openapi.yaml' });
+	assert.equal(specUrlFor(reference, { base: '/docs' }), '/custom/openapi.yaml');
+});
+
+test('rule 2 (a live remote URL) ignores a configured base', () => {
+	// Already absolute — prefixing it would produce a URL that does not exist.
+	const reference = ref({ spec: 'https://api.example.com/openapi.yaml', serve: 'live' });
+	assert.equal(specUrlFor(reference, { base: '/docs' }), 'https://api.example.com/openapi.yaml');
+});
+
+test('the default base (no option passed) behaves exactly as before', () => {
+	// `import.meta.env` is undefined under `node --test`, so the default
+	// argument resolves to '/' and every call site in the existing suite keeps
+	// its pre-`base` answer with no changes required there.
+	assert.equal(specUrlFor(ref({ spec: './public/openapi.yaml' })), '/openapi.yaml');
+	assert.equal(specUrlFor(ref({ spec: '../api/openapi.yaml' })), '/api-spec/payments.yaml');
+});
+
 // --- emittedFileFor: the extension ------------------------------------------
 
 test('the emitted file takes its extension from the source', () => {

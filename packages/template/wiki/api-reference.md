@@ -8,11 +8,25 @@ Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/
 
 ## Where the document comes from
 
-`spec` takes a path or an `http(s)://` URL. Three things consume it, and they
-share one read or fetch per build through `loadSource()` in
-`src/lib/openapi-sidebar.mjs`: the sidebar generator, the search index, and —
-when the site has to serve the document itself — the endpoint at
-`src/pages/api-spec/[file].js`.
+`spec` takes a path or an `http(s)://` URL. Three things consume it through
+`loadSource()` in `src/lib/openapi-sidebar.mjs`: the sidebar generator, the
+search index, and — when the site has to serve the document itself — the
+endpoint at `src/pages/api-spec/[file].js`. Only two of those three actually
+share a read or fetch. `astro.config.mjs`, which builds the sidebar, runs in
+the Astro config loader's own module registry; the search index and the
+endpoint both run from the page build's Rollup-bundled SSR copy. Those are two
+separate instances of `loadSource()` with two separate memoisation caches, so
+the search index and the endpoint share one read or fetch and **the sidebar
+always performs its own**, in addition. For a remote document that is two HTTP
+requests per build, not one — the 30-second fetch timeout is a per-request
+cap, so the worst case across a build is 60 seconds of stall, not 30. It also
+means that under `serve: 'snapshot'` against a document that changes between
+those two requests, the sidebar can be built from one version while the
+snapshot the endpoint emits is a different one. The memoisation is still
+useful where it applies: the search index and the endpoint genuinely make one
+request between them rather than two, and a failed read or fetch is dropped
+from the cache so a dev server can retry once the customer fixes the path or
+the host comes back.
 
 The URL the browser fetches is derived by `specUrlFor()` in
 `src/config/api-reference.mjs`. First rule that matches:
