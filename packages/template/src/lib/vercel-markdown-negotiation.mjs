@@ -46,7 +46,14 @@
  * build rather than assumed; the guard in `applyToBuildOutput` is what catches
  * it if the first half ever changes.
  *
- * Off Vercel there is no `.vercel/` directory and this does nothing.
+ * A `base` path is handled: the home page's twin moves under it, and
+ * `astro:config:setup` passes that prefix through so the home page still
+ * negotiates. Every other page needs no special handling, since its twin sits
+ * beside its own `index.html` either way.
+ *
+ * Off Vercel this does nothing at all — checked before any file is read, so a
+ * `.vercel/` left behind by an earlier Vercel build cannot make an ordinary
+ * build act on it.
  *
  * See wiki/private-docs.md § Markdown content negotiation on Vercel.
  */
@@ -69,9 +76,11 @@ import { fileURLToPath } from 'node:url';
  */
 export const ACCEPT_MARKDOWN = String.raw`(^|.*[,\s])text/markdown([;,\s].*|$)`;
 
+const ACCEPT_MARKDOWN_RE = new RegExp(`^(?:${ACCEPT_MARKDOWN})$`);
+
 /** `ACCEPT_MARKDOWN`, applied. For tests and for reading. */
 export function acceptsMarkdown(accept) {
-	return new RegExp(`^(?:${ACCEPT_MARKDOWN})$`).test(accept ?? '');
+	return ACCEPT_MARKDOWN_RE.test(accept ?? '');
 }
 
 /** Escapes a slug so it can sit inside a regex alternation as a literal. */
@@ -79,8 +88,12 @@ export function escapeRegex(s) {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const VARY_ACCEPT = { Vary: 'Accept' };
-const WANTS_MARKDOWN = [{ type: 'header', key: 'accept', value: ACCEPT_MARKDOWN }];
+// Built fresh per route rather than shared: these objects are handed to the
+// caller inside the returned config, and one shared `headers` object across
+// four routes means a later edit to one route's headers silently rewrites the
+// others'.
+const varyAccept = () => ({ Vary: 'Accept' });
+const wantsMarkdown = () => [{ type: 'header', key: 'accept', value: ACCEPT_MARKDOWN }];
 
 /**
  * The four routes, in the order they must appear. `twins` is
@@ -102,11 +115,17 @@ const WANTS_MARKDOWN = [{ type: 'header', key: 'accept', value: ACCEPT_MARKDOWN 
  */
 export function negotiationRoutes({ root, slugs }) {
 	const routes = [];
-	const slugSrc = slugs.length ? `^/(${slugs.map(escapeRegex).join('|')})/?$` : null;
-	if (slugSrc) routes.push({ src: slugSrc, headers: VARY_ACCEPT, continue: true });
-	if (root) routes.push({ src: '^/$', headers: VARY_ACCEPT, continue: true });
-	if (slugSrc) routes.push({ src: slugSrc, has: WANTS_MARKDOWN, dest: '/$1.md', headers: VARY_ACCEPT });
-	if (root) routes.push({ src: '^/$', has: WANTS_MARKDOWN, dest: '/index.md', headers: VARY_ACCEPT });
+	// An empty branch in the alternation matches `/` and would rewrite the home
+	// page to a `/.md` that does not exist; one ending in `/` does the same to
+	// its parent. `discoverTwins` already refuses to produce either, and this is
+	// the second lock: it is this function that turns a slug into a regex, so it
+	// is the one place that has to know an empty branch is dangerous.
+	const usable = slugs.filter((s) => s && !s.endsWith('/'));
+	const slugSrc = usable.length ? `^/(${usable.map(escapeRegex).join('|')})/?$` : null;
+	if (slugSrc) routes.push({ src: slugSrc, headers: varyAccept(), continue: true });
+	if (root) routes.push({ src: '^/$', headers: varyAccept(), continue: true });
+	if (slugSrc) routes.push({ src: slugSrc, has: wantsMarkdown(), dest: '/$1.md', headers: varyAccept() });
+	if (root) routes.push({ src: '^/$', has: wantsMarkdown(), dest: '/index.md', headers: varyAccept() });
 	return routes;
 }
 
@@ -136,32 +155,50 @@ export function withMarkdownNegotiation(config, twins) {
 	};
 }
 
-function* walk(dir) {
+function* walk(dir, depth = 0) {
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		// `_astro/` is the hashed asset bundle — scripts, styles, images, and on
+		// a large site thousands of them. No page twin is ever written there, so
+		// descending it is pure cost. Only skipped at the top level, in case a
+		// page is ever legitimately called `_astro`.
+		if (depth === 0 && entry.isDirectory() && entry.name === '_astro') continue;
 		const p = join(dir, entry.name);
-		if (entry.isDirectory()) yield* walk(p);
+		if (entry.isDirectory()) yield* walk(p, depth + 1);
 		else yield p;
 	}
 }
 
 /**
- * Which URLs have a twin, read from the emitted static directory — the same
- * ground truth `tests/markdown-twins.test.mjs` checks. A twin is `<slug>.md`
- * beside `<slug>/index.html`; `index.md` beside `index.html` is the root's.
- * Anything else — a `.md` dropped into `public/`, a page with no `.md`, the
- * `404.md` beside `404.html` — is not, and never negotiates.
+ * Which URLs have a twin, read from the built site. A twin is `<slug>.md`
+ * beside `<slug>/index.html`; an `index.md` beside its own `index.html` is the
+ * home page's. Anything else — a `.md` dropped into `public/`, a page with no
+ * `.md`, the `404.md` beside `404.html` — is not, and never negotiates.
+ *
+ * `rootSlug` is the path the home page sits at, which is `''` unless a `base`
+ * is configured: with `base: '/docs'` the home page is `docs/index.html` and
+ * its twin is `docs/index.md`, and `/docs/` is the URL that must negotiate to
+ * it. Every other page is found the same way with or without a base, since
+ * `<slug>.md` beside `<slug>/index.html` already carries the prefix.
  */
-export function discoverTwins(staticDir) {
+export function discoverTwins(staticDir, rootSlug = '') {
+	const rootTwin = rootSlug ? `${rootSlug}/index.md` : 'index.md';
+	const rootHtml = rootSlug ? [...rootSlug.split('/'), 'index.html'] : ['index.html'];
 	let root = false;
 	const slugs = [];
 	for (const file of walk(staticDir)) {
 		if (!file.endsWith('.md')) continue;
 		const rel = relative(staticDir, file).split(sep).join('/');
-		if (rel === 'index.md') {
-			root = existsSync(join(staticDir, 'index.html'));
+		if (rel === rootTwin) {
+			root = existsSync(join(staticDir, ...rootHtml));
 			continue;
 		}
 		const slug = rel.slice(0, -'.md'.length);
+		// A slug has to be a usable URL path segment. An empty one — from a file
+		// named bare `.md` — would put an empty branch in the alternation, and
+		// an empty branch matches `/`, hijacking the home page and rewriting it
+		// to a `/.md` that does not exist. One ending in `/` (from `foo/.md`)
+		// does the same to `/foo/`.
+		if (!slug || slug.endsWith('/')) continue;
 		if (existsSync(join(staticDir, ...slug.split('/'), 'index.html'))) slugs.push(slug);
 	}
 	slugs.sort();
@@ -170,6 +207,16 @@ export function discoverTwins(staticDir) {
 
 /** Where `@astrojs/vercel` writes its output, relative to the project root. */
 const OUTPUT_DIR = '.vercel/output';
+
+/**
+ * Vercel sets `VERCEL=1` on its builders. Anything else — unset, empty, or a
+ * value that means "no" — is not a Vercel build. A bare truthiness check would
+ * read `VERCEL=0`, the obvious way to say "not Vercel", as "yes".
+ */
+function isVercelBuild() {
+	const flag = process.env.VERCEL;
+	return flag !== undefined && flag !== '' && flag !== '0' && flag.toLowerCase() !== 'false';
+}
 
 /**
  * Reads the adapter's `config.json`, adds the negotiation routes, writes it
@@ -191,8 +238,8 @@ const OUTPUT_DIR = '.vercel/output';
  * lacking the feature — the failure this feature already suffered once — so it
  * throws.
  */
-export function applyToBuildOutput({ projectRoot, staticDir }) {
-	if (!process.env.VERCEL) return null;
+export function applyToBuildOutput({ projectRoot, staticDir, rootSlug = '' }) {
+	if (!isVercelBuild()) return null;
 
 	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
 	if (!existsSync(configPath)) {
@@ -202,8 +249,18 @@ export function applyToBuildOutput({ projectRoot, staticDir }) {
 				'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
 		);
 	}
-	const twins = discoverTwins(staticDir);
-	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+	const twins = discoverTwins(staticDir, rootSlug);
+	let config;
+	try {
+		config = JSON.parse(readFileSync(configPath, 'utf-8'));
+	} catch (cause) {
+		throw new Error(
+			`[vercel-markdown-negotiation] could not read ${relative(projectRoot, configPath)} as JSON. ` +
+				'The adapter writes that file; a failure here means its output is truncated or has changed shape. ' +
+				'See wiki/private-docs.md § Markdown content negotiation on Vercel.',
+			{ cause }
+		);
+	}
 	writeFileSync(configPath, JSON.stringify(withMarkdownNegotiation(config, twins), null, 2) + '\n');
 	return { configPath, ...twins };
 }
@@ -215,17 +272,34 @@ export function applyToBuildOutput({ projectRoot, staticDir }) {
  */
 export default function vercelMarkdownNegotiation() {
 	let projectRoot;
+	let rootSlug = '';
 	return {
 		name: 'vercel-markdown-negotiation',
 		hooks: {
 			'astro:config:setup': ({ config }) => {
 				projectRoot = fileURLToPath(config.root);
+				// `base` defaults to '/'. Normalised to the path the home page sits
+				// at within the build output — '' for no base, 'docs' for '/docs'.
+				rootSlug = (config.base ?? '').replace(/^\/+|\/+$/g, '');
 			},
 			'astro:build:done': ({ dir, logger }) => {
-				const result = applyToBuildOutput({ projectRoot, staticDir: fileURLToPath(dir) });
+				const result = applyToBuildOutput({ projectRoot, staticDir: fileURLToPath(dir), rootSlug });
 				if (!result) return;
 				const pages = result.slugs.length + (result.root ? 1 : 0);
-				logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
+				const where = relative(projectRoot, result.configPath);
+				if (pages === 0) {
+					// Nothing to negotiate means the deployment ships without the
+					// feature, and a deployment that quietly lacks it is the exact
+					// failure this integration exists to prevent — so say so loudly
+					// rather than logging a cheerful zero among a thousand build lines.
+					logger.warn(
+						`no pages answer Accept: text/markdown — no Markdown twins were found in the build ` +
+							`output, so ${where} gained no routes. Check that the contextual-menu plugin still ` +
+							`has injectMarkdownRoutes enabled.`
+					);
+					return;
+				}
+				logger.info(`${pages} pages answer Accept: text/markdown (${where})`);
 			},
 		},
 	};

@@ -266,6 +266,65 @@ test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shi
 	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir })), /config\.json.*not found|ordering/i);
 });
 
+test('negotiationRoutes: an empty or trailing-slash slug never reaches the alternation', () => {
+	// An empty branch matches `/`, so it would hijack the home page and rewrite
+	// it to a `/.md` that does not exist; `foo/` does the same to `/foo/`.
+	const routes = negotiationRoutes({ root: false, slugs: ['', 'foo/', 'ok'] });
+	const rewrite = routes.find((r) => r.dest === '/$1.md');
+	assert.equal(rewrite.src, '^/(ok)/?$');
+	assert.equal(new RegExp(rewrite.src).test('/'), false, 'must not match the home page');
+	assert.equal(new RegExp(rewrite.src).test('/foo/'), false);
+	// Nothing usable left means no routes at all, not a route matching everything.
+	assert.deepEqual(negotiationRoutes({ root: false, slugs: ['', 'x/'] }), []);
+});
+
+test('negotiationRoutes: each route gets its own headers and has objects', () => {
+	// They travel to the caller inside the returned config; sharing one object
+	// across four routes means editing one route's headers rewrites the others'.
+	const routes = negotiationRoutes({ root: true, slugs: ['a'] });
+	assert.equal(routes.length, 4);
+	for (const a of routes) {
+		for (const b of routes) {
+			if (a !== b) assert.notEqual(a.headers, b.headers, 'headers must not be shared');
+		}
+	}
+	const withHas = routes.filter((r) => r.has);
+	assert.notEqual(withHas[0].has, withHas[1].has, '`has` must not be shared');
+});
+
+test('discoverTwins: a bare `.md` file is not a twin', (t) => {
+	// `.md` at the root would strip to an empty slug whose `index.html` check
+	// resolves to the real root page — so without a guard it would be accepted.
+	const dir = fakeStaticDir(['index.html', 'index.md', '.md', 'guides/example/index.html', 'guides/example.md']);
+	t.after(() => rmSync(dir, { recursive: true }));
+	assert.deepEqual(discoverTwins(dir), { root: true, slugs: ['guides/example'] });
+});
+
+test('discoverTwins: with a base path, the home page twin is still found', (t) => {
+	// `base: '/docs'` puts the home page at `docs/index.html` and its twin at
+	// `docs/index.md`. Without the base, that pair is not the root's.
+	const dir = fakeStaticDir(['docs/index.html', 'docs/index.md', 'docs/guides/example/index.html', 'docs/guides/example.md']);
+	t.after(() => rmSync(dir, { recursive: true }));
+	assert.deepEqual(discoverTwins(dir, 'docs'), { root: true, slugs: ['docs/guides/example'] });
+	// Without being told the base, the home page is simply not the root's twin.
+	assert.equal(discoverTwins(dir).root, false);
+});
+
+test('applyToBuildOutput: VERCEL=0 is not a Vercel build', (t) => {
+	// `0` is a non-empty string and therefore truthy — the obvious way to say
+	// "not Vercel" must not turn the integration on.
+	const root = fakeProject({ withConfig: false });
+	t.after(() => rmSync(root, { recursive: true }));
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	for (const value of ['0', 'false', '']) {
+		assert.equal(
+			withVercelEnv(value, () => applyToBuildOutput({ projectRoot: root, staticDir })),
+			null,
+			`VERCEL=${JSON.stringify(value)} must be treated as off`
+		);
+	}
+});
+
 test('the module imports only node: built-ins, so it can be used across projects', () => {
 	// This module is deliberately dependency-free so it can be imported from
 	// anywhere, including a build that has not installed this project's own
