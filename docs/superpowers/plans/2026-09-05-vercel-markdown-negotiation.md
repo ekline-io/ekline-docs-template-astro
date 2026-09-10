@@ -1510,6 +1510,8 @@ Four places describe this feature to three audiences, and two of them currently 
 - Modify: `packages/template/README.md` (feature bullet after line 30; the *Don't need private docs?* section around line 136)
 - Modify: `apps/docs/src/content/docs/search-and-ai.md` (after the contextual-menu section ending line 79)
 - Modify: `apps/docs/src/content/docs/removing-features.md` (the *get the plain static build back* steps around line 59)
+- Modify: `apps/docs/CLAUDE.md` (the *Structure* bullet at line 27, now stale)
+- Modify: `packages/template/tests/markdown-negotiation.test.mjs` (one added test — see Step 4b)
 
 - [ ] **Step 1: Rewrite the wiki section**
 
@@ -1750,6 +1752,45 @@ and replace step 2 in full with:
 ```
 
 The paragraph after the list (`Skipping that second half leaves dist/server/ …`) stays: it is about the Node adapter, which is still the one being removed.
+
+- [ ] **Step 4a: Correct `apps/docs/CLAUDE.md`, which now contradicts the code**
+
+Its *Structure* section says the site is built with no adapter, and a `dist/server/` means one crept back in. Adding the Vercel adapter in Task 8 made the first half wrong while the second half stays right. Replace the bullet at line 27:
+
+```markdown
+- Built static — no adapter, no server bundle. A `dist/server/` in the output
+  means something pulled an adapter back in.
+```
+
+with:
+
+```markdown
+- Built static — every page prerendered, no server bundle. A `dist/server/` in
+  the output means something started rendering on demand.
+- It does carry `@astrojs/vercel`, applied only when `VERCEL` is set. That is
+  not a server: it changes where the static output lands and adds the routing
+  config that Markdown content negotiation edits. Off Vercel the adapter is
+  `undefined` and the build is a plain static one into `dist/`.
+```
+
+- [ ] **Step 4b: Guard the shared module's import list**
+
+`apps/docs/astro.config.mjs` imports `vercel-markdown-negotiation.mjs` across the repo. That works because the module needs nothing but `node:` built-ins — the two projects have separate `node_modules` and there are no workspaces, so a third-party import added to it later would resolve locally and then fail on Vercel's build of the docs site. Nothing says so today. Add this test to `packages/template/tests/markdown-negotiation.test.mjs`:
+
+```js
+test('the module imports only node: built-ins, so it can be used across projects', () => {
+	// This file is imported by more than one project in this workspace, and
+	// each installs its own dependencies. A bare import added here would
+	// resolve wherever the dependency happens to be installed and fail
+	// wherever it is not — a break that only shows up on a deployment.
+	const source = readFileSync(join(__dirname, '../src/lib/vercel-markdown-negotiation.mjs'), 'utf-8');
+	const specifiers = [...source.matchAll(/^import\s+(?:.+?\s+from\s+)?'([^']+)'/gm)].map((m) => m[1]);
+	const external = specifiers.filter((s) => !s.startsWith('node:'));
+	assert.deepEqual(external, [], `non-builtin imports: ${external.join(', ')}`);
+});
+```
+
+Run it: `cd packages/template && node --test tests/markdown-negotiation.test.mjs` — expect 21 passing.
 
 - [ ] **Step 5: Check what ships**
 
