@@ -188,6 +188,11 @@ test('sample of expected /<slug>.md files exist (canonical convention)', () => {
 // well and `staticDir()` — which prefers `dist/client` — resolves there on both
 // kinds of build. The config is the thing only a Vercel build produces, and it
 // is what these tests read anyway.
+// `IS_VERCEL_OUTPUT` is only a presence check, not a freshness one: a
+// `.vercel/` directory left behind by an earlier Vercel-adapter build still
+// has a `config.json`, so these three tests would compare that older routing
+// config against a build that ran afterwards. Run `rm -rf dist .vercel` before
+// switching adapters, not just before the one you're about to run.
 const VERCEL_CONFIG = join(__dirname, '..', '.vercel', 'output', 'config.json');
 const IS_VERCEL_OUTPUT = existsSync(VERCEL_CONFIG);
 const unlessVercel = IS_VERCEL_OUTPUT

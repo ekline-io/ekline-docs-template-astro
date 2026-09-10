@@ -184,11 +184,23 @@ test('home page (/index.md) exists as .md', () => {
 // ---------------------------------------------------------------------------
 
 // What tells a Vercel build apart is the routing config, not where the static
-// files landed. The adapter *copies* its output into `.vercel/output/static/`
-// rather than moving it, so a Vercel build leaves `dist/client/` in place as
-// well and `staticDir()` — which prefers `dist/client` — resolves there on both
-// kinds of build. The config is the thing only a Vercel build produces, and it
-// is what these tests read anyway.
+// files landed — and here that matters more than it does in `packages/template`.
+// This site has no server-rendered pages and so no Node-adapter split to fall
+// back on: a plain build writes a flat `dist/` and, unlike the template, a
+// `VERCEL=1` build does too — `staticDir()`'s first candidate, `dist/client`,
+// never exists here, so it resolves to `.vercel/output/static/` instead. The
+// config is the thing only a Vercel build produces, and it is what these tests
+// read anyway.
+//
+// That makes the staleness hazard `tests/helpers/static-dir.mjs` describes run
+// backwards for this project. There, a stale `dist/client/` can shadow a fresh
+// `.vercel/output/static/`. Here, a plain local build never touches `.vercel/`
+// at all, so a `.vercel/output/static/` left over from an earlier `VERCEL=1`
+// build shadows the flat `dist/` a subsequent `npm test` just produced —
+// `IS_VERCEL_OUTPUT` below is only a presence check, not a freshness one, so
+// that `npm test` would silently assert against the old Vercel build instead
+// of the one it just built. Run `rm -rf dist .vercel` before switching build
+// modes.
 const VERCEL_CONFIG = join(__dirname, '..', '.vercel', 'output', 'config.json');
 const IS_VERCEL_OUTPUT = existsSync(VERCEL_CONFIG);
 const unlessVercel = IS_VERCEL_OUTPUT
@@ -219,7 +231,7 @@ test('Vercel config.json: the four negotiation routes sit just before the filesy
 	assert.equal(routes.filter((r) => isVary(r) || isRewrite(r)).length, 4, 'and no others anywhere');
 });
 
-test('Vercel config.json: the alternation is exactly the twins on disk, and none is under api/ or private/', { skip: unlessVercel }, () => {
+test('Vercel config.json: the alternation is exactly the twins on disk, and none is under internals/', { skip: unlessVercel }, () => {
 	const rewrite = readVercelConfig().routes.find((r) => r.dest === '/$1.md');
 	const m = rewrite.src.match(/^\^\/\((.*)\)\/\?\$$/);
 	assert.ok(m, `rewrite src has the expected shape, got: ${rewrite.src.slice(0, 80)}…`);

@@ -231,13 +231,31 @@ jobs:
       # The smoke test is opt-in: with `DOCS_SMOKE_URL` empty, every assertion
       # in it skips and `node --test` exits 0 — a silent pass of the exact
       # regression this job exists to catch. Fail before running it instead.
+      #
+      # `DOCS_SMOKE_BYPASS` is a different kind of missing. Both Vercel
+      # projects here have Deployment Protection on, so an anonymous request
+      # gets redirected to a sign-in page and every assertion fails on that
+      # redirect rather than on anything this feature does — the smoke test's
+      # `get()` throws a message naming Deployment Protection when this
+      # happens. `DOCS_SMOKE_URL` empty is a bug in this workflow (the
+      # deployment event carries no URL); the bypass secret being unset is a
+      # one-time repo configuration step (create a Protection Bypass for
+      # Automation on each Vercel project, then set
+      # `VERCEL_AUTOMATION_BYPASS_SECRET`) that nobody may have done yet. The
+      # first should fail red; the second should warn and skip, not block
+      # every PR's deployment from being verified.
       - name: Smoke test — template site
         if: ${{ !contains(github.event.deployment.environment, 'documentation') }}
         working-directory: packages/template
         env:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+          DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
+          if [ -z "$DOCS_SMOKE_BYPASS" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is not set — this deployment is behind Vercel Deployment Protection, so the smoke test can't reach it. Skipping deployment verification until the secret is configured."
+            exit 0
+          fi
           node --test tests/deployed-smoke.test.mjs
 
       - name: Smoke test — docs site
@@ -245,6 +263,11 @@ jobs:
         working-directory: apps/docs
         env:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+          DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
+          if [ -z "$DOCS_SMOKE_BYPASS" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is not set — this deployment is behind Vercel Deployment Protection, so the smoke test can't reach it. Skipping deployment verification until the secret is configured."
+            exit 0
+          fi
           node --test tests/deployed-smoke.test.mjs

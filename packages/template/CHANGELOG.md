@@ -18,10 +18,14 @@ knowing the URL shape. It shipped in 1.x as two `vercel.json` rewrites, stopped
 working when 2.0.0 introduced the Vercel adapter, and was removed in 2.1.0 once
 that was measured. Now it works again, by a different route.
 
-**What to pull across:** `src/lib/vercel-markdown-negotiation.mjs` and its one
-line in `astro.config.mjs`. It edits the adapter's generated routing config
-after the build; `vercel.json` cannot reach that file and middleware never sees
-prerendered pages. Off Vercel it does nothing. Delete the line to turn it off.
+**What to pull across:** `src/lib/vercel-markdown-negotiation.mjs` and its two
+lines in `astro.config.mjs` — the `import` and the `vercelMarkdownNegotiation()`
+entry in the `integrations` array. It edits the adapter's generated routing
+config after the build; `vercel.json` cannot reach that file and middleware
+never sees prerendered pages. Off Vercel it does nothing. Delete both lines to
+turn it off. If your fork predates 2.0.0 (before the Vercel adapter shipped),
+you'll also need to install `@astrojs/vercel` — the integration edits that
+adapter's output and has nothing to edit without it.
 
 **If you removed the logged-in experience,** keep `@astrojs/vercel` when you
 deploy to Vercel: the integration edits its output and has nothing to edit
@@ -34,7 +38,7 @@ that way.
 **Also fixed on the way:** the 1.x rewrites only matched a bare
 `Accept: text/markdown`. A realistic agent header —
 `text/markdown, text/plain;q=0.9, */*;q=0.8` — fell through to HTML even when
-they were live. Both mechanisms now match the media type wherever it sits.
+they were live. The integration now matches the media type wherever it sits.
 
 **New tests:** `tests/markdown-negotiation.test.mjs` (unit, in `npm test`) and
 `tests/deployed-smoke.test.mjs` (against a real URL, opt-in via

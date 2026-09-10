@@ -375,9 +375,10 @@ route names a page without one.
 **Not yet verified: the CDN's runtime behaviour.** Whether those routes
 actually fire, and whether `Vary: Accept` is honoured end to end, can only be
 seen by requesting a live deployment. `tests/deployed-smoke.test.mjs` is
-written to answer exactly that — ten checks, of which test 8 is the gate: one
-URL, both `Accept` values, both orders, asserting the body always matches the
-request even on `x-vercel-cache: HIT`.
+written to answer exactly that — ten checks, of which test 8 is the gate: two
+URLs, each hit in one `Accept` order (the two orders opposite between them, so
+the CDN is warmed both ways), asserting the body always matches the request
+and equals the page's own `.md` twin, even on `x-vercel-cache: HIT`.
 
 Run it against any deployment:
 

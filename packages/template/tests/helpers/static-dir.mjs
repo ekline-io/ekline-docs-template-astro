@@ -2,10 +2,14 @@
  * Resolves the directory a build's static files actually landed in.
  *
  * Astro moves that directory depending on the adapter: a plain static build
- * fills `dist/`, the Node adapter splits its output into `dist/client/` (the
- * static files) and `dist/server/` (the request handler), and the Vercel
- * adapter writes `.vercel/output/static/` instead. The suites here read the
- * build off disk, so hardcoding one of those ties them to a single deployment
+ * fills `dist/`, and the Node adapter splits its output into `dist/client/`
+ * (the static files) and `dist/server/` (the request handler). The Vercel
+ * adapter does that same split — this template's private-docs pages render on
+ * demand, so it needs one — and then additionally copies `dist/client/`'s
+ * contents into `.vercel/output/static/`, alongside the routing config it
+ * writes to `.vercel/output/config.json`. So a Vercel build leaves
+ * `dist/client/` populated too, not replaced; the suites here read the build
+ * off disk, so hardcoding one of those ties them to a single deployment
  * target — and the template picks its adapter at build time from the
  * environment.
  *
@@ -16,12 +20,18 @@
  * entirely. A bare directory check would happily return either.
  *
  * The candidate order fixes the case it can — `dist/` last, so a leftover
- * static build never shadows an adapter build — but not the case where one
- * machine has produced both adapter outputs: a stale `dist/client/` does
- * shadow a fresh `.vercel/output/static/`. Nothing in the normal flow builds
- * both (Vercel runners set `VERCEL=1` and start from a clean checkout;
- * everything local uses the Node adapter), so switching adapters in place is
- * the one case that calls for deleting the old output first.
+ * static build never shadows an adapter build. Astro rewrites `dist/client/`
+ * from scratch on every build regardless of adapter (verified: a stray file
+ * planted there does not survive the next build), so a single build never
+ * leaves it stale relative to the `.vercel/output/static/` copy that same
+ * build makes from it. What the order can't fix is a site that stops producing
+ * `dist/client/` altogether — for example after removing the logged-in
+ * experience and its Node-adapter pages (see `wiki/private-docs.md`), where an
+ * off-Vercel build then writes a flat `dist/` instead, the same shape a purely
+ * static site builds into. A `.vercel/output/static/` left over from before
+ * that change would shadow the fresh flat `dist/`, since it is checked first.
+ * Deleting old output before switching adapters — or before removing the
+ * logged-in experience — avoids it.
  *
  * Throwing beats falling back to a guess. The alternative is every assertion in
  * the suite failing on a missing file, which reads as a broken site rather than

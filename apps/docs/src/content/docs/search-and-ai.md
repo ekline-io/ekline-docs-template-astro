@@ -113,7 +113,11 @@ One limit, documented rather than fixed: quality values are not evaluated.
 sends that.
 
 **To check a deployment,** the template ships an opt-in smoke test:
-`DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs`.
-It is the only test that can see Vercel's router; `npm test` cannot, which is
-how this feature once broke without a test noticing. Details in the
+`DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs`
+— edit the `PAGES` map at the top of that file first, so it names pages your
+site actually has, rather than the template's example ones. It is the only
+test that can see Vercel's router; `npm test` cannot, which is how this
+feature once broke without a test noticing. If your deployment is behind
+Vercel's Deployment Protection, also set `DOCS_SMOKE_BYPASS` to a Protection
+Bypass for Automation secret. Details in the
 [Internals](/internals/private-docs/#markdown-content-negotiation-on-vercel).
