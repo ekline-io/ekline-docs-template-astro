@@ -76,7 +76,7 @@ Component overrides (Starlight's "Overriding Components" mechanism) go in `src/c
 
 All of it is configured from [`src/config/api-reference.mjs`](src/config/api-reference.mjs) — a list of references, each with its own OpenAPI document, route, layout and label. Routes, sidebar and search index are derived from that list; change it rather than the files it feeds.
 
-Two example APIs ship, one per layout (`docs` at `/api/`, `full` at `/api/admin/`), so both are visible on real content. Delete the one you don't need. There is deliberately no reader-facing control for switching layouts — that is meta-UI about the docs rather than docs.
+Three example APIs ship. Two are files in `public/`, one per layout (`docs` at `/api/`, `full` at `/api/admin/`), so both layouts are visible on real content. The third, at `/api/petstore/`, is a **remote** document — it shows that a spec you don't host gets the same generated sidebar and search entries as a bundled one. It is the only thing here that reaches the network, and it is `serve: 'live'` on purpose: under `'snapshot'` an unreachable host would fail the build, which is right for your own API and wrong for an example. Delete the ones you don't need, starting with the remote one. There is deliberately no reader-facing control for switching layouts — that is meta-UI about the docs rather than docs.
 
 Read [`wiki/api-reference.md`](wiki/api-reference.md) before changing anything under `src/pages/api/`, `src/components/ScalarApiReference.astro`, or `src/lib/openapi-sidebar.mjs`. These constraints are easy to break and not obvious from the code:
 

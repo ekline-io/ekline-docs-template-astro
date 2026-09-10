@@ -24,7 +24,7 @@ To run the logged-in experience locally: copy `.env.example` to `.env`,
 So you don't have to set these up yourself:
 
 - **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [Branding and theming](https://documentation-ekline-docs-template.vercel.app/branding/).
-- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Two example APIs ship, one per layout, so you can see both and delete the one you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/).
+- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Three example APIs ship — two bundled files, one per layout, plus one fetched from a remote URL so you can see that case working too. Delete the ones you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/).
 - **Private and per-org docs** behind your own SSO — server-enforced, so private pages never reach an anonymous browser. See [How it works](https://documentation-ekline-docs-template.vercel.app/how-it-works/) and [Private and per-org docs](#private-and-per-org-docs) below.
 - **Sitemap** auto-generated on build (`sitemap-index.xml` + `sitemap-0.xml`).
 - **`llms.txt`** for AI assistants — `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt`.
