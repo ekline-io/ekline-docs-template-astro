@@ -12,15 +12,20 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Vercel reports each preview and production deployment through GitHub's
+  # deployments API. The `smoke` job below runs the deployed smoke test against
+  # the URL it reports — the only place markdown negotiation can be observed.
+  deployment_status:
 
 # A newer push supersedes an in-flight run for the same branch.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
     name: Check, build and test
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     # A healthy run is ~2 minutes. Tight enough that a stall is caught early
     # rather than burning a quarter-hour of runner time.
@@ -66,6 +71,18 @@ jobs:
 
       - name: Build and test
         run: npm test
+
+      # A second build, with the Vercel adapter. The markdown-negotiation routes
+      # exist only in `.vercel/output/config.json`, which the Node-adapter build
+      # above never produces, so without this step they are checked only by
+      # Vercel's own build — after merge, at deploy time. `staticDir()` prefers
+      # a `dist/client/` over `.vercel/output/static/`, so the Node output goes
+      # first. The browser tests below rebuild with the Node adapter anyway.
+      - name: Build with the Vercel adapter and check its routing config
+        run: |
+          rm -rf dist .vercel
+          VERCEL=1 npm run build
+          node --test tests/markdown-twins.test.mjs tests/markdown-negotiation.test.mjs
 
       # Keyed on the Playwright version, not the lockfile.
       #
@@ -116,6 +133,7 @@ jobs:
 
   docs:
     name: Docs site
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     # No browser step — the docs site has no Playwright suite, so this job is
     # install, type-check and build. It exists as a separate job rather than
@@ -150,3 +168,48 @@ jobs:
       # fail here rather than silently publishing an empty Internals section.
       - name: Build and test
         run: npm test
+
+      # Same reason as the template job's step of the same name: the routing
+      # config the negotiation integration writes exists only in a
+      # Vercel-adapter build, and `npm test` above built without one.
+      - name: Build with the Vercel adapter and check its routing config
+        run: |
+          rm -rf dist .vercel
+          VERCEL=1 npm run build
+          node --test tests/markdown-twins.test.mjs
+
+  smoke:
+    name: Deployed smoke test
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      # Two Vercel projects deploy from this repo, and each reports its own
+      # environment name. This line shows it in the log; the two `if`s below key
+      # on it. If the naming ever changes, this is where to look first.
+      - name: Which deployment
+        run: echo "environment='${{ github.event.deployment.environment }}' url='${{ github.event.deployment_status.environment_url }}'"
+
+      # No `npm ci`: the smoke test is plain Node — `fetch` and `node:test`.
+      - name: Smoke test — template site
+        if: ${{ !contains(github.event.deployment.environment, 'documentation') }}
+        working-directory: packages/template
+        env:
+          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+        run: node --test tests/deployed-smoke.test.mjs
+
+      - name: Smoke test — docs site
+        if: ${{ contains(github.event.deployment.environment, 'documentation') }}
+        working-directory: apps/docs
+        env:
+          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+        run: node --test tests/deployed-smoke.test.mjs
