@@ -14,11 +14,13 @@
  *
  * Run after `npm run build`:  `node --test tests/markdown-twins.test.mjs`
  *
- * Content negotiation (`Accept: text/markdown` -> `.md`) is gone: it lived in
- * `vercel.json` rewrites that the Vercel adapter's generated routing config
- * makes inert — measured on the deployed site, see "Resolved: `vercel.json`
- * rewrites" in wiki/private-docs.md. The `.md` twins themselves are unaffected
- * and are what everything links to, which is what this file checks.
+ * Content negotiation (`Accept: text/markdown` -> `.md`) is provided on Vercel
+ * by `src/lib/vercel-markdown-negotiation.mjs`, which writes routes into the
+ * adapter's `.vercel/output/config.json`. When this suite runs against that
+ * output (`VERCEL=1 npm run build`), the last tests below check the routing
+ * config against the files on disk; on a Node-adapter build they are skipped,
+ * because there is no routing config to check. Whether Vercel's router then
+ * does what the config says is `tests/deployed-smoke.test.mjs`'s question.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -174,4 +176,68 @@ test('sample of expected /<slug>.md files exist (canonical convention)', () => {
 			`expected ${rel} in the build output`
 		);
 	}
+});
+
+// ---------------------------------------------------------------------------
+// Vercel-adapter builds only: the routing config must agree with the disk.
+// ---------------------------------------------------------------------------
+
+// What tells a Vercel build apart is the routing config, not where the static
+// files landed. The adapter *copies* its output into `.vercel/output/static/`
+// rather than moving it, so a Vercel build leaves `dist/client/` in place as
+// well and `staticDir()` — which prefers `dist/client` — resolves there on both
+// kinds of build. The config is the thing only a Vercel build produces, and it
+// is what these tests read anyway.
+// `IS_VERCEL_OUTPUT` is only a presence check, not a freshness one: a
+// `.vercel/` directory left behind by an earlier Vercel-adapter build still
+// has a `config.json`, so these three tests would compare that older routing
+// config against a build that ran afterwards. Run `rm -rf dist .vercel` before
+// switching adapters, not just before the one you're about to run.
+const VERCEL_CONFIG = join(__dirname, '..', '.vercel', 'output', 'config.json');
+const IS_VERCEL_OUTPUT = existsSync(VERCEL_CONFIG);
+const unlessVercel = IS_VERCEL_OUTPUT
+	? false
+	: 'Node-adapter build; run `VERCEL=1 npm run build` to check the Vercel routing config';
+
+const readVercelConfig = () => JSON.parse(readFileSync(VERCEL_CONFIG, 'utf-8'));
+const isRewrite = (r) => r.dest === '/$1.md' || r.dest === '/index.md';
+const isVary = (r) => r.continue === true && r.headers?.Vary === 'Accept';
+
+/** The slugs a twin definition yields from disk: `<slug>.md` beside `<slug>/index.html`. */
+function twinSlugsOnDisk() {
+	return mdFiles
+		.map((p) => relative(STATIC_DIR, p).split(sep).join('/'))
+		.filter((rel) => rel !== 'index.md')
+		.map((rel) => rel.slice(0, -'.md'.length))
+		.filter((slug) => existsSync(join(STATIC_DIR, ...slug.split('/'), 'index.html')))
+		.sort();
+}
+
+test('Vercel config.json: the four negotiation routes sit just before the filesystem handle', { skip: unlessVercel }, () => {
+	const { routes } = readVercelConfig();
+	const fs = routes.findIndex((r) => r.handle === 'filesystem');
+	assert.ok(fs >= 4, 'a filesystem handle exists after our routes');
+	const ours = routes.slice(fs - 4, fs);
+	assert.equal(ours.filter(isVary).length, 2, 'two Vary routes');
+	assert.equal(ours.filter(isRewrite).length, 2, 'two rewrite routes');
+	assert.equal(routes.filter((r) => isVary(r) || isRewrite(r)).length, 4, 'and no others anywhere');
+});
+
+test('Vercel config.json: the alternation is exactly the twins on disk, and none is under api/ or private/', { skip: unlessVercel }, () => {
+	const rewrite = readVercelConfig().routes.find((r) => r.dest === '/$1.md');
+	const m = rewrite.src.match(/^\^\/\((.*)\)\/\?\$$/);
+	assert.ok(m, `rewrite src has the expected shape, got: ${rewrite.src.slice(0, 80)}…`);
+	const inRoute = m[1].split('|').map((s) => s.replace(/\\(.)/g, '$1')).sort();
+	assert.deepEqual(inRoute, twinSlugsOnDisk());
+	const offenders = inRoute.filter((s) => s.startsWith('api/') || s.startsWith('private/'));
+	assert.deepEqual(offenders, []);
+});
+
+test('Vercel config.json: every slug in the alternation resolves to a .md and an index.html', { skip: unlessVercel }, () => {
+	const rewrite = readVercelConfig().routes.find((r) => r.dest === '/$1.md');
+	const slugs = rewrite.src.match(/^\^\/\((.*)\)\/\?\$$/)[1].split('|').map((s) => s.replace(/\\(.)/g, '$1'));
+	const broken = slugs.filter(
+		(slug) => !existsSync(join(STATIC_DIR, `${slug}.md`)) || !existsSync(join(STATIC_DIR, ...slug.split('/'), 'index.html'))
+	);
+	assert.deepEqual(broken, []);
 });

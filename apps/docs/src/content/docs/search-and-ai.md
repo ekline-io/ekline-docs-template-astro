@@ -77,3 +77,47 @@ starlightContextualMenu({
 The `<link rel="alternate" type="text/markdown">` tag that lets crawlers
 discover each page's Markdown twin is already wired into
 `src/components/CustomHead.astro` — nothing to add for it to work.
+
+## Markdown for AI agents
+
+Two ways to get a page as Markdown, and every page supports both:
+
+- **The `.md` twin.** `/guides/example/` has `/guides/example.md`. It is what
+  the contextual menu links to and what the `<link rel="alternate">` tag
+  advertises, so crawlers find it without guessing.
+- **Content negotiation.** On Vercel, the page's own URL answers a request
+  with `Accept: text/markdown` by serving the twin:
+
+  ```bash
+  curl -H 'Accept: text/markdown' https://your-site/guides/example/ | head
+  ```
+
+  Browsers never send that header and see no change.
+
+Negotiation is provided by `vercelMarkdownNegotiation()` in `astro.config.mjs`
+— an integration that adds routes to the Vercel adapter's generated routing
+config after the build. Two things follow from that:
+
+- **It needs `@astrojs/vercel`.** The template ships with it. If you follow
+  [Removing what you don't need](/removing-features/), keep the adapter when
+  you deploy to Vercel — that is how Vercel's features reach a static site.
+  This site is built that way.
+- **Delete the line to turn it off.** Off Vercel it does nothing.
+
+Pages with no `.md` twin — this site's Internals pages, the template's API
+reference — are simply not in the route table, and answer a Markdown request
+with their HTML, as before.
+
+One limit, documented rather than fixed: quality values are not evaluated.
+`text/html, text/markdown;q=0.1` gets Markdown. No browser or known agent
+sends that.
+
+**To check a deployment,** the template ships an opt-in smoke test:
+`DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs`
+— edit the `PAGES` map at the top of that file first, so it names pages your
+site actually has, rather than the template's example ones. It is the only
+test that can see Vercel's router; `npm test` cannot, which is how this
+feature once broke without a test noticing. If your deployment is behind
+Vercel's Deployment Protection, also set `DOCS_SMOKE_BYPASS` to a Protection
+Bypass for Automation secret. Details in the
+[Internals](/internals/private-docs/#markdown-content-negotiation-on-vercel).

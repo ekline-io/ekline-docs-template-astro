@@ -60,8 +60,9 @@ Then:
 Then get the plain static build back, or the site keeps shipping a server
 it no longer needs:
 
-1. In `astro.config.mjs`, remove the `adapter:` line, the `env:` block, the
-   two adapter imports, the `ssoConfigured` line and its use in the
+1. In `astro.config.mjs`, change the `adapter:` line to
+   `adapter: process.env.VERCEL ? vercel() : undefined`, and remove the
+   `env:` block, the `@astrojs/node` import, the `ssoConfigured` line and its use in the
    `sidebar` array, the three `DOCS_SSO_*` names from the `loadEnv`
    destructure, and the sitemap `filter`.
 
@@ -70,10 +71,15 @@ it no longer needs:
    `site` uses — delete the whole block and the next build throws
    `ReferenceError: DOCS_SITE_URL is not defined`.
    :::
-2. Uninstall the adapters and the token library:
+2. Uninstall the Node adapter and the token library — and keep
+   `@astrojs/vercel` if you deploy to Vercel. It is how Vercel's features,
+   [Markdown negotiation](/search-and-ai/#markdown-for-ai-agents) among them,
+   reach a static site; this site is built that way. Deploying anywhere else,
+   uninstall it too and drop the `vercelMarkdownNegotiation()` line from
+   `astro.config.mjs`.
 
    ```bash
-   npm uninstall @astrojs/node @astrojs/vercel jose
+   npm uninstall @astrojs/node jose
    ```
 
 Skipping that second half leaves `dist/server/` in the build output with no

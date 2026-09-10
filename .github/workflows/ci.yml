@@ -12,15 +12,33 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Vercel reports each preview and production deployment through GitHub's
+  # deployments API. The `smoke` job below runs the deployed smoke test against
+  # the URL it reports — the only place markdown negotiation can be observed.
+  deployment_status:
 
-# A newer push supersedes an in-flight run for the same branch.
+# Every job here reads the repository and nothing else: check out a commit,
+# install, build, test. Nothing writes to the repo, opens a pull request, or
+# touches releases or packages, so the token they get should be able to do
+# none of that. Artifact upload is unaffected — it authenticates with the
+# runtime token, not this one.
+permissions:
+  contents: read
+
+# A newer push still supersedes an in-flight run for the same branch. Deployment
+# runs are additionally keyed per deployment, via `github.event.deployment.id`
+# (empty for push/PR events, so that behaviour is unchanged) — both Vercel
+# projects fire `deployment_status` for the same branch within moments of each
+# other, and without this key the second one to land would cancel the first's
+# smoke run rather than running alongside it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ github.event.deployment.id }}
   cancel-in-progress: true
 
 jobs:
   test:
     name: Check, build and test
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     # A healthy run is ~2 minutes. Tight enough that a stall is caught early
     # rather than burning a quarter-hour of runner time.
@@ -66,6 +84,18 @@ jobs:
 
       - name: Build and test
         run: npm test
+
+      # A second build, with the Vercel adapter. The markdown-negotiation routes
+      # exist only in `.vercel/output/config.json`, which the Node-adapter build
+      # above never produces, so without this step they are checked only by
+      # Vercel's own build — after merge, at deploy time. `staticDir()` prefers
+      # a `dist/client/` over `.vercel/output/static/`, so the Node output goes
+      # first. The browser tests below rebuild with the Node adapter anyway.
+      - name: Build with the Vercel adapter and check its routing config
+        run: |
+          rm -rf dist .vercel
+          VERCEL=1 npm run build
+          node --test tests/markdown-twins.test.mjs tests/markdown-negotiation.test.mjs
 
       # Keyed on the Playwright version, not the lockfile.
       #
@@ -116,6 +146,7 @@ jobs:
 
   docs:
     name: Docs site
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     # No browser step — the docs site has no Playwright suite, so this job is
     # install, type-check and build. It exists as a separate job rather than
@@ -150,3 +181,91 @@ jobs:
       # fail here rather than silently publishing an empty Internals section.
       - name: Build and test
         run: npm test
+
+      # Same reason as the template job's step of the same name: the routing
+      # config the negotiation integration writes exists only in a
+      # Vercel-adapter build, and `npm test` above built without one.
+      - name: Build with the Vercel adapter and check its routing config
+        run: |
+          rm -rf dist .vercel
+          VERCEL=1 npm run build
+          node --test tests/markdown-twins.test.mjs
+
+  smoke:
+    name: Deployed smoke test
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      # One step, not one per project, and it always runs. A `deployment_status`
+      # event is for exactly one deployment, so a step per project would leave
+      # the other showing a grey "skipped" on every run — indistinguishable at a
+      # glance from a smoke test that was silently not run, which is the failure
+      # this job exists to catch. Picking the project inside the step keeps the
+      # log honest: one step, one outcome, always green or red.
+      #
+      # `documentation-ekline-docs-template` contains `ekline-docs-template` as
+      # a substring, so the docs slug is matched first — a looser template
+      # pattern first would fire on both projects. An environment matching
+      # neither fails loudly rather than guessing, because guessing would mean
+      # running one site's assertions against the other's URL.
+      #
+      # There is one bypass secret per Vercel project, not one per team.
+      # Vercel's docs: "You can use each available secret to bypass Deployment
+      # Protection on all deployments in a project." Passing one project's
+      # secret to the other's deployment fails exactly as if none were set —
+      # measured: a single shared secret passed the docs site and failed all ten
+      # template assertions.
+      #
+      # The secret is passed but not required. With Deployment Protection on and
+      # no valid secret the test throws naming the protection and this fails,
+      # correctly — the deployment really was not verified. If protection is
+      # ever turned off, this passes with the secret absent and nothing here
+      # needs changing.
+      #
+      # No `npm ci`: the smoke test is plain Node — `fetch` and `node:test`.
+      - name: Smoke test the deployment
+        env:
+          ENVIRONMENT: ${{ github.event.deployment.environment }}
+          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+          BYPASS_TEMPLATE: ${{ secrets.VERCEL_BYPASS_SECRET_TEMPLATE }}
+          BYPASS_DOCS: ${{ secrets.VERCEL_BYPASS_SECRET_DOCS }}
+        run: |
+          echo "environment='$ENVIRONMENT' url='$DOCS_SMOKE_URL'"
+
+          # An empty URL is the one way this job could report success having
+          # asserted nothing: the smoke test is opt-in on this variable so a
+          # local `npm test` stays offline, and an empty value skips all ten
+          # assertions and exits 0. Fail instead.
+          test -n "$DOCS_SMOKE_URL" || {
+            echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."
+            exit 1
+          }
+
+          case "$ENVIRONMENT" in
+            *documentation-ekline-docs-template*)
+              PROJECT=apps/docs
+              export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
+              ;;
+            *ekline-docs-template-astro*)
+              PROJECT=packages/template
+              export DOCS_SMOKE_BYPASS="$BYPASS_TEMPLATE"
+              ;;
+            *)
+              echo "::error::Unrecognized deployment environment '$ENVIRONMENT' — the project split in this job needs updating for this environment name."
+              exit 1
+              ;;
+          esac
+
+          echo "Smoke testing $PROJECT against $DOCS_SMOKE_URL"
+          cd "$PROJECT"
+          node --test tests/deployed-smoke.test.mjs

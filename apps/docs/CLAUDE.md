@@ -24,8 +24,12 @@ template is right — fix the doc.
 
 - It is the template minus the logged-in experience and the API reference. Keep
   it that way: this site is public docs and hosts no API of its own.
-- Built static — no adapter, no server bundle. A `dist/server/` in the output
-  means something pulled an adapter back in.
+- Built static — every page prerendered, no server bundle. A `dist/server/` in
+  the output means something started rendering on demand.
+- It does carry `@astrojs/vercel`, applied only when `VERCEL` is set. That is
+  not a server: it changes where the static output lands and adds the routing
+  config that Markdown content negotiation edits. Off Vercel the adapter is
+  `undefined` and the build is a plain static one into `dist/`.
 - `src/loaders/wiki.mjs` reads `../../packages/template/wiki` from **outside**
   this app's root, on purpose. Do not "fix" it into a copy step: one copy of
   those files, beside the code they describe, is the whole design.
