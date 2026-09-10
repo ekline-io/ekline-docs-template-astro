@@ -38,6 +38,9 @@
  * See wiki/private-docs.md § Markdown content negotiation on Vercel.
  */
 
+import { existsSync, readdirSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+
 /**
  * The `Accept` header wants Markdown when it lists `text/markdown` as a
  * complete media-type token: `text/markdown`, `text/markdown;q=0.9`,
@@ -117,4 +120,36 @@ export function withMarkdownNegotiation(config, twins) {
 		...config,
 		routes: [...routes.slice(0, at), ...negotiationRoutes(twins), ...routes.slice(at)],
 	};
+}
+
+function* walk(dir) {
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const p = join(dir, entry.name);
+		if (entry.isDirectory()) yield* walk(p);
+		else yield p;
+	}
+}
+
+/**
+ * Which URLs have a twin, read from the emitted static directory — the same
+ * ground truth `tests/markdown-twins.test.mjs` checks. A twin is `<slug>.md`
+ * beside `<slug>/index.html`; `index.md` beside `index.html` is the root's.
+ * Anything else — a `.md` dropped into `public/`, a page with no `.md`, the
+ * `404.md` beside `404.html` — is not, and never negotiates.
+ */
+export function discoverTwins(staticDir) {
+	let root = false;
+	const slugs = [];
+	for (const file of walk(staticDir)) {
+		if (!file.endsWith('.md')) continue;
+		const rel = relative(staticDir, file).split(sep).join('/');
+		if (rel === 'index.md') {
+			root = existsSync(join(staticDir, 'index.html'));
+			continue;
+		}
+		const slug = rel.slice(0, -'.md'.length);
+		if (existsSync(join(staticDir, ...slug.split('/'), 'index.html'))) slugs.push(slug);
+	}
+	slugs.sort();
+	return { root, slugs };
 }

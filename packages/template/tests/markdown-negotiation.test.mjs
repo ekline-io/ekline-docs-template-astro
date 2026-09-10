@@ -12,9 +12,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import {
 	ACCEPT_MARKDOWN,
@@ -22,6 +23,7 @@ import {
 	escapeRegex,
 	negotiationRoutes,
 	withMarkdownNegotiation,
+	discoverTwins,
 } from '../src/lib/vercel-markdown-negotiation.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -153,4 +155,47 @@ test('withMarkdownNegotiation: refuses a config with no filesystem handle', () =
 test('withMarkdownNegotiation: refuses to apply twice', () => {
 	const once = withMarkdownNegotiation(FIXTURE, TWINS);
 	assert.throws(() => withMarkdownNegotiation(once, TWINS), /already/);
+});
+
+/** Builds a fake static dir. `files` are POSIX paths relative to the root. */
+function fakeStaticDir(files) {
+	const dir = mkdtempSync(join(tmpdir(), 'twins-'));
+	for (const f of files) {
+		mkdirSync(join(dir, dirname(f)), { recursive: true });
+		writeFileSync(join(dir, f), f.endsWith('.md') ? '# x\n' : '<!doctype html>');
+	}
+	return dir;
+}
+
+test('discoverTwins: a .md beside <slug>/index.html is a twin; index.md beside index.html is the root', (t) => {
+	const dir = fakeStaticDir([
+		'index.html',
+		'index.md',
+		'reference/errors/index.html',
+		'reference/errors.md',
+		'get-started/quickstart/index.html',
+		'get-started/quickstart.md',
+	]);
+	t.after(() => rmSync(dir, { recursive: true }));
+	assert.deepEqual(discoverTwins(dir), { root: true, slugs: ['get-started/quickstart', 'reference/errors'] });
+});
+
+test('discoverTwins: a .md with no HTML sibling is not a twin, and HTML with no .md is not either', (t) => {
+	const dir = fakeStaticDir([
+		'index.html',
+		'README.md', // from public/ — no /README/ page
+		'404.html',
+		'404.md', // beside 404.html, not 404/index.html — the 404 page has no route of its own
+		'api/index.html', // Scalar — HTML, no twin
+		'guides/example/index.html',
+		'guides/example.md',
+	]);
+	t.after(() => rmSync(dir, { recursive: true }));
+	assert.deepEqual(discoverTwins(dir), { root: false, slugs: ['guides/example'] });
+});
+
+test('discoverTwins: empty output is no twins, not an error', (t) => {
+	const dir = fakeStaticDir(['index.html']);
+	t.after(() => rmSync(dir, { recursive: true }));
+	assert.deepEqual(discoverTwins(dir), { root: false, slugs: [] });
 });
