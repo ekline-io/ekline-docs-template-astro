@@ -8,6 +8,44 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.5.0
+
+### Markdown content negotiation is back, on Vercel
+
+A request to any page with `Accept: text/markdown` gets the page's Markdown
+twin at the same URL — the convention AI agents use to ask for Markdown without
+knowing the URL shape. It shipped in 1.x as two `vercel.json` rewrites, stopped
+working when 2.0.0 introduced the Vercel adapter, and was removed in 2.1.0 once
+that was measured. Now it works again, by a different route.
+
+**What to pull across:** `src/lib/vercel-markdown-negotiation.mjs` and its one
+line in `astro.config.mjs`. It edits the adapter's generated routing config
+after the build; `vercel.json` cannot reach that file and middleware never sees
+prerendered pages. Off Vercel it does nothing. Delete the line to turn it off.
+
+**If you removed the logged-in experience,** keep `@astrojs/vercel` when you
+deploy to Vercel: the integration edits its output and has nothing to edit
+without it. The removal instructions in the README now say so — the adapter
+line becomes `adapter: process.env.VERCEL ? vercel() : undefined`, and only
+`@astrojs/node` and `jose` are uninstalled. Every page stays prerendered and
+the output is still entirely static. The hosted docs site is built exactly
+that way.
+
+**Also fixed on the way:** the 1.x rewrites only matched a bare
+`Accept: text/markdown`. A realistic agent header —
+`text/markdown, text/plain;q=0.9, */*;q=0.8` — fell through to HTML even when
+they were live. Both mechanisms now match the media type wherever it sits.
+
+**New tests:** `tests/markdown-negotiation.test.mjs` (unit, in `npm test`) and
+`tests/deployed-smoke.test.mjs` (against a real URL, opt-in via
+`DOCS_SMOKE_URL`). The second is the one that was missing: nothing in the repo
+ever sent the header to a deployment, which is how 2.0.0 could break this with
+CI green.
+
+**Not on Node.** Self-hosted deployments get the twins, the alternate links and
+the contextual menu, but not the header form. See
+*Markdown content negotiation on Vercel* in `wiki/private-docs.md`.
+
 ## 2.4.0
 
 ### One field says where your OpenAPI document is
