@@ -781,6 +781,19 @@ test('applyToBuildOutput: patches config.json in place and reports what it did',
 	assert.ok(written.routes.find((r) => r.dest === '/$1.md').src.includes('guides/example'));
 });
 
+test('applyToBuildOutput: off Vercel it ignores a stale .vercel/ left by an earlier Vercel build', (t) => {
+	// The failure this ordering prevents: run a Vercel build, then an ordinary
+	// one without deleting `.vercel/`. The config is still there, already
+	// carrying these routes — applying again throws and the build dies.
+	const root = fakeProject();
+	t.after(() => rmSync(root, { recursive: true }));
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	const configPath = join(root, '.vercel', 'output', 'config.json');
+	const before = readFileSync(configPath, 'utf-8');
+	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root, staticDir })), null);
+	assert.equal(readFileSync(configPath, 'utf-8'), before, 'the stale config was left untouched');
+});
+
 test('applyToBuildOutput: off Vercel, with no config.json, does nothing and says so', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));
@@ -831,24 +844,28 @@ const OUTPUT_DIR = '.vercel/output';
  * `.vercel/output/static/`, which the adapter has not filled yet when this
  * runs. See the timing note in this file's header.
  *
- * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
- * unset, this is a local or self-hosted build and silence is right. With
- * `VERCEL` set and no `config.json`, the ordering noted in this file's header
- * has changed — this hook ran before the adapter wrote the file — and the
- * deploy would silently lack the feature. That is the failure this
- * feature already suffered once; it throws instead.
+ * `VERCEL` is checked before anything is read, and that order is load-bearing.
+ * A `.vercel/` directory left behind by an earlier Vercel build still holds a
+ * `config.json` — one that already carries these routes — so keying off the
+ * file's presence instead makes every ordinary build after a Vercel build die
+ * on "already carries the negotiation routes". Measured, not imagined.
+ *
+ * Once we know it IS a Vercel build, a missing `config.json` is the opposite
+ * problem: the ordering in this file's header has changed and this ran before
+ * the adapter wrote the file. Silence there would ship a deployment quietly
+ * lacking the feature — the failure this feature already suffered once — so it
+ * throws.
  */
 export function applyToBuildOutput({ projectRoot, staticDir }) {
+	if (!process.env.VERCEL) return null;
+
 	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
 	if (!existsSync(configPath)) {
-		if (process.env.VERCEL) {
-			throw new Error(
-				`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
-					'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
-					'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
-			);
-		}
-		return null;
+		throw new Error(
+			`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
+				'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
+				'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
+		);
 	}
 	const twins = discoverTwins(staticDir);
 	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -1594,18 +1611,34 @@ If that ever stops holding — an Astro release changing the order — the
 integration throws rather than deploy silently without the feature, which is
 the failure this feature already suffered once. The message names this section.
 
-### Verified on a deployment (<date from Task 7>)
+### What has been verified, and what has not (2026-09-10)
 
-`tests/deployed-smoke.test.mjs` against a preview, run twice so the second
-pass hits a warm CDN: <one line per result — all ten pass; the Vary gate
-(test 8) served the right body on every request including `x-vercel-cache:
-HIT`; or, if the fallback shipped, "Vercel's CDN did not vary on Accept, so
-negotiation answers 307 to the twin instead — see the test for the sequence
-that showed it">.
+**Verified on Vercel's own build.** This site's `buildCommand` is `npm test`,
+which Vercel runs with `VERCEL` set — so the routing-config assertions in
+`tests/markdown-twins.test.mjs` ran against the `config.json` the adapter
+generated on Vercel's infrastructure, and passed: the four routes sit ahead of
+the filesystem handle, the slug alternation equals the twins on disk, and no
+route names a page without one.
 
-That test is opt-in (`DOCS_SMOKE_URL=<url>`) and is the only layer that can
-see Vercel's router. Nothing in `npm test` can; that is why the 2.0.0 break
-went unnoticed.
+**Not yet verified: the CDN's runtime behaviour.** Whether those routes
+actually fire, and whether `Vary: Accept` is honoured end to end, can only be
+seen by requesting a live deployment. `tests/deployed-smoke.test.mjs` is
+written to answer exactly that — ten checks, of which test 8 is the gate: one
+URL, both `Accept` values, both orders, asserting the body always matches the
+request even on `x-vercel-cache: HIT`.
+
+Run it against any deployment:
+
+```bash
+DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs
+```
+
+If that gate ever fails, the fix is decided and small: the same routes with
+`"status": 307` and a `Location` header instead of `dest`. Redirects cache per
+URL and cannot cross-serve. The rest of the design is unchanged.
+
+Nothing in a plain `npm test` can see any of this — that is precisely why the
+1.x rewrites could stop working with every check green.
 
 ### If you removed the logged-in experience
 
@@ -1827,18 +1860,18 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ### Task 10: CHANGELOG and version
 
-A feature, no output move: a minor release, 2.3.0 → 2.4.0. The CHANGELOG is written for someone deciding whether to pull the change into a customised site.
+A feature, no output move: a minor release. **main shipped 2.4.0 while this branch was in flight, so this is 2.4.0 → 2.5.0.** The CHANGELOG is written for someone deciding whether to pull the change into a customised site.
 
 **Files:**
-- Modify: `packages/template/CHANGELOG.md` (insert after line 9, before `## 2.3.0`)
+- Modify: `packages/template/CHANGELOG.md` (insert before the `## 2.4.0` heading — main shipped 2.4.0 while this branch was in flight)
 - Modify: `packages/template/package.json`, `packages/template/package-lock.json` (via `npm version`)
 
 - [ ] **Step 1: Write the entry**
 
-Insert before `## 2.3.0` in `packages/template/CHANGELOG.md`:
+Insert before `## 2.4.0` in `packages/template/CHANGELOG.md`:
 
 ```markdown
-## 2.4.0
+## 2.5.0
 
 ### Markdown content negotiation is back, on Vercel
 
@@ -1886,12 +1919,12 @@ If Task 7 shipped the 307 fallback, change the first paragraph's "at the same UR
 cd packages/template && npm version minor --no-git-tag-version && node -e "console.log(require('./package.json').version)"
 ```
 
-Expected: `2.4.0`, and `package-lock.json` updated to match (`git diff --stat` shows both).
+Expected: `2.5.0`, and `package-lock.json` updated to match (`git diff --stat` shows both).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd packages/template && git add CHANGELOG.md package.json package-lock.json && git commit -m "chore: release 2.4.0
+cd packages/template && git add CHANGELOG.md package.json package-lock.json && git commit -m "chore: release 2.5.0
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -2088,7 +2121,7 @@ Expected: a clean tree, and a commit list in Task order — fixture, matcher, ro
 Ask your human partner, then:
 
 ```bash
-gh pr create --base main --title "feat: markdown content negotiation on Vercel (2.4.0)" --body "$(cat <<'EOF'
+gh pr create --base main --title "feat: markdown content negotiation on Vercel (2.5.0)" --body "$(cat <<'EOF'
 ## What
 
 A request to any docs page with `Accept: text/markdown` returns the page's Markdown twin at the same URL, on Vercel, out of the box — on the template as shipped, on the template with the logged-in experience removed, and on the docs site. One mechanism for all three: the Vercel adapter is its prerequisite, and the removal path keeps it.
