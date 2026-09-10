@@ -61,3 +61,60 @@ export function acceptsMarkdown(accept) {
 export function escapeRegex(s) {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+const VARY_ACCEPT = { Vary: 'Accept' };
+const WANTS_MARKDOWN = [{ type: 'header', key: 'accept', value: ACCEPT_MARKDOWN }];
+
+/**
+ * The four routes, in the order they must appear. `twins` is
+ * `{ root, slugs }` — whether `/` has a twin, and the slugs that do
+ * (`reference/errors` for `/reference/errors/` ↔ `/reference/errors.md`).
+ *
+ * Why four and not two: the rewrite alone would leave the *HTML* response
+ * without `Vary: Accept`, and a cached HTML body could then be served to a
+ * Markdown request. The first two routes attach the header to every
+ * negotiable URL whatever the `Accept` and `continue`, exactly as the adapter's
+ * own `_astro` cache-control route does; the last two are the rewrites.
+ *
+ * Why an alternation and not a route per slug: `config.json` would grow with
+ * page count, and Vercel's routing has ceilings. One regex keeps the exact set
+ * — a page with no twin never rewrites — at a constant route count.
+ *
+ * Why `/?$`: the site emits `/reference/errors/`, but Vercel serves the
+ * slash-less form too, and both are the same page.
+ */
+export function negotiationRoutes({ root, slugs }) {
+	const routes = [];
+	const slugSrc = slugs.length ? `^/(${slugs.map(escapeRegex).join('|')})/?$` : null;
+	if (slugSrc) routes.push({ src: slugSrc, headers: VARY_ACCEPT, continue: true });
+	if (root) routes.push({ src: '^/$', headers: VARY_ACCEPT, continue: true });
+	if (slugSrc) routes.push({ src: slugSrc, has: WANTS_MARKDOWN, dest: '/$1.md', headers: VARY_ACCEPT });
+	if (root) routes.push({ src: '^/$', has: WANTS_MARKDOWN, dest: '/index.md', headers: VARY_ACCEPT });
+	return routes;
+}
+
+const isNegotiationRoute = (r) => r.dest === '/$1.md' || r.dest === '/index.md';
+
+/**
+ * A new config with the negotiation routes spliced in immediately before
+ * `{ "handle": "filesystem" }` — the boundary after which Vercel serves static
+ * files, so a route must sit before it to be consulted for a prerendered page.
+ * Pure: the input is not touched.
+ */
+export function withMarkdownNegotiation(config, twins) {
+	const routes = config.routes ?? [];
+	const at = routes.findIndex((r) => r.handle === 'filesystem');
+	if (at === -1) {
+		throw new Error(
+			'[vercel-markdown-negotiation] config.json has no { "handle": "filesystem" } route. ' +
+				'The adapter output has changed shape; see wiki/private-docs.md § Markdown content negotiation on Vercel.'
+		);
+	}
+	if (routes.some(isNegotiationRoute)) {
+		throw new Error('[vercel-markdown-negotiation] config.json already carries the negotiation routes.');
+	}
+	return {
+		...config,
+		routes: [...routes.slice(0, at), ...negotiationRoutes(twins), ...routes.slice(at)],
+	};
+}

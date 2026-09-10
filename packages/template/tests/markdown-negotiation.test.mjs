@@ -12,12 +12,25 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import {
 	ACCEPT_MARKDOWN,
 	acceptsMarkdown,
 	escapeRegex,
+	negotiationRoutes,
+	withMarkdownNegotiation,
 } from '../src/lib/vercel-markdown-negotiation.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE = JSON.parse(readFileSync(join(__dirname, 'fixtures/vercel-config.json'), 'utf-8'));
+
+const TWINS = { root: true, slugs: ['concepts/glossary', 'get-started/quickstart', 'reference/errors'] };
+
+const isRewrite = (r) => r.dest === '/$1.md' || r.dest === '/index.md';
+const isVary = (r) => r.continue === true && r.headers?.Vary === 'Accept';
 
 // Real headers. Chrome/Firefox/Safari defaults as of 2026; `*/*` is curl's.
 const CHROME =
@@ -61,4 +74,83 @@ test('escapeRegex: metacharacters in a slug become literals', () => {
 	assert.equal(escapeRegex('v1.2/api'), 'v1\\.2/api');
 	assert.equal(escapeRegex('a+b (c)'), 'a\\+b \\(c\\)');
 	assert.equal(new RegExp(`^${escapeRegex('v1.2')}$`).test('v1x2'), false, 'the dot must not be a wildcard');
+});
+
+test('negotiationRoutes: four routes for root + slugs, in the documented order', () => {
+	const routes = negotiationRoutes(TWINS);
+	assert.equal(routes.length, 4);
+	// 1–2: Vary, with continue, so the HTML response carries it too.
+	assert.ok(isVary(routes[0]) && !routes[0].has, 'route 0 is the slug Vary route');
+	assert.ok(isVary(routes[1]) && routes[1].src === '^/$', 'route 1 is the root Vary route');
+	// 3–4: the rewrites, header-conditional.
+	assert.equal(routes[2].dest, '/$1.md');
+	assert.equal(routes[3].dest, '/index.md');
+	assert.equal(routes[3].src, '^/$');
+	for (const r of routes.slice(2)) {
+		assert.deepEqual(r.has, [{ type: 'header', key: 'accept', value: ACCEPT_MARKDOWN }]);
+		assert.equal(r.headers.Vary, 'Accept');
+		assert.equal(r.continue, undefined, 'a rewrite ends routing');
+	}
+});
+
+test('negotiationRoutes: the slug alternation is exact, escaped, and slash-tolerant', () => {
+	// root: false, so only the two slug routes come back.
+	const [vary, rewrite] = negotiationRoutes({ root: false, slugs: ['a/b', 'v1.2', 'c'] });
+	assert.equal(rewrite.src, '^/(a/b|v1\\.2|c)/?$');
+	assert.equal(vary.src, rewrite.src);
+	const re = new RegExp(rewrite.src);
+	assert.ok(re.test('/a/b/') && re.test('/a/b'), 'with and without the trailing slash');
+	assert.ok(!re.test('/a/b/c/') && !re.test('/a') && !re.test('/v1x2/'), 'nothing outside the set');
+	assert.equal('/a/b/'.replace(re, '/$1.md'), '/a/b.md', '$1 captures the slug');
+});
+
+test('negotiationRoutes: root-only and slugs-only produce two routes; neither produces none', () => {
+	assert.equal(negotiationRoutes({ root: true, slugs: [] }).length, 2);
+	assert.equal(negotiationRoutes({ root: false, slugs: ['x'] }).length, 2);
+	assert.deepEqual(negotiationRoutes({ root: false, slugs: [] }), []);
+});
+
+test('negotiationRoutes: constant route count whatever the page count', () => {
+	const many = Array.from({ length: 1000 }, (_, i) => `section-${i % 10}/page-${i}`);
+	assert.equal(negotiationRoutes({ root: true, slugs: many }).length, 4);
+});
+
+test('withMarkdownNegotiation: routes land immediately before the filesystem handle', () => {
+	const out = withMarkdownNegotiation(FIXTURE, TWINS);
+	const fs = out.routes.findIndex((r) => r.handle === 'filesystem');
+	assert.ok(fs >= 4, 'filesystem handle is after our four routes');
+	const ours = out.routes.slice(fs - 4, fs);
+	assert.equal(ours.filter(isVary).length, 2);
+	assert.equal(ours.filter(isRewrite).length, 2);
+});
+
+test('withMarkdownNegotiation: every adapter route survives, in order', () => {
+	const out = withMarkdownNegotiation(FIXTURE, TWINS);
+	const theirs = out.routes.filter((r) => !isVary(r) && !isRewrite(r));
+	assert.deepEqual(theirs, FIXTURE.routes);
+});
+
+test('withMarkdownNegotiation: does not mutate its input', () => {
+	const before = JSON.stringify(FIXTURE);
+	withMarkdownNegotiation(FIXTURE, TWINS);
+	assert.equal(JSON.stringify(FIXTURE), before);
+});
+
+test('withMarkdownNegotiation: everything but routes is carried through untouched', () => {
+	const out = withMarkdownNegotiation(FIXTURE, TWINS);
+	const { routes: _a, ...restIn } = FIXTURE;
+	const { routes: _b, ...restOut } = out;
+	assert.deepEqual(restOut, restIn);
+});
+
+test('withMarkdownNegotiation: refuses a config with no filesystem handle', () => {
+	assert.throws(
+		() => withMarkdownNegotiation({ version: 3, routes: [{ src: '/.*', dest: '/x' }] }, TWINS),
+		/filesystem/
+	);
+});
+
+test('withMarkdownNegotiation: refuses to apply twice', () => {
+	const once = withMarkdownNegotiation(FIXTURE, TWINS);
+	assert.throws(() => withMarkdownNegotiation(once, TWINS), /already/);
 });
