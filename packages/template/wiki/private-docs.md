@@ -266,17 +266,25 @@ Two traps in the browser suite, both worth knowing before you touch `playwright.
 
 Private pages are not in site search (Pagefind indexes built HTML only). The public "Private docs" nav link is static, not session-aware — static HTML is identical for every visitor, so it cannot be. Handoff verification is HS256 shared-secret; JWKS/OIDC would slot into `verifyHandoffToken` and nowhere else.
 
-## Resolved: `vercel.json` rewrites do not work with the adapter
+## Markdown content negotiation on Vercel
 
-`vercel.json` carried two `rewrites` that served the markdown twins on an
-`Accept: text/markdown` header. Before the adapter change they applied,
-because Vercel did zero-config detection on a plain static build. `@astrojs/vercel`
-emits Build Output API v3 instead, and the generated `.vercel/output/config.json`
-contains only a filesystem handle, an `_astro` cache header and a 404
-catch-all — no `text/markdown` route.
+A request to any docs page with `Accept: text/markdown` returns the page's
+Markdown twin at the same URL. Browsers never send that header and see no
+change. It is provided by `src/lib/vercel-markdown-negotiation.mjs`, an
+integration registered in `astro.config.mjs`; delete that line to turn it off.
 
-**Measured on the production deployment (2026-08-21), and the rewrites are
-inert:**
+```
+curl -H 'Accept: text/markdown' https://<your-site>/reference/errors/   → 200 text/markdown
+curl https://<your-site>/reference/errors/                             → 200 text/html
+```
+
+### Why it is an integration and not `vercel.json`
+
+`vercel.json` carried two `rewrites` for this until 2.1.0, and they worked —
+until 2.0.0 introduced `@astrojs/vercel`. The adapter emits Build Output API
+v3, and its generated `.vercel/output/config.json` supersedes `vercel.json`
+routing entirely. **Measured on the production deployment (2026-08-21), and
+the rewrites were inert:**
 
 | Request | Result |
 | --- | --- |
@@ -284,30 +292,132 @@ inert:**
 | `curl -H 'Accept: text/markdown' <url>/guides/example/` | `text/html` — likewise |
 | `curl <url>/guides/example.md` | `200 text/markdown` — the twin itself is fine |
 
-So the `rewrites` block has been removed rather than left to imply a behaviour
-it does not have. This matches Vercel's own Astro documentation, which says
-rewrites only work for static files with Astro, that Routing Middleware is the
-supported mechanism, and that using `vercel.json` to rewrite URL paths in an
-Astro project is not officially supported.
+Astro middleware cannot do it either, even in the adapter's
+`middlewareMode: 'edge'`: the adapter's own docs say prerendered pages are
+served from Vercel's filesystem and never invoke middleware, and every docs
+page is prerendered.
 
-**What this costs, and what it does not.** On Vercel the twins are reached
-only at their `.md` URLs. Nothing links to the header-negotiated form —
-`@ekline/starlight-contextual-menu` deep-links to the `.md` route directly —
-so the feature degrades rather than breaks, and self-hosted deployments behind
-a proxy of your own can still negotiate on the header if you want it.
+What can: Build Output API `routes`. A route placed before
+`{ "handle": "filesystem" }` is evaluated before static files are served, and
+may match on a request header and rewrite. So the integration edits the
+adapter's own output after the build.
 
-**The reassuring half:** the feared side effect did not happen. A `vercel.json`
-with conflicting routing config *can* override the adapter's generated
-configuration, which would have taken `/private/**` with it. It did not:
-`/private/` reaches the middleware on the deployed site and answers with the
-guard's own `cache-control: private, no-store`, and the full SSO round trip
-completes through `/demo-login` on a configured preview.
+### What it writes
 
-**Astro middleware cannot bring the rewrites back.** Middleware runs only on
-on-demand routes; the pages these rewrites served are prerendered and handed
-straight to the CDN, so the middleware never sees the request. Restoring the
-behaviour would mean Vercel Routing Middleware, which is a Vercel-specific
-file this template does not otherwise need.
+Four routes, spliced in immediately before the filesystem handle:
+
+1. `Vary: Accept` on every negotiable URL, with `continue: true` — so the
+   *HTML* response carries it and the CDN keys its cache on the header. The
+   adapter's own `_astro` cache-control route uses the same pattern.
+2. The same for `/`.
+3. The rewrite: one regex alternation of every twin slug, matched only when
+   `Accept` contains `text/markdown` as a media-type token, rewriting to
+   `/$1.md`. One route whatever the page count, and an exact set: a page with
+   no twin — the Scalar `/api/**` pages, any custom `.astro` page — is not in
+   it and falls through to HTML.
+4. The same for `/` → `/index.md`.
+
+The twin set is read from the emitted static directory (`<slug>.md` beside
+`<slug>/index.html`), the same ground truth `tests/markdown-twins.test.mjs`
+checks. The integration can only rewrite to a path already served statically,
+so it cannot widen exposure; `tests/private-leaks.test.mjs` continues to
+guarantee no private twin exists.
+
+**What "wants Markdown" means:** `text/markdown`, `text/markdown;q=0.9`,
+`text/markdown, text/plain;q=0.9, */*;q=0.8` all match; `text/markdownx` does
+not. Quality values are not evaluated — Build Output routing cannot — so
+`text/html, text/markdown;q=0.1` would negotiate to Markdown. No browser or
+known agent sends that.
+
+### When it runs — the one non-obvious part
+
+This reads two things the adapter produces, and they are not ready at the same
+time. `@astrojs/vercel` writes `config.json` in its own `astro:build:done`,
+and Astro runs the adapter's hooks ahead of every site integration's —
+measured with this integration first in the array and again with it last;
+`config.json` was already there both times. So `config.json` is safe to read
+from a plain `astro:build:done`.
+
+The static files are not. The adapter fills `.vercel/output/static/` from a
+second, inner integration it registers for itself while Astro is still
+setting up config, and an integration registered that way runs *after* every
+site integration's `astro:build:done` — so that directory is still empty when
+this one's hook fires. What is already complete by then is Astro's own client
+output, handed to the hook as `dir`; the adapter's later copy is a plain copy
+of exactly that directory into `.vercel/output/static/`. So the integration
+reads pages from `dir`, never from `.vercel/output/static/` — the two end up
+holding identical files, but only one of them exists yet when this hook runs.
+
+If either half ever stops holding — an Astro or adapter release changing the
+order — the integration throws rather than deploy silently without the
+feature, which is the failure this feature already suffered once. The message
+names this section.
+
+### What has been verified, and what has not (2026-09-09)
+
+**Verified on Vercel's own build.** This site's `buildCommand` is `npm test`,
+which Vercel runs with `VERCEL` set — so the routing-config assertions in
+`tests/markdown-twins.test.mjs` ran against the `config.json` the adapter
+generated on Vercel's infrastructure, and passed: the four routes sit ahead of
+the filesystem handle, the slug alternation equals the twins on disk, and no
+route names a page without one.
+
+**Not yet verified: the CDN's runtime behaviour.** Whether those routes
+actually fire, and whether `Vary: Accept` is honoured end to end, can only be
+seen by requesting a live deployment. `tests/deployed-smoke.test.mjs` is
+written to answer exactly that — ten checks, of which test 8 is the gate: one
+URL, both `Accept` values, both orders, asserting the body always matches the
+request even on `x-vercel-cache: HIT`.
+
+Run it against any deployment:
+
+```bash
+DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs
+```
+
+If that gate ever fails, the fix is decided and small: the same routes with
+`"status": 307` and a `Location` header instead of `dest`. Redirects cache per
+URL and cannot cross-serve. The rest of the design is unchanged.
+
+Nothing in a plain `npm test` can see any of this — that is precisely why the
+1.x rewrites could stop working with every check green.
+
+### If you removed the logged-in experience
+
+The integration edits the adapter's output, so it needs `@astrojs/vercel`
+present even when nothing renders on demand. The removal path in the README
+keeps it for that reason: uninstall `@astrojs/node` and `jose`, and leave
+`adapter: process.env.VERCEL ? vercel() : undefined`. On Vercel that is Build
+Output with every page prerendered — still entirely static on the CDN — and
+negotiation works unchanged; anywhere else it is a plain static build into
+`dist/`.
+
+An earlier version of this design gave adapter-less builds `vercel.json`
+`rewrites` instead, because those worked in 1.x. Vercel's Astro guide says not
+to: "You should not use `vercel.json` to rewrite URL paths with astro
+projects; doing so produces inconsistent behavior, and is not officially
+supported." They were also worse: `vercel.json` cannot express "only pages
+with a twin", so a Markdown request for a page without one would have
+answered 404 rather than HTML. One mechanism, one behaviour.
+
+### Why not Routing Middleware
+
+It is Vercel's named mechanism for rewrites with Astro, and it runs before the
+cache. But its `matcher` is path-only — it cannot be scoped to requests whose
+`Accept` mentions Markdown — so a root `middleware.ts` would invoke a function
+on every page view, browsers included, to serve the few that negotiate. The
+routing config does the same header check for free. It would also be a
+second file called middleware beside `src/middleware.ts`, with different
+semantics. If the routes in `config.json` ever stop firing ahead of the
+filesystem handle, it is the fallback.
+
+### Not on Node
+
+The standalone server serves prerendered pages from disk under the same
+constraint — middleware does not see them — so self-hosted deployments do not
+negotiate. The twins, the `<link rel="alternate">` tags and the contextual
+menu's deep links work everywhere; only the header form is Vercel-only. A
+proxy rule in front of the server can add it.
 
 ## Resolved: `context.url.origin` is the real host on Vercel
 

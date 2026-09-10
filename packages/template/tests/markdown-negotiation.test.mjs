@@ -265,3 +265,14 @@ test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shi
 	const staticDir = join(root, '.vercel', 'output', 'static');
 	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir })), /config\.json.*not found|ordering/i);
 });
+
+test('the module imports only node: built-ins, so it can be used across projects', () => {
+	// This file is imported by more than one project in this workspace, and
+	// each installs its own dependencies. A bare import added here would
+	// resolve wherever the dependency happens to be installed and fail
+	// wherever it is not — a break that only shows up on a deployment.
+	const source = readFileSync(join(__dirname, '../src/lib/vercel-markdown-negotiation.mjs'), 'utf-8');
+	const specifiers = [...source.matchAll(/^import\s+(?:.+?\s+from\s+)?'([^']+)'/gm)].map((m) => m[1]);
+	const external = specifiers.filter((s) => !s.startsWith('node:'));
+	assert.deepEqual(external, [], `non-builtin imports: ${external.join(', ')}`);
+});
