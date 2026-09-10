@@ -17,9 +17,14 @@ on:
   # the URL it reports — the only place markdown negotiation can be observed.
   deployment_status:
 
-# A newer push supersedes an in-flight run for the same branch.
+# A newer push still supersedes an in-flight run for the same branch. Deployment
+# runs are additionally keyed per deployment, via `github.event.deployment.id`
+# (empty for push/PR events, so that behaviour is unchanged) — both Vercel
+# projects fire `deployment_status` for the same branch within moments of each
+# other, and without this key the second one to land would cancel the first's
+# smoke run rather than running alongside it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ github.event.deployment.id }}
   cancel-in-progress: true
 
 jobs:
@@ -196,20 +201,50 @@ jobs:
       # Two Vercel projects deploy from this repo, and each reports its own
       # environment name. This line shows it in the log; the two `if`s below key
       # on it. If the naming ever changes, this is where to look first.
+      #
+      # Those `if`s are a `contains(..., 'documentation')` check and its exact
+      # negation, so one of the two smoke steps always runs — if a deployment's
+      # environment name ever matches neither project below, that logic would
+      # silently run the wrong site's smoke assertions against the URL instead
+      # of failing. Guard the assumption explicitly here, before either step.
+      #
+      # `documentation-ekline-docs-template` contains `ekline-docs-template` as
+      # a substring, so the docs slug is matched first — matching a shorter,
+      # looser template pattern first would make it fire on both projects.
       - name: Which deployment
-        run: echo "environment='${{ github.event.deployment.environment }}' url='${{ github.event.deployment_status.environment_url }}'"
+        run: |
+          ENVIRONMENT='${{ github.event.deployment.environment }}'
+          URL='${{ github.event.deployment_status.environment_url }}'
+          echo "environment='$ENVIRONMENT' url='$URL'"
+
+          case "$ENVIRONMENT" in
+            *documentation-ekline-docs-template*) ;;
+            *ekline-docs-template-astro*) ;;
+            *)
+              echo "::error::Unrecognized deployment environment '$ENVIRONMENT' — the template/docs split in this job needs updating for this environment name."
+              exit 1
+              ;;
+          esac
 
       # No `npm ci`: the smoke test is plain Node — `fetch` and `node:test`.
+      #
+      # The smoke test is opt-in: with `DOCS_SMOKE_URL` empty, every assertion
+      # in it skips and `node --test` exits 0 — a silent pass of the exact
+      # regression this job exists to catch. Fail before running it instead.
       - name: Smoke test — template site
         if: ${{ !contains(github.event.deployment.environment, 'documentation') }}
         working-directory: packages/template
         env:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
-        run: node --test tests/deployed-smoke.test.mjs
+        run: |
+          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
+          node --test tests/deployed-smoke.test.mjs
 
       - name: Smoke test — docs site
         if: ${{ contains(github.event.deployment.environment, 'documentation') }}
         working-directory: apps/docs
         env:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
-        run: node --test tests/deployed-smoke.test.mjs
+        run: |
+          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
+          node --test tests/deployed-smoke.test.mjs
