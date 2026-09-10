@@ -4,7 +4,7 @@
 
 **Goal:** A request to any docs page with `Accept: text/markdown` returns that page's Markdown twin at the same URL on a Vercel deployment — out of the box, on the template as shipped, on the template after the logged-in experience is removed, and on the docs site: one mechanism for all three.
 
-**Architecture:** An Astro integration (`src/lib/vercel-markdown-negotiation.mjs`) registers an inner integration that runs after the Vercel adapter and splices four routes into `.vercel/output/config.json` ahead of the `filesystem` handle: a `Vary: Accept` header route and a header-conditional rewrite, for the root and for an alternation of every twin slug. The transform is a pure function over the parsed config and the twin list, tested against a captured real `config.json`. The Vercel adapter is the prerequisite on every Vercel deployment — the removal path keeps it, and `apps/docs` imports the same integration across the monorepo — so there is one mechanism. A deployed smoke test, opt-in via `DOCS_SMOKE_URL`, is the only layer that can see Vercel's router and CDN, and it gates the rewrite-versus-redirect decision.
+**Architecture:** An Astro integration (`src/lib/vercel-markdown-negotiation.mjs`) runs on `astro:build:done` — after the Vercel adapter's own, measured in Task 0 — and splices four routes into `.vercel/output/config.json` ahead of the `filesystem` handle: a `Vary: Accept` header route and a header-conditional rewrite, for the root and for an alternation of every twin slug. The transform is a pure function over the parsed config and the twin list, tested against a captured real `config.json`. The Vercel adapter is the prerequisite on every Vercel deployment — the removal path keeps it, and `apps/docs` imports the same integration across the monorepo — so there is one mechanism. A deployed smoke test, opt-in via `DOCS_SMOKE_URL`, is the only layer that can see Vercel's router and CDN, and it gates the rewrite-versus-redirect decision.
 
 **Tech Stack:** Astro 6 integration hooks (`astro:config:setup`, `astro:build:done`), Vercel Build Output API v3 `routes`, `node --test`, `node:fs`, global `fetch`.
 
@@ -71,7 +71,7 @@ if (fs === -1) { console.error("NO FILESYSTEM HANDLE — the spec assumes one; s
 '
 ```
 
-Expected: `version: 3`, a `{ "handle": "filesystem" }` entry at some index ≥ 0, and — before it — an `_astro` cache-control route with `"continue": true`. That `continue` route is the precedent for our `Vary` route: the adapter itself attaches a header and lets routing carry on. Note the index; Task 2's test asserts our routes land immediately before it.
+Expected: `version: 3` and a `{ "handle": "filesystem" }` entry. **Measured: it is at index 0, with nothing before it** — the `_astro` cache-control `continue: true` route sits *after* it, at index 1. So "immediately before the filesystem handle" means becoming the new index 0, in the initial routing phase. Task 2's test asserts our routes land immediately before that handle, wherever it is.
 
 - [ ] **Step 4: Confirm where the twins are, and that a twin has an HTML sibling**
 
@@ -132,14 +132,16 @@ and this entry as the **first** element of the `integrations: [` array:
 cd packages/template && rm -rf .vercel && VERCEL=1 npm run build 2>&1 | grep -E "INNER|OUTER"
 ```
 
-Expected — **this is the decision point**:
+**Measured, 2026-09-09, adapter 10.0.8 — both lines printed `true`:**
 
 ```
-[ordering-probe] OUTER build:done — config.json exists: false
+[ordering-probe] OUTER build:done — config.json exists: true
 [ordering-probe:inner] INNER build:done — config.json exists: true
 ```
 
-`OUTER … false` confirms the problem the spec describes (a plain integration runs before the adapter has written the file). `INNER … true` confirms the fix. **If `INNER` prints `false`, stop.** Do not proceed to Task 4 as written; report the output. The spec's fallback is a post-build script (`"build": "astro build && node scripts/vercel-markdown-negotiation.mjs"`), and the pure functions from Tasks 1–3 are unchanged by that switch — only Task 4's wiring differs.
+A second probe placed *last* in the `integrations` array printed `true` as well. So the adapter's `astro:build:done` runs ahead of every user integration's, whatever the array position, and **the inner-integration indirection is unnecessary** — Task 4 registers a plain `astro:build:done` hook. The draft's premise (adapter appended last, plain hook too early) was wrong; this step is what caught it.
+
+If a future run of this step ever prints `OUTER … false`, the indirection comes back: register the work through `updateConfig({ integrations: [...] })` during `astro:config:setup`, exactly as this probe does. The pure functions from Tasks 1–3 are unaffected either way; only Task 4's wiring changes.
 
 - [ ] **Step 8: Remove the probe**
 
@@ -290,12 +292,13 @@ Create `packages/template/src/lib/vercel-markdown-negotiation.mjs`:
  * tested without a build; `applyToBuildOutput()` is the only thing that
  * touches the disk.
  *
- * The one non-obvious part is *when* it runs. Astro pushes the adapter onto the
- * end of the integrations list, so a plain integration's `astro:build:done`
- * fires before the adapter has written `config.json`. The exported integration
- * therefore registers an *inner* integration during `astro:config:setup`;
- * integrations added that way land after the adapter, and their
- * `astro:build:done` runs after it. Measured on a real build.
+ * On ordering: this reads a file the adapter writes, so it has to run after it.
+ * `@astrojs/vercel` writes `config.json` in its own `astro:build:done`, and
+ * Astro runs the adapter's hooks ahead of every user integration's — a probe
+ * placed first in the `integrations` array and one placed last both saw the
+ * file already there. So a plain `astro:build:done` is enough. Measured on a
+ * real build rather than assumed; the guard in `applyToBuildOutput` is what
+ * catches it if that ever changes.
  *
  * Off Vercel there is no `.vercel/` directory and this does nothing.
  *
@@ -725,7 +728,7 @@ The only impure function, the integration factory that wires it to the build, an
 - Consumes: `discoverTwins`, `withMarkdownNegotiation` (Tasks 2–3).
 - Produces:
   - `export function applyToBuildOutput({ projectRoot: string }): { configPath: string, root: boolean, slugs: string[] } | null` — reads `<projectRoot>/.vercel/output/config.json`, discovers twins under `<projectRoot>/.vercel/output/static`, writes the patched config back, returns what it did. Returns `null` (touching nothing) when there is no `config.json` **and** `process.env.VERCEL` is unset; throws when there is no `config.json` and `VERCEL` *is* set.
-  - `export default function vercelMarkdownNegotiation(): AstroIntegration`.
+  - `export default function vercelMarkdownNegotiation(): AstroIntegration` — a plain integration: `astro:config:setup` records the project root, `astro:build:done` applies the transform.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -814,9 +817,9 @@ const OUTPUT_DIR = '.vercel/output';
  *
  * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
  * unset, this is a local or self-hosted build and silence is right. With
- * `VERCEL` set and no `config.json`, the ordering assumption in this file's
- * header has failed — the hook ran before the adapter wrote the file — and
- * the deploy would silently lack the feature. That is the failure this
+ * `VERCEL` set and no `config.json`, the ordering noted in this file's header
+ * has changed — this hook ran before the adapter wrote the file — and the
+ * deploy would silently lack the feature. That is the failure this
  * feature already suffered once; it throws instead.
  */
 export function applyToBuildOutput({ projectRoot }) {
@@ -825,8 +828,8 @@ export function applyToBuildOutput({ projectRoot }) {
 		if (process.env.VERCEL) {
 			throw new Error(
 				`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
-					'when the integration ran. The integration must run after the adapter writes it (an ordering ' +
-					'problem); see wiki/private-docs.md § Markdown content negotiation on Vercel.'
+					'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
+					'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
 			);
 		}
 		return null;
@@ -838,32 +841,23 @@ export function applyToBuildOutput({ projectRoot }) {
 }
 
 /**
- * The integration. Registers an inner integration during `astro:config:setup`
- * so that the work runs after the adapter's own `astro:build:done` — see the
- * header comment for why a plain `astro:build:done` here would be too early.
+ * The integration. `astro:config:setup` records the project root;
+ * `astro:build:done` does the work — by which time the adapter has already
+ * written `config.json` (see the header comment on ordering).
  */
 export default function vercelMarkdownNegotiation() {
 	let projectRoot;
 	return {
 		name: 'vercel-markdown-negotiation',
 		hooks: {
-			'astro:config:setup': ({ config, updateConfig }) => {
+			'astro:config:setup': ({ config }) => {
 				projectRoot = fileURLToPath(config.root);
-				updateConfig({
-					integrations: [
-						{
-							name: 'vercel-markdown-negotiation:apply',
-							hooks: {
-								'astro:build:done': ({ logger }) => {
-									const result = applyToBuildOutput({ projectRoot });
-									if (!result) return;
-									const pages = result.slugs.length + (result.root ? 1 : 0);
-									logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
-								},
-							},
-						},
-					],
-				});
+			},
+			'astro:build:done': ({ logger }) => {
+				const result = applyToBuildOutput({ projectRoot });
+				if (!result) return;
+				const pages = result.slugs.length + (result.root ? 1 : 0);
+				logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
 			},
 		},
 	};
@@ -903,7 +897,7 @@ Then add this as the **last** entry of the `integrations: [` array, after the `s
 cd packages/template && rm -rf dist .vercel && VERCEL=1 npm run build 2>&1 | grep -i "negotiation"
 ```
 
-Expected: one line like `[vercel-markdown-negotiation:apply] 41 pages answer Accept: text/markdown (.vercel/output/config.json)`. The number is your twin count from Task 3 Step 5, plus one for the root.
+Expected: one line like `[vercel-markdown-negotiation] 12 pages answer Accept: text/markdown (.vercel/output/config.json)`. The number is the slug count from Task 3 Step 5 plus one for the root — 12 on this site as measured in Task 0 (13 `.md` files, of which `index.md` is the root's and `404.md` is not a twin at all: the 404 page is `404.html`, with no `404/index.html`).
 
 - [ ] **Step 7: Confirm the routes are in the file, ahead of the filesystem handle**
 
@@ -1050,13 +1044,13 @@ test('Vercel config.json: every slug in the alternation resolves to a .md and an
 cd packages/template && rm -rf dist .vercel && npm run build >/dev/null 2>&1 && node --test tests/markdown-twins.test.mjs 2>&1 | grep -E "^# (pass|fail|skipped)"
 ```
 
-Expected: `# pass 8`, `# fail 0`, `# skipped 3`.
+Expected: `# pass 9`, `# fail 0`, `# skipped 3` — the suite's 9 existing tests pass, the 3 new ones skip on a Node-adapter build.
 
 ```bash
 cd packages/template && rm -rf dist .vercel && VERCEL=1 npm run build >/dev/null 2>&1 && node --test tests/markdown-twins.test.mjs 2>&1 | grep -E "^# (pass|fail|skipped)"
 ```
 
-Expected: `# pass 11`, `# fail 0`, `# skipped 0`.
+Expected: `# pass 12`, `# fail 0`, `# skipped 0` — all 9 existing plus the 3 new ones.
 
 - [ ] **Step 4: Commit**
 

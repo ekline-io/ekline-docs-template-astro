@@ -110,16 +110,22 @@ One file, `src/lib/vercel-markdown-negotiation.mjs`, registered in
 where every other piece of site configuration lives, and removes it by
 deleting one line. No `package.json` change, no `scripts/` directory.
 
-**Ordering, and why the file is shaped the way it is.** Astro pushes the
-adapter onto the *end* of the integrations list during config setup, so a
-plain integration's `astro:build:done` runs before the adapter has written
-`config.json`. The integration therefore does its work through an inner
-integration that it registers via `updateConfig({ integrations })` during
-`astro:config:setup` — integrations added that way land after the adapter,
-and their `astro:build:done` runs after it. This is documented Astro
-behaviour (Starlight itself adds integrations this way), but it is
-non-obvious, so the file says why, and Task 0 of the plan verifies it on a
-real `VERCEL=1` build before anything is built on top of it.
+**Ordering — measured, not assumed.** The integration reads a file the
+adapter writes, so it must run after it. `@astrojs/vercel` writes
+`.vercel/output/config.json` inside its own `astro:build:done`, and Astro
+runs the adapter's hooks *ahead* of every user integration's: a probe
+integration placed first in the `integrations` array and a second placed
+last both saw the file already present in their own `astro:build:done`
+(measured on a real `VERCEL=1` build, 2026-09-09, adapter 10.0.8). So a
+plain integration is enough — no `updateConfig({ integrations })`
+indirection, no inner integration.
+
+An earlier draft of this design assumed the opposite (adapter appended last,
+requiring an inner integration registered during `astro:config:setup`) and
+built the ordering trick around it. Task 0 measured it and the trick was
+removed. What survives from that concern is the guard below: nothing in the
+build fails loudly if this order ever changes, so the integration checks
+rather than trusts.
 
 **It never silently no-ops on Vercel.** If `VERCEL` is set and
 `.vercel/output/config.json` is absent when the hook runs, that is the
@@ -176,6 +182,22 @@ so it works whether or not Vercel anchors the match (another spike probe); the p
 values are not evaluated — Build Output routing cannot — so
 `text/html, text/markdown;q=0.1` would negotiate to Markdown. No browser or
 known agent sends that; it is a documented limit, not a bug to fix.
+
+**Where the four routes sit, and the one thing the spike must confirm.** The
+real `config.json` — captured as a test fixture in Task 0 — has
+`{ "handle": "filesystem" }` at index 0 with *nothing* before it, so
+"immediately before the filesystem handle" means becoming the new index 0:
+the initial routing phase, evaluated before static files are served. That is
+where the rewrites must be, and it is unambiguous.
+
+The two `Vary` routes are the uncertain half. They go in the same place, but
+the adapter's own header-attaching route — `_astro` cache-control, the same
+`continue: true` plus `headers` shape — sits *after* the filesystem handle,
+which may be where a header route reaches a response the filesystem serves.
+Smoke-test row 7 measures whether `Vary: Accept` actually lands on the HTML
+branch. If it does not, the fallback is to splice the two `Vary` routes in
+after the handle instead, mirroring `_astro`, leaving the rewrites at index 0
+— a second splice point and nothing else.
 
 **Rewrite, not redirect, and the price of it.** This restores the original
 intent exactly: one canonical URL, two representations, no extra hop. It
