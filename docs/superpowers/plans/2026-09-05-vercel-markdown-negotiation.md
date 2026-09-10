@@ -292,13 +292,22 @@ Create `packages/template/src/lib/vercel-markdown-negotiation.mjs`:
  * tested without a build; `applyToBuildOutput()` is the only thing that
  * touches the disk.
  *
- * On ordering: this reads a file the adapter writes, so it has to run after it.
- * `@astrojs/vercel` writes `config.json` in its own `astro:build:done`, and
- * Astro runs the adapter's hooks ahead of every user integration's — a probe
- * placed first in the `integrations` array and one placed last both saw the
- * file already there. So a plain `astro:build:done` is enough. Measured on a
- * real build rather than assumed; the guard in `applyToBuildOutput` is what
- * catches it if that ever changes.
+ * On timing, which is the whole trick. Two things have to be in place when this
+ * runs, and they arrive at different moments:
+ *
+ *   - `.vercel/output/config.json` is written by the adapter's own
+ *     `astro:build:done`, which Astro runs ahead of every site integration's.
+ *     It is there.
+ *   - `.vercel/output/static/` is NOT. The adapter fills it from a second,
+ *     inner integration (`astro:copy-vercel-output`) that it registers during
+ *     config setup, and integrations registered that way run *after* the
+ *     site's. At this point that directory is still empty.
+ *
+ * So the pages are read from the `dir` the hook is handed — Astro's own client
+ * output — which is exactly the directory the adapter is about to copy into
+ * `.vercel/output/static/`. Same files, already on disk, no ordering to lose.
+ * Reading `.vercel/output/static/` instead finds nothing and silently writes
+ * zero routes; that was measured, not imagined.
  *
  * Off Vercel there is no `.vercel/` directory and this does nothing.
  *
@@ -727,7 +736,7 @@ The only impure function, the integration factory that wires it to the build, an
 **Interfaces:**
 - Consumes: `discoverTwins`, `withMarkdownNegotiation` (Tasks 2–3).
 - Produces:
-  - `export function applyToBuildOutput({ projectRoot: string }): { configPath: string, root: boolean, slugs: string[] } | null` — reads `<projectRoot>/.vercel/output/config.json`, discovers twins under `<projectRoot>/.vercel/output/static`, writes the patched config back, returns what it did. Returns `null` (touching nothing) when there is no `config.json` **and** `process.env.VERCEL` is unset; throws when there is no `config.json` and `VERCEL` *is* set.
+  - `export function applyToBuildOutput({ projectRoot: string, staticDir: string }): { configPath: string, root: boolean, slugs: string[] } | null` — reads `<projectRoot>/.vercel/output/config.json`, discovers twins under `staticDir` (the built site — `dir` from `astro:build:done`, NOT `.vercel/output/static`, which the adapter fills later), writes the patched config back, returns what it did. Returns `null` (touching nothing) when there is no `config.json` **and** `process.env.VERCEL` is unset; throws when there is no `config.json` and `VERCEL` *is* set.
   - `export default function vercelMarkdownNegotiation(): AstroIntegration` — a plain integration: `astro:config:setup` records the project root, `astro:build:done` applies the transform.
 
 - [ ] **Step 1: Write the failing tests**
@@ -764,7 +773,8 @@ function withVercelEnv(value, fn) {
 test('applyToBuildOutput: patches config.json in place and reports what it did', (t) => {
 	const root = fakeProject();
 	t.after(() => rmSync(root, { recursive: true }));
-	const result = withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root }));
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	const result = withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir }));
 	assert.deepEqual(result, { configPath: join(root, '.vercel/output/config.json'), root: true, slugs: ['guides/example'] });
 	const written = JSON.parse(readFileSync(result.configPath, 'utf-8'));
 	assert.equal(written.routes.filter(isRewrite).length, 2);
@@ -774,14 +784,16 @@ test('applyToBuildOutput: patches config.json in place and reports what it did',
 test('applyToBuildOutput: off Vercel, with no config.json, does nothing and says so', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));
-	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root })), null);
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root, staticDir })), null);
 	assert.ok(!existsSync(join(root, '.vercel/output/config.json')), 'nothing was created');
 });
 
 test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shipping without the feature', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));
-	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root })), /config\.json.*not found|ordering/i);
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir })), /config\.json.*not found|ordering/i);
 });
 ```
 
@@ -815,6 +827,10 @@ const OUTPUT_DIR = '.vercel/output';
  * Reads the adapter's `config.json`, adds the negotiation routes, writes it
  * back. Returns what it did, or `null` when there is nothing to do.
  *
+ * `staticDir` is the built site — the `dir` from `astro:build:done`, not
+ * `.vercel/output/static/`, which the adapter has not filled yet when this
+ * runs. See the timing note in this file's header.
+ *
  * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
  * unset, this is a local or self-hosted build and silence is right. With
  * `VERCEL` set and no `config.json`, the ordering noted in this file's header
@@ -822,7 +838,7 @@ const OUTPUT_DIR = '.vercel/output';
  * deploy would silently lack the feature. That is the failure this
  * feature already suffered once; it throws instead.
  */
-export function applyToBuildOutput({ projectRoot }) {
+export function applyToBuildOutput({ projectRoot, staticDir }) {
 	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
 	if (!existsSync(configPath)) {
 		if (process.env.VERCEL) {
@@ -834,7 +850,7 @@ export function applyToBuildOutput({ projectRoot }) {
 		}
 		return null;
 	}
-	const twins = discoverTwins(join(projectRoot, OUTPUT_DIR, 'static'));
+	const twins = discoverTwins(staticDir);
 	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
 	writeFileSync(configPath, JSON.stringify(withMarkdownNegotiation(config, twins), null, 2) + '\n');
 	return { configPath, ...twins };
@@ -853,8 +869,8 @@ export default function vercelMarkdownNegotiation() {
 			'astro:config:setup': ({ config }) => {
 				projectRoot = fileURLToPath(config.root);
 			},
-			'astro:build:done': ({ logger }) => {
-				const result = applyToBuildOutput({ projectRoot });
+			'astro:build:done': ({ dir, logger }) => {
+				const result = applyToBuildOutput({ projectRoot, staticDir: fileURLToPath(dir) });
 				if (!result) return;
 				const pages = result.slugs.length + (result.root ? 1 : 0);
 				logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
