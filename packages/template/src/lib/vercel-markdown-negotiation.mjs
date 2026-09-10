@@ -38,8 +38,9 @@
  * See wiki/private-docs.md § Markdown content negotiation on Vercel.
  */
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * The `Accept` header wants Markdown when it lists `text/markdown` as a
@@ -152,4 +153,59 @@ export function discoverTwins(staticDir) {
 	}
 	slugs.sort();
 	return { root, slugs };
+}
+
+/** Where `@astrojs/vercel` writes its output, relative to the project root. */
+const OUTPUT_DIR = '.vercel/output';
+
+/**
+ * Reads the adapter's `config.json`, adds the negotiation routes, writes it
+ * back. Returns what it did, or `null` when there is nothing to do.
+ *
+ * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
+ * unset, this is a local or self-hosted build and silence is right. With
+ * `VERCEL` set and no `config.json`, the ordering noted in this file's header
+ * has changed — this hook ran before the adapter wrote the file — and the
+ * deploy would silently lack the feature. That is the failure this
+ * feature already suffered once; it throws instead.
+ */
+export function applyToBuildOutput({ projectRoot }) {
+	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
+	if (!existsSync(configPath)) {
+		if (process.env.VERCEL) {
+			throw new Error(
+				`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
+					'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
+					'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
+			);
+		}
+		return null;
+	}
+	const twins = discoverTwins(join(projectRoot, OUTPUT_DIR, 'static'));
+	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+	writeFileSync(configPath, JSON.stringify(withMarkdownNegotiation(config, twins), null, 2) + '\n');
+	return { configPath, ...twins };
+}
+
+/**
+ * The integration. `astro:config:setup` records the project root;
+ * `astro:build:done` does the work — by which time the adapter has already
+ * written `config.json` (see the header comment on ordering).
+ */
+export default function vercelMarkdownNegotiation() {
+	let projectRoot;
+	return {
+		name: 'vercel-markdown-negotiation',
+		hooks: {
+			'astro:config:setup': ({ config }) => {
+				projectRoot = fileURLToPath(config.root);
+			},
+			'astro:build:done': ({ logger }) => {
+				const result = applyToBuildOutput({ projectRoot });
+				if (!result) return;
+				const pages = result.slugs.length + (result.root ? 1 : 0);
+				logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
+			},
+		},
+	};
 }

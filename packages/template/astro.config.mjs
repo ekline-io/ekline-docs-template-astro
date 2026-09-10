@@ -15,6 +15,7 @@ import {
 	routeFor,
 } from './src/config/api-reference.mjs';
 import { docsSidebarGroups, changelogEntry, privateDocsLink } from './src/config/sidebar.mjs';
+import vercelMarkdownNegotiation from './src/lib/vercel-markdown-negotiation.mjs';
 
 // Is signing in configured for this deployment?
 //
@@ -241,6 +242,12 @@ export default defineConfig({
 				...(ssoConfigured ? [privateDocsLink] : []),
 			],
 		}),
+		// On Vercel, a request to a page with `Accept: text/markdown` gets the
+		// page's Markdown twin at the same URL. Edits the adapter's generated
+		// routing config after the build — `vercel.json` rewrites cannot reach it
+		// and middleware never sees prerendered pages. Does nothing off Vercel.
+		// Delete this line to turn it off. See wiki/private-docs.md.
+		vercelMarkdownNegotiation(),
 	],
 	vite: {
 		plugins: [tailwindcss()],

@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -24,6 +24,7 @@ import {
 	negotiationRoutes,
 	withMarkdownNegotiation,
 	discoverTwins,
+	applyToBuildOutput,
 } from '../src/lib/vercel-markdown-negotiation.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -198,4 +199,53 @@ test('discoverTwins: empty output is no twins, not an error', (t) => {
 	const dir = fakeStaticDir(['index.html']);
 	t.after(() => rmSync(dir, { recursive: true }));
 	assert.deepEqual(discoverTwins(dir), { root: false, slugs: [] });
+});
+
+/** A fake project root with a Vercel-shaped build output. */
+function fakeProject({ withConfig = true, files = ['index.html', 'index.md', 'guides/example/index.html', 'guides/example.md'] } = {}) {
+	const root = mkdtempSync(join(tmpdir(), 'project-'));
+	const out = join(root, '.vercel', 'output');
+	for (const f of files) {
+		mkdirSync(join(out, 'static', dirname(f)), { recursive: true });
+		writeFileSync(join(out, 'static', f), f.endsWith('.md') ? '# x\n' : '<!doctype html>');
+	}
+	if (withConfig) writeFileSync(join(out, 'config.json'), JSON.stringify(FIXTURE));
+	return root;
+}
+
+/** Runs `fn` with `process.env.VERCEL` set to `value` (or deleted), then restores it. */
+function withVercelEnv(value, fn) {
+	const had = Object.hasOwn(process.env, 'VERCEL');
+	const prev = process.env.VERCEL;
+	if (value === undefined) delete process.env.VERCEL;
+	else process.env.VERCEL = value;
+	try {
+		return fn();
+	} finally {
+		if (had) process.env.VERCEL = prev;
+		else delete process.env.VERCEL;
+	}
+}
+
+test('applyToBuildOutput: patches config.json in place and reports what it did', (t) => {
+	const root = fakeProject();
+	t.after(() => rmSync(root, { recursive: true }));
+	const result = withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root }));
+	assert.deepEqual(result, { configPath: join(root, '.vercel/output/config.json'), root: true, slugs: ['guides/example'] });
+	const written = JSON.parse(readFileSync(result.configPath, 'utf-8'));
+	assert.equal(written.routes.filter(isRewrite).length, 2);
+	assert.ok(written.routes.find((r) => r.dest === '/$1.md').src.includes('guides/example'));
+});
+
+test('applyToBuildOutput: off Vercel, with no config.json, does nothing and says so', (t) => {
+	const root = fakeProject({ withConfig: false });
+	t.after(() => rmSync(root, { recursive: true }));
+	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root })), null);
+	assert.ok(!existsSync(join(root, '.vercel/output/config.json')), 'nothing was created');
+});
+
+test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shipping without the feature', (t) => {
+	const root = fakeProject({ withConfig: false });
+	t.after(() => rmSync(root, { recursive: true }));
+	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root })), /config\.json.*not found|ordering/i);
 });
