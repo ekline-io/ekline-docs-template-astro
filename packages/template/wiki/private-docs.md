@@ -363,34 +363,49 @@ is acceptable rather than an oversight: it rests on `dir` being complete by
 `astro:build:done`, which is Astro's own documented hook contract, not
 adapter-internal behaviour that has already changed once.
 
-### What has been verified, and what has not (2026-09-09)
+### Verified on a live deployment (2026-09-10)
 
-**Verified on Vercel's own build.** This site's `buildCommand` is `npm test`,
-which Vercel runs with `VERCEL` set — so the routing-config assertions in
+**The routing config, on Vercel's own build.** This site's `buildCommand` is
+`npm test`, which Vercel runs with `VERCEL` set — so the assertions in
 `tests/markdown-twins.test.mjs` ran against the `config.json` the adapter
 generated on Vercel's infrastructure, and passed: the four routes sit ahead of
 the filesystem handle, the slug alternation equals the twins on disk, and no
 route names a page without one.
 
-**Not yet verified: the CDN's runtime behaviour.** Whether those routes
-actually fire, and whether `Vary: Accept` is honoured end to end, can only be
-seen by requesting a live deployment. `tests/deployed-smoke.test.mjs` is
-written to answer exactly that — ten checks, of which test 8 is the gate: two
-URLs, each hit in one `Accept` order (the two orders opposite between them, so
-the CDN is warmed both ways), asserting the body always matches the request
-and equals the page's own `.md` twin, even on `x-vercel-cache: HIT`.
+**The CDN's runtime behaviour, on a real deployment.** Whether those routes
+actually fire, and whether `Vary: Accept` survives the cache, can only be seen
+by requesting a live site. `tests/deployed-smoke.test.mjs` did:
 
-Run it against any deployment:
+```
+ok 7 - negotiable responses carry Vary: Accept
+ok 8 - THE VARY GATE: same URL, both orders, bodies never cross — including cache HITs
+# pass 9  # fail 0
+```
+
+Test 8 is the one that mattered. It hits two URLs, each in one `Accept` order
+and the orders opposite between them so the CDN is warmed both ways, and
+asserts every response matches the `Accept` that asked for it and equals that
+page's own `.md` twin — including once `x-vercel-cache` reports `HIT`. It
+passed, so **Vercel keys its cache on `Accept` and one URL can safely serve
+two representations.** That was the open risk in this design, and it is
+closed.
+
+Run it against any deployment of your own:
 
 ```bash
 DOCS_SMOKE_URL=https://your-site node --test tests/deployed-smoke.test.mjs
 ```
 
-If that gate ever fails, the fix is decided and small: the same routes with
-`"status": 307` and a `Location` header instead of `dest`. Redirects cache per
-URL and cannot cross-serve. The rest of the design is unchanged.
+If your deployment is behind Deployment Protection, add
+`DOCS_SMOKE_BYPASS=<a Protection Bypass for Automation secret>`. That secret is
+per Vercel project, not per team — one project's secret will not open another's.
 
-Nothing in a plain `npm test` can see any of this — that is precisely why the
+**Should that gate ever fail on a future Vercel change**, the fix is decided
+and small: the same routes with `"status": 307` and a `Location` header instead
+of `dest`. Redirects cache per URL and cannot cross-serve. Nothing else in the
+design moves.
+
+Nothing in a plain `npm test` can see any of this — which is precisely why the
 1.x rewrites could stop working with every check green.
 
 ### If you removed the logged-in experience
