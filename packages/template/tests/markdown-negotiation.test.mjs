@@ -238,6 +238,19 @@ test('applyToBuildOutput: patches config.json in place and reports what it did',
 	assert.ok(written.routes.find((r) => r.dest === '/$1.md').src.includes('guides/example'));
 });
 
+test('applyToBuildOutput: off Vercel it ignores a stale .vercel/ left by an earlier Vercel build', (t) => {
+	// The failure this ordering prevents: run a Vercel build, then an ordinary
+	// one without deleting `.vercel/`. The config is still there, already
+	// carrying these routes — applying again throws and the build dies.
+	const root = fakeProject();
+	t.after(() => rmSync(root, { recursive: true }));
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	const configPath = join(root, '.vercel', 'output', 'config.json');
+	const before = readFileSync(configPath, 'utf-8');
+	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root, staticDir })), null);
+	assert.equal(readFileSync(configPath, 'utf-8'), before, 'the stale config was left untouched');
+});
+
 test('applyToBuildOutput: off Vercel, with no config.json, does nothing and says so', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));

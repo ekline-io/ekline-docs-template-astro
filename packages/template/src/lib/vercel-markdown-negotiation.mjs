@@ -179,24 +179,28 @@ const OUTPUT_DIR = '.vercel/output';
  * `.vercel/output/static/`, which the adapter has not filled yet when this
  * runs. See the timing note in this file's header.
  *
- * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
- * unset, this is a local or self-hosted build and silence is right. With
- * `VERCEL` set and no `config.json`, the ordering noted in this file's header
- * has changed — this hook ran before the adapter wrote the file — and the
- * deploy would silently lack the feature. That is the failure this
- * feature already suffered once; it throws instead.
+ * `VERCEL` is checked before anything is read, and that order is load-bearing.
+ * A `.vercel/` directory left behind by an earlier Vercel build still holds a
+ * `config.json` — one that already carries these routes — so keying off the
+ * file's presence instead makes every ordinary build after a Vercel build die
+ * on "already carries the negotiation routes". Measured, not imagined.
+ *
+ * Once we know it IS a Vercel build, a missing `config.json` is the opposite
+ * problem: the ordering in this file's header has changed and this ran before
+ * the adapter wrote the file. Silence there would ship a deployment quietly
+ * lacking the feature — the failure this feature already suffered once — so it
+ * throws.
  */
 export function applyToBuildOutput({ projectRoot, staticDir }) {
+	if (!process.env.VERCEL) return null;
+
 	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
 	if (!existsSync(configPath)) {
-		if (process.env.VERCEL) {
-			throw new Error(
-				`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
-					'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
-					'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
-			);
-		}
-		return null;
+		throw new Error(
+			`[vercel-markdown-negotiation] VERCEL is set but ${relative(projectRoot, configPath)} was not found ` +
+				'when the integration ran. It must run after the adapter writes that file; Astro has run the ' +
+				'adapter first in every measured build. See wiki/private-docs.md § Markdown content negotiation on Vercel.'
+		);
 	}
 	const twins = discoverTwins(staticDir);
 	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
