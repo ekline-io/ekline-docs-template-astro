@@ -13,8 +13,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { mock } from 'node:test';
 
-import { openApiSidebarGroup } from '../src/lib/openapi-sidebar.mjs';
+import { openApiSidebarGroup, loadSource } from '../src/lib/openapi-sidebar.mjs';
 
 const BASE = '/api/';
 
@@ -91,4 +94,135 @@ test('untagged operations still produce reachable entries', async () => {
 	const hrefs = links(group).map((l) => l.link);
 	assert.ok(hrefs.length >= 1, 'expected at least the reference link');
 	assert.ok(hrefs.every((h) => h.startsWith(BASE)));
+});
+
+/**
+ * Serve one handler on a random loopback port. Returns the URL a spec would
+ * be configured with and a `close()` that also drops open sockets, so a
+ * handler that deliberately never responds cannot keep the process alive.
+ */
+function serve(handler) {
+	const server = createServer(handler);
+	return new Promise((resolve) => {
+		server.listen(0, '127.0.0.1', () => {
+			const { port } = server.address();
+			resolve({
+				url: `http://127.0.0.1:${port}/openapi.yaml`,
+				close: () =>
+					new Promise((done) => {
+						server.closeAllConnections();
+						server.close(() => done());
+					}),
+			});
+		});
+	});
+}
+
+test('a remote document produces the same sidebar as the same document on disk', async () => {
+	// The sidebar is built from whatever bytes arrive; where they came from must
+	// not change a single entry or anchor.
+	const body = readFileSync('./public/openapi.yaml', 'utf-8');
+	const remote = await serve((_, res) => {
+		res.setHeader('Content-Type', 'application/yaml');
+		res.end(body);
+	});
+	try {
+		const fromDisk = await openApiSidebarGroup({ spec: './public/openapi.yaml', base: BASE });
+		const fromUrl = await openApiSidebarGroup({ spec: remote.url, base: BASE });
+		assert.deepEqual(fromUrl, fromDisk);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('an unreachable URL degrades to a plain link and says the build machine must reach it', async () => {
+	// Open then close a server so the port is known to have no listener:
+	// the connection is refused immediately instead of waiting on a timeout.
+	const remote = await serve(() => {});
+	await remote.close();
+
+	const warned = mock.method(console, 'warn', () => {});
+	try {
+		const group = await openApiSidebarGroup({ spec: remote.url, base: BASE });
+		assert.deepEqual(group, { label: 'API reference', link: BASE });
+
+		const messages = warned.mock.calls.map((call) => String(call.arguments[0]));
+		assert.ok(
+			messages.some((m) => m.includes(remote.url) && m.includes('must be able to reach this URL')),
+			`expected a warning naming the URL, got:\n${messages.join('\n')}`
+		);
+	} finally {
+		warned.mock.restore();
+	}
+});
+
+test('a server error degrades to a plain link', async () => {
+	const remote = await serve((_, res) => {
+		res.statusCode = 500;
+		res.end('nope');
+	});
+	try {
+		const group = await openApiSidebarGroup({ spec: remote.url, base: BASE });
+		assert.deepEqual(group, { label: 'API reference', link: BASE });
+	} finally {
+		await remote.close();
+	}
+});
+
+test('a fetch that never completes times out instead of hanging the build', async () => {
+	const remote = await serve(() => {
+		/* never respond */
+	});
+	try {
+		await assert.rejects(loadSource(remote.url, { timeoutMs: 200 }), /timed out after 200ms/);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('a timeout while the body streams still names the duration', async () => {
+	// The timeout signal stays attached to the response stream, so a host that
+	// sends headers promptly and then stalls aborts during `response.text()`,
+	// not at the `fetch` call. Outside the mapping catch that surfaced as a bare
+	// "The operation was aborted due to timeout", naming no duration.
+	const remote = await serve((_, res) => {
+		res.writeHead(200, { 'Content-Type': 'application/yaml' });
+		res.write('openapi: 3.1.0\n');
+		// never end
+	});
+	try {
+		await assert.rejects(loadSource(remote.url, { timeoutMs: 200 }), /timed out after 200ms/);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('an HTML page answered with 200 is rejected, not treated as a document', async () => {
+	// A spec URL behind a sign-in page or a single-page app's catch-all answers
+	// 200 with HTML. Accepting it degrades the sidebar with a warning about an
+	// unprocessable document, and under `serve: 'snapshot'` emits that HTML as
+	// the spec — a green build and a blank reference.
+	const remote = await serve((_, res) => {
+		res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+		res.end('<!doctype html><title>Sign in</title>');
+	});
+	try {
+		await assert.rejects(loadSource(remote.url), /answered 200 with text\/html, not an OpenAPI document/);
+	} finally {
+		await remote.close();
+	}
+});
+
+test('a non-2xx response still reports its status', async () => {
+	// Pinned alongside the two above: all three failures share one catch now, so
+	// a change to the mapping must not swallow the status.
+	const remote = await serve((_, res) => {
+		res.statusCode = 503;
+		res.end('busy');
+	});
+	try {
+		await assert.rejects(loadSource(remote.url), /HTTP 503/);
+	} finally {
+		await remote.close();
+	}
 });

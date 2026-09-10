@@ -6,18 +6,65 @@ API references are rendered by [Scalar](https://scalar.com/) through its officia
 
 Every reference is declared in **[`src/config/api-reference.mjs`](../src/config/api-reference.mjs)** — its document, its slug, its layout, what it is called. The routes, the sidebar, and the search index are all derived from that list.
 
-## Swap in your own spec
+## Where the document comes from
 
-Replace `public/openapi.yaml` with your own document. That is the only required change: the route, the sidebar's operation list, and the search entries all regenerate on the next build.
+`spec` takes a path or an `http(s)://` URL. Three things consume it through
+`loadSource()` in `src/lib/openapi-sidebar.mjs`: the sidebar generator, the
+search index, and — when the site has to serve the document itself — the
+endpoint at `src/pages/api-spec/[file].js`. Only two of those three actually
+share a read or fetch. `astro.config.mjs`, which builds the sidebar, runs in
+the Astro config loader's own module registry; the search index and the
+endpoint both run from the page build's Rollup-bundled SSR copy. Those are two
+separate instances of `loadSource()` with two separate memoisation caches, so
+the search index and the endpoint share one read or fetch and **the sidebar
+always performs its own**, in addition. For a remote document that is two HTTP
+requests per build, not one — the 30-second fetch timeout is a per-request
+cap, so the worst case across a build is 60 seconds of stall, not 30. It also
+means that under `serve: 'snapshot'` against a document that changes between
+those two requests, the sidebar can be built from one version while the
+snapshot the endpoint emits is a different one. The memoisation is still
+useful where it applies: the search index and the endpoint genuinely make one
+request between them rather than two, and a failed read or fetch is dropped
+from the cache so a dev server can retry once the customer fixes the path or
+the host comes back.
 
-To rename it, or point at a spec hosted elsewhere, change both fields on that reference together:
+The URL the browser fetches is derived by `specUrlFor()` in
+`src/config/api-reference.mjs`. First rule that matches:
 
-```js
-spec: './public/openapi.yaml',   // read at build time, to generate the sidebar
-specUrl: '/openapi.yaml',        // fetched by the browser, at runtime
-```
+| # | When | The browser fetches | Emitted by the endpoint? |
+| --- | --- | --- | --- |
+| 1 | `specUrl` is set | that value, verbatim | no |
+| 2 | a URL with `serve: 'live'` | the URL | no |
+| 3 | a path under `public/` | the path minus `public/` | no — Astro serves `public/` |
+| 4 | anything else | `/api-spec/<id>.<ext>` | yes |
 
-JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are upgraded to 3.1 automatically.
+`emittedReferences` is the rule-4 set. The endpoint's `getStaticPaths()` and
+the build tests both read it, so what the config promises and what the build
+output contains cannot disagree. As shipped, both examples are rule 3 and the
+endpoint emits nothing.
+
+**What is emitted is the raw document** — the bytes as read or fetched, not the
+normalized, dereferenced copy the sidebar is built from. Scalar upgrades old
+documents itself, and the "Download OpenAPI Document" link should hand readers
+the file they would recognise.
+
+**Failure policy.** The build fails when the site is responsible for serving a
+document it cannot obtain — rule 4, where the endpoint throws naming the source
+and the emitted path, because the alternative is a blank reference page.
+Everything else warns and degrades as it always has: a `public/` file that is
+missing, or a `live` URL the build machine cannot reach, leaves the reference
+linked but without an operation sidebar or search entries. A fetch is capped at
+30 seconds so a hung host cannot hang a build. The sidebar and search index each emit a warning
+before the endpoint's error in a rule-4 failure — two redundant lines, in
+exchange for the generator staying ignorant of serve modes.
+
+External file `$ref`s (`./schemas/pet.yaml`) do not resolve — `dereference`
+reports `EXTERNAL_REFERENCE_NOT_FOUND` — for bundled and remote documents
+alike. Tags and operations live in the root document, so the sidebar is
+unaffected. Pre-existing; noted so it is not mistaken for a regression.
+
+JSON works as well as YAML, and Swagger 2.0 and OpenAPI 3.0 documents are
+upgraded to 3.1 automatically.
 
 ## Two references, two layouts
 
@@ -27,8 +74,18 @@ The template ships **two** example APIs, each demonstrating one layout:
 | --- | --- | --- | --- | --- |
 | Example Payments API | `''` | `/api/` | `docs` | Starlight's sidebar, shared with the rest of the docs |
 | Example Admin API | `'admin'` | `/api/admin/` | `full` | Scalar's own sidebar, full width |
+| Petstore API (remote) | `'petstore'` | `/api/petstore/` | `docs` | Starlight's sidebar, generated from a document fetched over the network |
 
 References are addressed by **`slug`, not a full path** — every route this template builds lives under `/api/`, because that is where the route file is. An empty slug is `/api/` itself. `routeFor()` turns a slug into the one URL the page, the sidebar and the search index all use, so those three cannot end up disagreeing. Two references sharing a slug fails the build rather than silently making one unreachable.
+
+The third is the odd one out, and deliberately so: its `spec` is a URL rather
+than a file, so it demonstrates that a document you do not host produces the
+same generated operation sidebar and the same search entries as a bundled one.
+It is `serve: 'live'`, not the default `'snapshot'`, because a snapshot the
+build cannot fetch fails that build — correct for a real API, wrong for an
+example that would otherwise break the first build of anyone working offline.
+It is also the only thing in the shipped configuration that touches the
+network, so deleting it is what makes a build hermetic again.
 
 **`docs` is the right default for most sites.** The API and the prose share one navigation tree, so the reference reads as part of the documentation rather than a separate destination. Every operation appears in the sidebar, generated from the document, and is reachable from any page in the site.
 
