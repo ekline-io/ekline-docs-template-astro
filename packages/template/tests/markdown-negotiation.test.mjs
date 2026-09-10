@@ -267,12 +267,13 @@ test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shi
 });
 
 test('the module imports only node: built-ins, so it can be used across projects', () => {
-	// This file is imported by more than one project in this workspace, and
-	// each installs its own dependencies. A bare import added here would
-	// resolve wherever the dependency happens to be installed and fail
-	// wherever it is not — a break that only shows up on a deployment.
+	// This module is deliberately dependency-free so it can be imported from
+	// anywhere, including a build that has not installed this project's own
+	// dependencies. A bare (non-`node:`) import added here would break that:
+	// it would resolve only where that package happens to already be
+	// installed, and fail everywhere else.
 	const source = readFileSync(join(__dirname, '../src/lib/vercel-markdown-negotiation.mjs'), 'utf-8');
-	const specifiers = [...source.matchAll(/^import\s+(?:.+?\s+from\s+)?'([^']+)'/gm)].map((m) => m[1]);
+	const specifiers = [...source.matchAll(/^import\s+(?:.+?\s+from\s+)?['"]([^'"]+)['"]/gm)].map((m) => m[1]);
 	const external = specifiers.filter((s) => !s.startsWith('node:'));
 	assert.deepEqual(external, [], `non-builtin imports: ${external.join(', ')}`);
 });

@@ -308,7 +308,12 @@ Four routes, spliced in immediately before the filesystem handle:
 
 1. `Vary: Accept` on every negotiable URL, with `continue: true` — so the
    *HTML* response carries it and the CDN keys its cache on the header. The
-   adapter's own `_astro` cache-control route uses the same pattern.
+   adapter's own `_astro` cache-control route has the same shape — a
+   `continue: true` route that attaches a header — but sits *after* the
+   filesystem handle rather than before it, so it is not precedent for this
+   route's position. If `Vary: Accept` ever turns out not to reach the HTML
+   response, moving these two routes after the handle to match is the
+   fallback.
 2. The same for `/`.
 3. The rewrite: one regex alternation of every twin slug, matched only when
    `Accept` contains `text/markdown` as a media-type token, rewriting to
@@ -317,11 +322,13 @@ Four routes, spliced in immediately before the filesystem handle:
    it and falls through to HTML.
 4. The same for `/` → `/index.md`.
 
-The twin set is read from the emitted static directory (`<slug>.md` beside
-`<slug>/index.html`), the same ground truth `tests/markdown-twins.test.mjs`
-checks. The integration can only rewrite to a path already served statically,
-so it cannot widen exposure; `tests/private-leaks.test.mjs` continues to
-guarantee no private twin exists.
+The twin set is read from `dir` — the built site Astro hands the hook, not
+`.vercel/output/static/`, which is not yet populated at this point (see "When
+it runs" below) — by matching `<slug>.md` beside `<slug>/index.html`; that is
+the same ground truth `tests/markdown-twins.test.mjs` checks. The integration
+can only rewrite to a path already served statically, so it cannot widen
+exposure; `tests/private-leaks.test.mjs` continues to guarantee no private
+twin exists.
 
 **What "wants Markdown" means:** `text/markdown`, `text/markdown;q=0.9`,
 `text/markdown, text/plain;q=0.9, */*;q=0.8` all match; `text/markdownx` does
@@ -348,10 +355,13 @@ of exactly that directory into `.vercel/output/static/`. So the integration
 reads pages from `dir`, never from `.vercel/output/static/` — the two end up
 holding identical files, but only one of them exists yet when this hook runs.
 
-If either half ever stops holding — an Astro or adapter release changing the
-order — the integration throws rather than deploy silently without the
-feature, which is the failure this feature already suffered once. The message
-names this section.
+Only the first half is guarded: if `VERCEL` is set and `config.json` is
+missing when the hook runs, the integration throws rather than deploy silently
+without the feature — the failure this feature already suffered once — and
+the message names this section. The second half has no equivalent check. That
+is acceptable rather than an oversight: it rests on `dir` being complete by
+`astro:build:done`, which is Astro's own documented hook contract, not
+adapter-internal behaviour that has already changed once.
 
 ### What has been verified, and what has not (2026-09-09)
 
