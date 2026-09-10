@@ -1005,12 +1005,19 @@ Append to the file:
 // Vercel-adapter builds only: the routing config must agree with the disk.
 // ---------------------------------------------------------------------------
 
-const IS_VERCEL_OUTPUT = STATIC_DIR.endsWith(join('.vercel', 'output', 'static'));
+// What tells a Vercel build apart is the routing config, not where the static
+// files landed. The adapter *copies* its output into `.vercel/output/static/`
+// rather than moving it, so a Vercel build leaves `dist/client/` in place as
+// well and `staticDir()` — which prefers `dist/client` — resolves there on both
+// kinds of build. The config is the thing only a Vercel build produces, and it
+// is what these tests read anyway.
+const VERCEL_CONFIG = join(__dirname, '..', '.vercel', 'output', 'config.json');
+const IS_VERCEL_OUTPUT = existsSync(VERCEL_CONFIG);
 const unlessVercel = IS_VERCEL_OUTPUT
 	? false
 	: 'Node-adapter build; run `VERCEL=1 npm run build` to check the Vercel routing config';
 
-const readVercelConfig = () => JSON.parse(readFileSync(join(STATIC_DIR, '..', 'config.json'), 'utf-8'));
+const readVercelConfig = () => JSON.parse(readFileSync(VERCEL_CONFIG, 'utf-8'));
 const isRewrite = (r) => r.dest === '/$1.md' || r.dest === '/index.md';
 const isVary = (r) => r.continue === true && r.headers?.Vary === 'Accept';
 
@@ -1067,6 +1074,8 @@ cd packages/template && rm -rf dist .vercel && VERCEL=1 npm run build >/dev/null
 ```
 
 Expected: `# pass 12`, `# fail 0`, `# skipped 0` — all 9 existing plus the 3 new ones.
+
+Note that a Vercel build leaves **both** `dist/client/` and `.vercel/output/static/` populated — the adapter copies rather than moves — so `staticDir()` resolves to `dist/client/` either way. That is harmless (the two hold identical files), and it is why `IS_VERCEL_OUTPUT` keys on `.vercel/output/config.json` rather than on where the static files resolved. Measured: keying on `STATIC_DIR` skips the three tests even on a Vercel build.
 
 - [ ] **Step 4: Commit**
 
