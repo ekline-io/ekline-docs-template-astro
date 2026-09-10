@@ -230,7 +230,8 @@ function withVercelEnv(value, fn) {
 test('applyToBuildOutput: patches config.json in place and reports what it did', (t) => {
 	const root = fakeProject();
 	t.after(() => rmSync(root, { recursive: true }));
-	const result = withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root }));
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	const result = withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir }));
 	assert.deepEqual(result, { configPath: join(root, '.vercel/output/config.json'), root: true, slugs: ['guides/example'] });
 	const written = JSON.parse(readFileSync(result.configPath, 'utf-8'));
 	assert.equal(written.routes.filter(isRewrite).length, 2);
@@ -240,12 +241,14 @@ test('applyToBuildOutput: patches config.json in place and reports what it did',
 test('applyToBuildOutput: off Vercel, with no config.json, does nothing and says so', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));
-	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root })), null);
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	assert.equal(withVercelEnv(undefined, () => applyToBuildOutput({ projectRoot: root, staticDir })), null);
 	assert.ok(!existsSync(join(root, '.vercel/output/config.json')), 'nothing was created');
 });
 
 test('applyToBuildOutput: on Vercel, with no config.json, throws rather than shipping without the feature', (t) => {
 	const root = fakeProject({ withConfig: false });
 	t.after(() => rmSync(root, { recursive: true }));
-	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root })), /config\.json.*not found|ordering/i);
+	const staticDir = join(root, '.vercel', 'output', 'static');
+	assert.throws(() => withVercelEnv('1', () => applyToBuildOutput({ projectRoot: root, staticDir })), /config\.json.*not found|ordering/i);
 });

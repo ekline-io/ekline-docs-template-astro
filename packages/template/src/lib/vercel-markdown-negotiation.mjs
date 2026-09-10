@@ -25,13 +25,26 @@
  * tested without a build; `applyToBuildOutput()` is the only thing that
  * touches the disk.
  *
- * On ordering: this reads a file the adapter writes, so it has to run after it.
- * `@astrojs/vercel` writes `config.json` in its own `astro:build:done`, and
- * Astro runs the adapter's hooks ahead of every user integration's — a probe
- * placed first in the `integrations` array and one placed last both saw the
- * file already there. So a plain `astro:build:done` is enough. Measured on a
- * real build rather than assumed; the guard in `applyToBuildOutput` is what
- * catches it if that ever changes.
+ * On ordering: this reads two things the adapter produces, and they are not
+ * ready at the same time. `@astrojs/vercel` writes `config.json` in its own
+ * `astro:build:done`, and Astro runs the adapter's hooks ahead of every site
+ * integration's — a probe placed first in the `integrations` array and one
+ * placed last both saw the file already there. So `config.json` is safe to
+ * read from a plain `astro:build:done`.
+ *
+ * The static files it copies into `.vercel/output/static/` are not ready at
+ * that point: the adapter fills that directory from a second, inner
+ * integration it registers for itself while Astro is still setting up config,
+ * and an integration registered that way runs *after* every site
+ * integration's `astro:build:done` — so `.vercel/output/static/` is still
+ * empty when this one's hook fires. What is already complete by then is
+ * Astro's own client output, handed to the hook as `dir`; the adapter's later
+ * copy is a plain copy of exactly that directory into `.vercel/output/static/`.
+ * So this integration reads pages from `dir`, not from
+ * `.vercel/output/static/` — the two end up holding identical files, but only
+ * one of them exists yet when this hook runs. Both halves measured on a real
+ * build rather than assumed; the guard in `applyToBuildOutput` is what catches
+ * it if the first half ever changes.
  *
  * Off Vercel there is no `.vercel/` directory and this does nothing.
  *
@@ -162,6 +175,10 @@ const OUTPUT_DIR = '.vercel/output';
  * Reads the adapter's `config.json`, adds the negotiation routes, writes it
  * back. Returns what it did, or `null` when there is nothing to do.
  *
+ * `staticDir` is the built site — the `dir` from `astro:build:done`, not
+ * `.vercel/output/static/`, which the adapter has not filled yet when this
+ * runs. See the timing note in this file's header.
+ *
  * The guard is asymmetric on purpose. With no `config.json` and `VERCEL`
  * unset, this is a local or self-hosted build and silence is right. With
  * `VERCEL` set and no `config.json`, the ordering noted in this file's header
@@ -169,7 +186,7 @@ const OUTPUT_DIR = '.vercel/output';
  * deploy would silently lack the feature. That is the failure this
  * feature already suffered once; it throws instead.
  */
-export function applyToBuildOutput({ projectRoot }) {
+export function applyToBuildOutput({ projectRoot, staticDir }) {
 	const configPath = join(projectRoot, OUTPUT_DIR, 'config.json');
 	if (!existsSync(configPath)) {
 		if (process.env.VERCEL) {
@@ -181,7 +198,7 @@ export function applyToBuildOutput({ projectRoot }) {
 		}
 		return null;
 	}
-	const twins = discoverTwins(join(projectRoot, OUTPUT_DIR, 'static'));
+	const twins = discoverTwins(staticDir);
 	const config = JSON.parse(readFileSync(configPath, 'utf-8'));
 	writeFileSync(configPath, JSON.stringify(withMarkdownNegotiation(config, twins), null, 2) + '\n');
 	return { configPath, ...twins };
@@ -200,8 +217,8 @@ export default function vercelMarkdownNegotiation() {
 			'astro:config:setup': ({ config }) => {
 				projectRoot = fileURLToPath(config.root);
 			},
-			'astro:build:done': ({ logger }) => {
-				const result = applyToBuildOutput({ projectRoot });
+			'astro:build:done': ({ dir, logger }) => {
+				const result = applyToBuildOutput({ projectRoot, staticDir: fileURLToPath(dir) });
 				if (!result) return;
 				const pages = result.slugs.length + (result.root ? 1 : 0);
 				logger.info(`${pages} pages answer Accept: text/markdown (${relative(projectRoot, result.configPath)})`);
