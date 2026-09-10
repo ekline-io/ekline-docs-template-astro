@@ -17,6 +17,14 @@ on:
   # the URL it reports — the only place markdown negotiation can be observed.
   deployment_status:
 
+# Every job here reads the repository and nothing else: check out a commit,
+# install, build, test. Nothing writes to the repo, opens a pull request, or
+# touches releases or packages, so the token they get should be able to do
+# none of that. Artifact upload is unaffected — it authenticates with the
+# runtime token, not this one.
+permissions:
+  contents: read
+
 # A newer push still supersedes an in-flight run for the same branch. Deployment
 # runs are additionally keyed per deployment, via `github.event.deployment.id`
 # (empty for push/PR events, so that behaviour is unchanged) — both Vercel
