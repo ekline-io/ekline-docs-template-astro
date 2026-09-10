@@ -182,12 +182,19 @@ test('sample of expected /<slug>.md files exist (canonical convention)', () => {
 // Vercel-adapter builds only: the routing config must agree with the disk.
 // ---------------------------------------------------------------------------
 
-const IS_VERCEL_OUTPUT = STATIC_DIR.endsWith(join('.vercel', 'output', 'static'));
+// What tells a Vercel build apart is the routing config, not where the static
+// files landed. The adapter *copies* its output into `.vercel/output/static/`
+// rather than moving it, so a Vercel build leaves `dist/client/` in place as
+// well and `staticDir()` — which prefers `dist/client` — resolves there on both
+// kinds of build. The config is the thing only a Vercel build produces, and it
+// is what these tests read anyway.
+const VERCEL_CONFIG = join(__dirname, '..', '.vercel', 'output', 'config.json');
+const IS_VERCEL_OUTPUT = existsSync(VERCEL_CONFIG);
 const unlessVercel = IS_VERCEL_OUTPUT
 	? false
 	: 'Node-adapter build; run `VERCEL=1 npm run build` to check the Vercel routing config';
 
-const readVercelConfig = () => JSON.parse(readFileSync(join(STATIC_DIR, '..', 'config.json'), 'utf-8'));
+const readVercelConfig = () => JSON.parse(readFileSync(VERCEL_CONFIG, 'utf-8'));
 const isRewrite = (r) => r.dest === '/$1.md' || r.dest === '/index.md';
 const isVary = (r) => r.continue === true && r.headers?.Vary === 'Accept';
 
