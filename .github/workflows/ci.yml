@@ -240,28 +240,31 @@ jobs:
       # in it skips and `node --test` exits 0 — a silent pass of the exact
       # regression this job exists to catch. Fail before running it instead.
       #
-      # `DOCS_SMOKE_BYPASS` is a different kind of missing. Both Vercel
-      # projects here have Deployment Protection on, so an anonymous request
-      # gets redirected to a sign-in page and every assertion fails on that
-      # redirect rather than on anything this feature does — the smoke test's
-      # `get()` throws a message naming Deployment Protection when this
-      # happens.
+      # These steps never skip. A deployment that cannot be reached is not a
+      # deployment that passed, and this job exists because a silent pass is
+      # exactly how markdown negotiation broke for three months with every
+      # check green.
+      #
+      # The only guard is on an empty `DOCS_SMOKE_URL`, and that is not a skip
+      # — it is a hard failure. The smoke test is opt-in on that variable so a
+      # local `npm test` stays offline, which means an empty value here would
+      # skip all ten assertions and exit 0. That is the one way this job could
+      # report success having verified nothing, so it is checked explicitly.
+      #
+      # `DOCS_SMOKE_BYPASS` is passed but not required. Both Vercel projects
+      # currently have Deployment Protection on, so without a valid secret the
+      # test's `get()` throws naming Deployment Protection and the job fails —
+      # correctly, because the deployment really was not verified. If
+      # protection is ever turned off, the same steps pass with the secret
+      # absent and nothing here needs changing.
       #
       # **There is one secret per Vercel project, not one per team.** Vercel's
       # docs: "You can use each available secret to bypass Deployment
       # Protection on all deployments in a project." So the two steps below
-      # read two different repo secrets, and passing one project's secret to
-      # the other's deployment fails exactly as if none were set. That was
-      # measured: a single shared secret passed the docs site and failed all
-      # ten template assertions.
-      #
-      # `DOCS_SMOKE_URL` empty is a bug in this workflow (the deployment event
-      # carried no URL); a bypass secret being unset is a one-time repo
-      # configuration step (create a Protection Bypass for Automation on that
-      # Vercel project, then add its value as the secret named below) that
-      # nobody may have done yet. The first should fail red; the second should
-      # warn and skip, so an unconfigured project does not block every other
-      # deployment from being verified.
+      # read two different repo secrets. Passing one project's secret to the
+      # other's deployment fails exactly as if none were set — measured: a
+      # single shared secret passed the docs site and failed all ten template
+      # assertions.
       - name: Smoke test — template site
         if: ${{ !contains(github.event.deployment.environment, 'documentation') }}
         working-directory: packages/template
@@ -269,11 +272,7 @@ jobs:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
           DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_BYPASS_SECRET_TEMPLATE }}
         run: |
-          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
-          if [ -z "$DOCS_SMOKE_BYPASS" ]; then
-            echo "::warning::VERCEL_BYPASS_SECRET_TEMPLATE is not set — this deployment is behind Vercel Deployment Protection, so the smoke test can't reach it. Add the Protection Bypass for Automation secret from the ekline-docs-template-astro project. Skipping deployment verification until then."
-            exit 0
-          fi
+          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."; exit 1; }
           node --test tests/deployed-smoke.test.mjs
 
       - name: Smoke test — docs site
@@ -283,9 +282,5 @@ jobs:
           DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
           DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_BYPASS_SECRET_DOCS }}
         run: |
-          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would silently skip every assertion and pass."; exit 1; }
-          if [ -z "$DOCS_SMOKE_BYPASS" ]; then
-            echo "::warning::VERCEL_BYPASS_SECRET_DOCS is not set — this deployment is behind Vercel Deployment Protection, so the smoke test can't reach it. Add the Protection Bypass for Automation secret from the documentation-ekline-docs-template project. Skipping deployment verification until then."
-            exit 0
-          fi
+          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."; exit 1; }
           node --test tests/deployed-smoke.test.mjs
