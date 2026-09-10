@@ -206,81 +206,66 @@ jobs:
         with:
           node-version: 22.x
 
-      # Two Vercel projects deploy from this repo, and each reports its own
-      # environment name. This line shows it in the log; the two `if`s below key
-      # on it. If the naming ever changes, this is where to look first.
-      #
-      # Those `if`s are a `contains(..., 'documentation')` check and its exact
-      # negation, so one of the two smoke steps always runs — if a deployment's
-      # environment name ever matches neither project below, that logic would
-      # silently run the wrong site's smoke assertions against the URL instead
-      # of failing. Guard the assumption explicitly here, before either step.
+      # One step, not one per project, and it always runs. A `deployment_status`
+      # event is for exactly one deployment, so a step per project would leave
+      # the other showing a grey "skipped" on every run — indistinguishable at a
+      # glance from a smoke test that was silently not run, which is the failure
+      # this job exists to catch. Picking the project inside the step keeps the
+      # log honest: one step, one outcome, always green or red.
       #
       # `documentation-ekline-docs-template` contains `ekline-docs-template` as
-      # a substring, so the docs slug is matched first — matching a shorter,
-      # looser template pattern first would make it fire on both projects.
-      - name: Which deployment
+      # a substring, so the docs slug is matched first — a looser template
+      # pattern first would fire on both projects. An environment matching
+      # neither fails loudly rather than guessing, because guessing would mean
+      # running one site's assertions against the other's URL.
+      #
+      # There is one bypass secret per Vercel project, not one per team.
+      # Vercel's docs: "You can use each available secret to bypass Deployment
+      # Protection on all deployments in a project." Passing one project's
+      # secret to the other's deployment fails exactly as if none were set —
+      # measured: a single shared secret passed the docs site and failed all ten
+      # template assertions.
+      #
+      # The secret is passed but not required. With Deployment Protection on and
+      # no valid secret the test throws naming the protection and this fails,
+      # correctly — the deployment really was not verified. If protection is
+      # ever turned off, this passes with the secret absent and nothing here
+      # needs changing.
+      #
+      # No `npm ci`: the smoke test is plain Node — `fetch` and `node:test`.
+      - name: Smoke test the deployment
+        env:
+          ENVIRONMENT: ${{ github.event.deployment.environment }}
+          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+          BYPASS_TEMPLATE: ${{ secrets.VERCEL_BYPASS_SECRET_TEMPLATE }}
+          BYPASS_DOCS: ${{ secrets.VERCEL_BYPASS_SECRET_DOCS }}
         run: |
-          ENVIRONMENT='${{ github.event.deployment.environment }}'
-          URL='${{ github.event.deployment_status.environment_url }}'
-          echo "environment='$ENVIRONMENT' url='$URL'"
+          echo "environment='$ENVIRONMENT' url='$DOCS_SMOKE_URL'"
+
+          # An empty URL is the one way this job could report success having
+          # asserted nothing: the smoke test is opt-in on this variable so a
+          # local `npm test` stays offline, and an empty value skips all ten
+          # assertions and exits 0. Fail instead.
+          test -n "$DOCS_SMOKE_URL" || {
+            echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."
+            exit 1
+          }
 
           case "$ENVIRONMENT" in
-            *documentation-ekline-docs-template*) ;;
-            *ekline-docs-template-astro*) ;;
+            *documentation-ekline-docs-template*)
+              PROJECT=apps/docs
+              export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
+              ;;
+            *ekline-docs-template-astro*)
+              PROJECT=packages/template
+              export DOCS_SMOKE_BYPASS="$BYPASS_TEMPLATE"
+              ;;
             *)
-              echo "::error::Unrecognized deployment environment '$ENVIRONMENT' — the template/docs split in this job needs updating for this environment name."
+              echo "::error::Unrecognized deployment environment '$ENVIRONMENT' — the project split in this job needs updating for this environment name."
               exit 1
               ;;
           esac
 
-      # No `npm ci`: the smoke test is plain Node — `fetch` and `node:test`.
-      #
-      # The smoke test is opt-in: with `DOCS_SMOKE_URL` empty, every assertion
-      # in it skips and `node --test` exits 0 — a silent pass of the exact
-      # regression this job exists to catch. Fail before running it instead.
-      #
-      # These steps never skip. A deployment that cannot be reached is not a
-      # deployment that passed, and this job exists because a silent pass is
-      # exactly how markdown negotiation broke for three months with every
-      # check green.
-      #
-      # The only guard is on an empty `DOCS_SMOKE_URL`, and that is not a skip
-      # — it is a hard failure. The smoke test is opt-in on that variable so a
-      # local `npm test` stays offline, which means an empty value here would
-      # skip all ten assertions and exit 0. That is the one way this job could
-      # report success having verified nothing, so it is checked explicitly.
-      #
-      # `DOCS_SMOKE_BYPASS` is passed but not required. Both Vercel projects
-      # currently have Deployment Protection on, so without a valid secret the
-      # test's `get()` throws naming Deployment Protection and the job fails —
-      # correctly, because the deployment really was not verified. If
-      # protection is ever turned off, the same steps pass with the secret
-      # absent and nothing here needs changing.
-      #
-      # **There is one secret per Vercel project, not one per team.** Vercel's
-      # docs: "You can use each available secret to bypass Deployment
-      # Protection on all deployments in a project." So the two steps below
-      # read two different repo secrets. Passing one project's secret to the
-      # other's deployment fails exactly as if none were set — measured: a
-      # single shared secret passed the docs site and failed all ten template
-      # assertions.
-      - name: Smoke test — template site
-        if: ${{ !contains(github.event.deployment.environment, 'documentation') }}
-        working-directory: packages/template
-        env:
-          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
-          DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_BYPASS_SECRET_TEMPLATE }}
-        run: |
-          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."; exit 1; }
-          node --test tests/deployed-smoke.test.mjs
-
-      - name: Smoke test — docs site
-        if: ${{ contains(github.event.deployment.environment, 'documentation') }}
-        working-directory: apps/docs
-        env:
-          DOCS_SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
-          DOCS_SMOKE_BYPASS: ${{ secrets.VERCEL_BYPASS_SECRET_DOCS }}
-        run: |
-          test -n "$DOCS_SMOKE_URL" || { echo "::error::DOCS_SMOKE_URL is empty — the smoke test would skip every assertion and exit 0, reporting success having verified nothing."; exit 1; }
+          echo "Smoke testing $PROJECT against $DOCS_SMOKE_URL"
+          cd "$PROJECT"
           node --test tests/deployed-smoke.test.mjs
