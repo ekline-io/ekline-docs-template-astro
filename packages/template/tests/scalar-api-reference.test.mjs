@@ -43,6 +43,16 @@ const htmlFor = (reference) =>
  */
 const specFor = (reference) => join(STATIC_DIR, specUrlFor(reference).replace(/^\//, ''));
 
+/**
+ * Both entity spellings of `"` turned back into the character.
+ *
+ * Island props ride in an HTML attribute, so their quotes are entity-encoded.
+ * Normalise rather than matching one particular encoding — which form the
+ * escaper picks (`&#34;` vs `&quot;`) is an Astro implementation detail, and
+ * Astro changed it from the former to the latter in 6.4.
+ */
+const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
+
 test('more than one reference is configured', () => {
 	// The template ships two so both layouts are visible on real content. If you
 	// deleted one, drop this assertion with it.
@@ -75,7 +85,7 @@ test('every reference points at its own document', () => {
 	// easy to introduce when copying an entry in the config, and invisible until
 	// someone reads the page.
 	for (const reference of enabledReferences) {
-		const html = readFileSync(htmlFor(reference), 'utf-8');
+		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		const url = specUrlFor(reference);
 		// Read the value Scalar was actually configured with, rather than asking
 		// whether the page contains that string anywhere. A bare
@@ -90,9 +100,7 @@ test('every reference points at its own document', () => {
 		// for what this test is for — catching a reference wired to another
 		// reference's document — because the derived paths differ in their last
 		// segment.
-		const configured = [...html.matchAll(/&#34;url&#34;:&#34;([^&]*?)&#34;/g)].map(
-			(match) => match[1]
-		);
+		const configured = [...html.matchAll(/"url":"([^"]*?)"/g)].map((match) => match[1]);
 		assert.equal(
 			configured.length,
 			1,
@@ -208,8 +216,6 @@ test("Scalar's link out to its hosted client is disabled", () => {
 	// tab, with `utm_source` / `utm_medium` / `utm_campaign` on the URL. It is an
 	// attribution link into Scalar's product, not a feature of the customer's
 	// docs; see the comment in `src/components/ScalarApiReference.astro`.
-	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
-
 	for (const reference of enabledReferences) {
 		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		assert.ok(
@@ -223,12 +229,6 @@ test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// Opening it uploads the customer's OpenAPI document to Scalar's servers and
 	// asks the reader to accept Scalar's terms. A template must not default to
 	// that; see the comment in `src/components/ScalarApiReference.astro`.
-	//
-	// The config rides in an HTML attribute, so its quotes are entity-encoded.
-	// Normalise rather than matching one particular encoding — which form the
-	// escaper picks (`&#34;` vs `&quot;`) is an Astro implementation detail.
-	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
-
 	for (const reference of enabledReferences) {
 		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		assert.ok(
