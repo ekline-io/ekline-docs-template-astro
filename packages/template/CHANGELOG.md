@@ -52,10 +52,16 @@ page simply looks different. Inside this template the change is inert: nothing
 here styles the header or the hero from outside those two files. That tells
 you nothing about your fork.
 
-**What to pull across:** the re-synced files, but read your own stylesheets
-first for anything that touches the header or the hero. A rule of yours that
-was losing to these overrides now wins. If that is wrong for you, put your rule
-in a layer too rather than reaching for `!important`.
+**What to pull across:** the re-synced files and `src/env.d.ts`, but read your
+own stylesheets first for anything that touches the header or the hero. A rule
+of yours that was losing to these overrides now wins. If that is wrong for you,
+put your rule in a layer too rather than reaching for `!important`.
+
+`src/env.d.ts` is not optional here. `CustomHero.astro` now imports
+`virtual:starlight/components/DraftContentNotice`, and the declaration for that
+module lives in `env.d.ts` — take the two `.astro` files on their own and
+`astro check` fails on a missing module, which is the failure that file's own
+header comment exists to explain.
 
 ### Mermaid diagrams
 
@@ -63,9 +69,10 @@ A code fence tagged `mermaid` renders as a diagram, following your site's light
 and dark theme. There is no component to import. One example page ships at
 `/guides/diagrams/`, marked for deletion.
 
-**What to pull across:** `astro-mermaid` and `mermaid`, plus the `mermaid()`
-entry in `integrations` — which must sit **before** `starlight()`, since it
-rewrites the fence before the syntax highlighter claims it.
+**What to pull across:** `astro-mermaid` (**`>=2.0.4`** — see below) and
+`mermaid`, plus the `mermaid({ autoTheme: true })` entry in `integrations`,
+which must sit **before** `starlight()`, since it rewrites the fence before the
+syntax highlighter claims it.
 
 **`astro-mermaid` must be at least `2.0.4`.** From Astro 6.4 an integration has
 to hand its plugins to `config.markdown.processor`; 2.0.2 and 2.0.3 have no

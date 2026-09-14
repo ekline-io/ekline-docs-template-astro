@@ -68,9 +68,11 @@ Normalising the token side would be worse than the empty group: it would make tw
 
 The template calls `vercel()` bare, so it is not affected as shipped. The fix landed in `@astrojs/vercel` v11, which requires Astro 7, and there is no fixed release on the 10.x line (10.0.8 is the last of it), so the `^10.0.8` range cannot pick one up either. Until this template moves to Astro 7, **"do not enable ISR" is the mitigation** — not an upgrade.
 
-### `@astrojs/node` is pinned to exactly `10.1.1`
+### Raise `@astrojs/node` and Astro in the same change
 
-Not a `^` range, and that is load-bearing. 10.1.2 moved to an `astro/app/node` export (`createRequestFromNodeRequest`) that Astro only ships from 6.4 on, but kept declaring a peer of `astro: ^6.3.0` — so npm resolves 10.1.4 against this project's Astro 6.3.1 with no peer warning at all, `npm ls` comes out clean, and the build then dies deep in Rollup on a missing export. Raise the adapter and Astro together, or neither. The reason is repeated in `astro.config.mjs`.
+The adapter imports from Astro's internals, so an adapter release can require a newer Astro than its own peer range asks for — and nothing on the way in catches that. npm resolves it without a warning, `npm ls` comes out clean, and the build then dies deep in Rollup on a missing export, with nothing in the message about versions.
+
+The template hit this once, on the Astro 6.3 line: `@astrojs/node` 10.1.2 moved to an `astro/app/node` export (`createRequestFromNodeRequest`) that Astro only ships from 6.4 on, while still declaring a peer of `astro: ^6.3.0`. The exact pin that worked around it is gone — the template is on Astro 6.4 and `@astrojs/node` `^10.1.4` — but the coupling it came from is permanent. Move the adapter and Astro together, and trust the adapter's release notes over its declared peer range.
 
 ### Shorter rules, same weight
 
