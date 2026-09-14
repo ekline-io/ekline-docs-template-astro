@@ -88,14 +88,6 @@ export default defineConfig({
 	// (local dev, `npm test`, `npm run preview`, self-hosting) uses the Node
 	// adapter — the Vercel adapter does not support `astro preview`, and both
 	// test suites run against the build output. See wiki/private-docs.md.
-	//
-	// `@astrojs/node` is held at an exact `10.1.1` in package.json rather than a
-	// `^` range, and that is load-bearing. 10.1.2 moved to an `astro/app/node`
-	// export (`createRequestFromNodeRequest`) that Astro only ships from 6.4 on,
-	// but kept declaring a peer of `astro: ^6.3.0` — so npm resolves 10.1.4
-	// against this project's Astro 6.3.1 with no peer warning at all, and the
-	// build then dies deep in Rollup on a missing export. Raise the adapter and
-	// Astro together, or neither.
 	adapter: process.env.VERCEL ? vercel() : node({ mode: 'standalone' }),
 	env: {
 		schema: {

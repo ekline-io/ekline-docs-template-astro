@@ -18,12 +18,13 @@
   "overrides": {
     "@scalar/astro": {
       "astro": "$astro"
-    }
+    },
+    "vite": "^7.3.6"
   },
   "dependencies": {
-    "@astrojs/node": "10.1.1",
+    "@astrojs/node": "^10.1.4",
     "@astrojs/sitemap": "^3.7.2",
-    "@astrojs/starlight": "^0.39.2",
+    "@astrojs/starlight": "^0.40.0",
     "@astrojs/starlight-tailwind": "^5.0.0",
     "@astrojs/vercel": "^10.0.8",
     "@ekline/starlight-contextual-menu": "^0.3.0",
@@ -33,9 +34,9 @@
     "@scalar/openapi-parser": "^0.28.14",
     "@scalar/workspace-store": "^0.57.1",
     "@tailwindcss/vite": "^4.3.0",
-    "astro": "^6.2.2",
+    "astro": "^6.4.7",
     "jose": "^6.2.9",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "starlight-llms-txt": "^0.8.1",
     "tailwindcss": "^4.3.0"
   },
