@@ -127,12 +127,29 @@ jobs:
 
       # `--grep-invert @screenshot`, via `test:visual:ci`.
       #
-      # Screenshot baselines are per-platform and only macOS ones are committed,
-      # so the tagged comparisons would fail here on missing baselines rather
-      # than on any real regression. Everything else in that suite asserts
-      # behaviour and is platform-independent. To include the screenshots,
-      # generate Linux baselines and commit them, then switch this to
-      # `npm run test:visual`. See `wiki/api-reference.md`.
+      # One test is tagged: the API reference's sidebar comparison, against
+      # `tests/visual/__screenshots__/darwin/sidebar-operations.png`. Baselines
+      # are per-platform and only the macOS one is committed, so on this Linux
+      # runner there is nothing to compare against. Playwright treats a missing
+      # snapshot as a failure and does not retry it, so running the tag here
+      # would turn the job red on a baseline that is absent rather than on a
+      # regression. Everything else in that suite asserts behaviour and is
+      # platform-independent.
+      #
+      # This exclusion has a known cost, already paid once: 8de16a8 (PR #16)
+      # added a second operation tree to that sidebar without regenerating the
+      # baseline, and since nothing in CI compares it, the stale baseline went
+      # through that merge and the next one unnoticed. It was caught only when
+      # someone ran the suite locally, and re-baselined in 40182fc.
+      #
+      # To close that hole: generate Linux baselines in a container matching
+      # this runner (Playwright publishes `mcr.microsoft.com/playwright` images
+      # for exactly this), commit them, and switch this step to
+      # `npm run test:visual` — at which point `test:visual:ci` is the same
+      # command and can go. What does *not* work is letting Playwright write
+      # the missing baseline here: the runner's filesystem is thrown away, so
+      # every run would compare against a file it had just produced and pass
+      # unconditionally. See `wiki/api-reference.md`.
       - name: Browser tests
         run: npm run test:visual:ci
 
