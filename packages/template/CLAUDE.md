@@ -47,7 +47,7 @@ This applies to bug fixes too: if Starlight has changed how something is configu
 - `npm run dev:sso` — mock SSO server for developing the logged-in experience locally (pair with `.env` copied from `.env.example`)
 - `npm run astro -- <cmd>` — run Astro CLI commands
 
-No CI configuration ships with your copy — wire these commands into whatever CI you use. `check`, `test`, and `test:visual:ci` are the three that gate the template's own pull requests, and they are a reasonable starting set. The screenshot comparisons in `test:visual` are the exception: their baselines are macOS-only, so they stay a local check. Run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one.
+No CI configuration ships with your copy — wire these commands into whatever CI you use. `check`, `test`, and `test:visual:ci` are the three that gate the template's own pull requests, and they are a reasonable starting set. `test:visual:ci` now runs `test:visual` unchanged, screenshot comparisons included: baselines are committed for both macOS and Linux, so the suite runs whole on your machine and on a Linux runner. Run `npm run test:visual` locally before merging a visual change, and `npm run test:visual:update` to accept one — on a machine or container matching the platform whose baseline you are replacing.
 
 If the scripts in `package.json` diverge from this list, update this section.
 

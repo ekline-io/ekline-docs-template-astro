@@ -160,19 +160,31 @@ Scalar is MIT licensed. That requires the copyright notice to travel with the so
 | `npm run check` | Types, via `astro check`. |
 | `npm test` | Build output: routes exist, the document is emitted and referenced, anchors match Scalar's scheme, the agent is disabled. No browser needed. |
 | `npm run test:visual` | The bridges, in a real browser: theme parity in both modes, each reference rendering its own document, search resolving to the right route, the sidebar's active row, the client overlay covering the page, mobile overflow, plus a screenshot of the generated sidebar. |
-| `npm run test:visual:ci` | The same, minus the screenshot comparisons. |
+| `npm run test:visual:ci` | An alias for the above, kept as a stable name to point CI at. |
 
 ### What runs automatically
 
-Nothing, until you wire it up — no CI configuration ships with your copy. The template's own [CI workflow](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/.github/workflows/ci.yml) runs `npm run check`, `npm test`, and `npm run test:visual:ci` on every pull request and on pushes to `main`; that file lives at the template repository's root, so it did not travel with the directory. It is a reasonable set to copy. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so once you deploy there, a failure blocks the deploy.
+Nothing, until you wire it up — no CI configuration ships with your copy. The template's own [CI workflow](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/.github/workflows/ci.yml) runs `npm run check`, `npm test`, and `npm run test:visual:ci` — the whole browser suite, screenshots included — on every pull request and on pushes to `main`; that file lives at the template repository's root, so it did not travel with the directory. It is a reasonable set to copy. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so once you deploy there, a failure blocks the deploy.
 
 The browser tests matter most. Every integration bug this reference has had — a blank reference after client-side navigation, white seams in dark mode, the API client rendering underneath the sidebar, method badges coming out white-on-white — produced a page that **built perfectly**. `npm test` reads build output and cannot see paint order, theme classes, or scroll behaviour. Only the browser suite can.
 
-Update screenshots after an intentional visual change with `npm run test:visual:update`, and commit the result.
 
 Visual tests need a browser: `npx playwright install chromium`. They run serially and retry once — the reference loads Scalar's bundle from a CDN, and a cold fetch is slow enough to trip a timeout on an otherwise healthy run.
 
-**Screenshot baselines are per-platform.** Font rendering differs between macOS and Linux, so `tests/visual/__screenshots__/` is split by platform and only the one they were generated on is committed. Running the suite anywhere else fails on missing baselines — that is Playwright refusing to invent a comparison, not a regression. Before wiring this into CI, generate that platform's baselines once on a matching machine or container and commit them; or run only `npm test` there, which needs no browser.
+**Screenshot baselines are per-platform.** Font rendering differs between macOS and Linux, so `tests/visual/__screenshots__/` is split by platform. `darwin/` and `linux/` are both committed, which is what lets the same suite run on a Mac and on a Linux CI runner. A platform with no committed baseline fails on its first run — that is Playwright refusing to invent a comparison, not a regression.
+
+To replace or add one, run `npm run test:visual:update` on a machine or container of that platform and commit what it writes. For Linux, the Playwright project publishes an image per release; use the tag matching your `@playwright/test` version, and pin the architecture your CI runner uses — a baseline generated for the wrong one is a baseline CI can never match:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/work" -v docs-template-node-modules:/work/node_modules \
+  -w /work mcr.microsoft.com/playwright:v1.63.0-noble \
+  bash -lc 'npm ci && npm run test:visual:update'
+```
+
+The named volume is not optional on macOS: a `node_modules` installed there holds Darwin binaries that cannot run on Linux, and letting the container install over it leaves your host copy unusable.
+
+**Never let CI write a missing baseline.** A runner's filesystem is thrown away, so every run would compare against a file it had produced moments earlier and pass whatever the page looked like.
 
 ## Astro 6 and peer dependencies
 

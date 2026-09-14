@@ -257,7 +257,7 @@ The mock redirects to the `redirect_uri` it was given rather than to a hardcoded
 | `npm run check` | Types, via `astro check`. |
 | `npm test` | Build output plus pure functions: the guard's path rules (`tests/auth-guards.test.mjs`), token verification and session issuance (`tests/auth-tokens.test.mjs`), and the leak assertions (`tests/private-leaks.test.mjs`). No browser needed. |
 | `npm run test:visual` | The real handshake in a browser: logged-out redirect, the full round trip, `returnTo`, org isolation, the 404-not-403 comparison, logout, and the private sidebar (`tests/visual/auth.spec.mjs`). |
-| `npm run test:visual:ci` | The same, minus screenshot comparisons. None of the auth specs are tagged `@screenshot`, so all of them run in CI. |
+| `npm run test:visual:ci` | An alias for the above, kept as a stable name to point CI at. None of the auth specs are tagged `@screenshot` — every assertion here is a measurement, needing no baseline. |
 
 Two traps in the browser suite, both worth knowing before you touch `playwright.config.mjs`:
 

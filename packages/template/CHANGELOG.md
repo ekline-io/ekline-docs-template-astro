@@ -126,6 +126,36 @@ asking you for a sentinel of your own, not a gap in the skip.
 **What to pull across:** nothing, unless you have hit this. It only changes
 test files.
 
+### The screenshot test now runs on Linux CI
+
+`tests/visual/__screenshots__/` ships a `linux/` baseline alongside the
+existing `darwin/` one, and `npm run test:visual:ci` is now an alias for
+`npm run test:visual` rather than the same suite with `--grep-invert
+@screenshot`. The screenshot comparison had been excluded from CI because
+there was no Linux baseline to compare against — and while it was excluded, a
+sidebar change shipped against a stale baseline and survived two merges before
+anyone noticed.
+
+Regenerate a Linux baseline in the Playwright image matching your
+`@playwright/test` version, pinning the architecture your CI runner uses:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/work" -v docs-template-node-modules:/work/node_modules \
+  -w /work mcr.microsoft.com/playwright:v1.63.0-noble \
+  bash -lc 'npm ci && npm run test:visual:update'
+```
+
+The named volume matters on macOS: a `node_modules` installed in the container
+holds Darwin binaries that will not run on Linux, and installing over your host
+copy leaves it unusable.
+
+**What to pull across:** if your CI runs `test:visual:ci` on Linux, take the
+`linux/` baseline and the `package.json` change together — the baseline alone
+does nothing, and the script change alone turns your CI red. Regenerate the
+baseline rather than copying this one if you have customised the API reference
+sidebar at all; it is a picture of *this* template's operations.
+
 ## 2.5.0
 
 ### Markdown content negotiation is back, on Vercel
