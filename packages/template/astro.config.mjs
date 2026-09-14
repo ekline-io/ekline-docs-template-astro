@@ -5,6 +5,7 @@ import node from '@astrojs/node';
 import vercel from '@astrojs/vercel';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import mermaid from 'astro-mermaid';
 import starlightContextualMenu from '@ekline/starlight-contextual-menu';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
@@ -116,6 +117,12 @@ export default defineConfig({
 		},
 	},
 	integrations: [
+		// Renders ```mermaid fences as diagrams. Must precede starlight() —
+		// it rewrites the fence before Starlight's syntax highlighter claims
+		// it, and after starlight() the fence is already a <pre> of code.
+		mermaid({
+			autoTheme: true,
+		}),
 		// Sitemaps advertise URLs to crawlers, and nothing under /private/ should
 		// be advertised: reaching it needs a session, so a crawler can only ever
 		// collect a redirect, and the URL itself names an org.
