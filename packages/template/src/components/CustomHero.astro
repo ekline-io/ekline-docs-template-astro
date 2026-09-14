@@ -10,10 +10,17 @@
  * Edit the eyebrow text directly in this file, or swap to reading from
  * frontmatter if you want it to vary per page.
  *
+ * The second delta is the dotted radial-gradient backdrop behind the hero —
+ * see `.hero::before`, and the `position`/`z-index` pair that keeps content
+ * above it. Everything else is upstream's markup and CSS verbatim.
+ *
  * If you upgrade Starlight and the upstream Hero changes shape, re-sync from:
  *   node_modules/@astrojs/starlight/components/Hero.astro
+ *
+ * Last re-synced against Starlight 0.40.0.
  */
 import { Image } from 'astro:assets';
+import DraftContentNotice from 'virtual:starlight/components/DraftContentNotice';
 import { LinkButton } from '@astrojs/starlight/components';
 
 // Mirrors `PAGE_TITLE_ID` from Starlight's internal constants module, which is
@@ -64,6 +71,7 @@ if (image) {
 		<div class="sl-flex copy">
 			<p class="eyebrow">Documentation</p>
 			<h1 id={PAGE_TITLE_ID} data-page-title set:html={title} />
+			{data.draft && <DraftContentNotice />}
 			{tagline && <div class="tagline" set:html={tagline} />}
 		</div>
 		{
@@ -84,114 +92,117 @@ if (image) {
 </div>
 
 <style>
-	.hero {
-		position: relative;
-		display: grid;
-		grid-template-columns: 100%;
-		align-items: center;
-		gap: 1rem;
-		padding-bottom: 1rem;
-	}
-
-	/* Subtle dotted background — Vercel/Linear-style. Anchored to the hero
-	 * itself and faded out at the edges via mask-image so it never competes
-	 * with content. Delete this rule to opt out. */
-	.hero::before {
-		content: '';
-		position: absolute;
-		inset: -3rem -10vw;
-		background-image: radial-gradient(
-			circle at center,
-			var(--sl-color-gray-5) 1px,
-			transparent 1px
-		);
-		background-size: 28px 28px;
-		mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
-		-webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
-		opacity: 0.7;
-		pointer-events: none;
-		z-index: 0;
-	}
-
-	.hero > * {
-		position: relative;
-		z-index: 1;
-	}
-
-	.hero > :global(img),
-	.hero > .hero-html {
-		object-fit: contain;
-		width: min(70%, 20rem);
-		height: auto;
-		margin-inline: auto;
-	}
-
-	.stack {
-		flex-direction: column;
-		gap: clamp(1.5rem, calc(1.5rem + 1vw), 2rem);
-		text-align: center;
-	}
-
-	.copy {
-		flex-direction: column;
-		gap: 1rem;
-		align-items: center;
-	}
-
-	.copy > * {
-		max-width: 50ch;
-	}
-
-	.eyebrow {
-		margin: 0;
-		font-family: var(--sl-font-mono);
-		font-size: var(--sl-text-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.18em;
-		color: var(--sl-color-text-accent);
-	}
-
-	h1 {
-		font-size: clamp(var(--sl-text-3xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
-		line-height: var(--sl-line-height-headings);
-		font-weight: 600;
-		color: var(--sl-color-white);
-	}
-
-	.tagline {
-		font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
-		color: var(--sl-color-gray-2);
-	}
-
-	.actions {
-		gap: 1rem 2rem;
-		flex-wrap: wrap;
-		justify-content: center;
-	}
-
-	@media (min-width: 50rem) {
+	@layer starlight.core {
 		.hero {
-			grid-template-columns: 7fr 4fr;
-			gap: 3%;
-			padding-block: clamp(2.5rem, calc(1rem + 10vmin), 10rem);
+			/* Anchors the dotted backdrop below. Not upstream. */
+			position: relative;
+			display: grid;
+			grid-template-columns: 100%;
+			align-items: center;
+			gap: 1rem;
+			padding-bottom: 1rem;
 		}
 
-		.hero > :global(img),
+		/* Subtle dotted background — Vercel/Linear-style. Anchored to the hero
+		 * itself and faded out at the edges via mask-image so it never competes
+		 * with content. Delete this rule (and the two that bracket it) to opt out. */
+		.hero::before {
+			content: '';
+			position: absolute;
+			inset: -3rem -10vw;
+			background-image: radial-gradient(
+				circle at center,
+				var(--sl-color-gray-5) 1px,
+				transparent 1px
+			);
+			background-size: 28px 28px;
+			mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+			-webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+			opacity: 0.7;
+			pointer-events: none;
+			z-index: 0;
+		}
+
+		.hero > * {
+			position: relative;
+			z-index: 1;
+		}
+
+		.hero > img,
 		.hero > .hero-html {
-			order: 2;
-			width: min(100%, 25rem);
+			object-fit: contain;
+			width: min(70%, 20rem);
+			height: auto;
+			margin-inline: auto;
 		}
 
 		.stack {
-			text-align: start;
+			flex-direction: column;
+			gap: clamp(1.5rem, calc(1.5rem + 1vw), 2rem);
+			text-align: center;
 		}
 
 		.copy {
-			align-items: flex-start;
+			flex-direction: column;
+			gap: 1rem;
+			align-items: center;
+		}
+
+		.copy > * {
+			max-width: 50ch;
+		}
+
+		.eyebrow {
+			margin: 0;
+			font-family: var(--sl-font-mono);
+			font-size: var(--sl-text-xs);
+			text-transform: uppercase;
+			letter-spacing: 0.18em;
+			color: var(--sl-color-text-accent);
+		}
+
+		h1 {
+			font-size: clamp(var(--sl-text-3xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
+			line-height: var(--sl-line-height-headings);
+			font-weight: 600;
+			color: var(--sl-color-white);
+		}
+
+		.tagline {
+			font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
+			color: var(--sl-color-gray-2);
 		}
 
 		.actions {
-			justify-content: flex-start;
+			gap: 1rem 2rem;
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+
+		@media (min-width: 50rem) {
+			.hero {
+				grid-template-columns: 7fr 4fr;
+				gap: 3%;
+				padding-block: clamp(2.5rem, calc(1rem + 10vmin), 10rem);
+			}
+
+			.hero > img,
+			.hero > .hero-html {
+				order: 2;
+				width: min(100%, 25rem);
+			}
+
+			.stack {
+				text-align: start;
+			}
+
+			.copy {
+				align-items: flex-start;
+			}
+
+			.actions {
+				justify-content: flex-start;
+			}
 		}
 	}
 </style>
