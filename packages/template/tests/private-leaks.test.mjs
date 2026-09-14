@@ -84,7 +84,20 @@ function walk(dir) {
 
 const rel = (file) => relative(ROOT, file);
 
-test('the sentinel exists in the private source content (guards the guard)', () => {
+// An empty collection is not the same as replaced content. A fork that deleted
+// the shipped examples outright has no private pages, so there is nothing for
+// the leak tests below to detect and nothing to sentinel — skip. A fork that
+// REPLACED them still fails, which is the signal the test below exists to give:
+// the new content needs a sentinel of its own. `existsSync` first because
+// `walk` reads the directory and a fork may have removed it, not just emptied it.
+const hasNoFiles = (dir) => !existsSync(dir) || walk(dir).length === 0;
+const unlessNoPrivateContent =
+	hasNoFiles(join(ROOT, 'src/content/private-docs')) &&
+	hasNoFiles(join(ROOT, 'src/content/org-docs'))
+		? 'no private or org content is present'
+		: false;
+
+test('the sentinel exists in the private source content (guards the guard)', { skip: unlessNoPrivateContent }, () => {
 	// Every other test in this file searches for a string. Delete that string
 	// from the example pages and they all pass while proving nothing — so this
 	// runs first and covers *every* private example page, not a sample. If a
