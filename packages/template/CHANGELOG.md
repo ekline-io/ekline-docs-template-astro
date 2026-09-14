@@ -37,25 +37,40 @@ Starlight internals and were re-synced against 0.40.0; read the next section
 before taking those two, and if you have customised either, re-sync yours
 rather than copying these.
 
-### The header and hero overrides moved into a cascade layer
+### Theming the header or the hero from your own CSS now works
 
-Re-syncing those two forks picked up an upstream change whose effect reaches
-past this repository: their `<style>` blocks are now wrapped in
+`src/styles/global.css` is the file this template tells you to theme from, and
+a rule in it aimed at the header or the hero used to do nothing at all.
+`CustomHeader.astro` and `CustomHero.astro` are forks of Starlight internals,
+and their `<style>` blocks were unlayered — as is a plain rule of yours, at the
+same specificity — so which one won came down to source order. The components'
+styles land near the end of the built stylesheet and `global.css` near the
+front, so the components always came last and always won. Nothing errored and
+nothing warned; your rule was simply ignored.
+
+Re-syncing those two forks against 0.40.0 wraps their `<style>` blocks in
 `@layer starlight.core`, the layer Starlight's own `Header` and `Hero` use.
+Layered CSS loses to unlayered CSS whatever the specificity and whatever the
+order, so your rule wins now. Measured on the built site: `.copy { gap: 5rem }`
+in `global.css` against the hero's own `gap: 1rem` computed 16px before and
+80px after. That is a plain CSS rule, not a Tailwind utility — though utilities
+win too, as does anything you put in `@layer components`, since `starlight`
+sorts before both in this template's layer order.
 
-That **lowers** them. Unlayered CSS beats layered CSS whatever the specificity,
-so until now these two overrides outranked every layered rule on the site.
-Layered, they lose to any unlayered rule of yours that targets the same
-elements — and that is the upstream intent, since it means your own CSS no
-longer needs `!important` to win. Nothing errors, no test notices, and the
-page simply looks different. Inside this template the change is inert: nothing
-here styles the header or the hero from outside those two files. That tells
-you nothing about your fork.
+**The flip side:** if your fork already has unlayered CSS aimed at the header
+or the hero, a rule that was losing to these overrides now takes effect, and
+the page looks different with nothing failing. Read your own stylesheets for
+anything that touches those two before you take this. Where a rule of yours
+should still lose, put it in a layer rather than reaching for `!important` —
+which is the upstream intent, and the reason `!important` is no longer the only
+way to win.
 
-**What to pull across:** the re-synced files and `src/env.d.ts`, but read your
-own stylesheets first for anything that touches the header or the hero. A rule
-of yours that was losing to these overrides now wins. If that is wrong for you,
-put your rule in a layer too rather than reaching for `!important`.
+With nothing competing, the change does nothing: inside this template no
+computed value moves, because nothing here styles the header or the hero from
+outside those two files. That tells you nothing about your fork.
+
+**What to pull across:** the two re-synced files and `src/env.d.ts`, after
+reading your own stylesheets as above.
 
 `src/env.d.ts` is not optional here. `CustomHero.astro` now imports
 `virtual:starlight/components/DraftContentNotice`, and the declaration for that
