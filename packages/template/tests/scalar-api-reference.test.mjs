@@ -18,7 +18,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 import {
 	enabledReferences,
@@ -27,7 +27,7 @@ import {
 	specUrlFor,
 	isRemoteSpec,
 } from '../src/config/api-reference.mjs';
-import { staticDir } from './helpers/static-dir.mjs';
+import { firstProsePageWithSidebar, staticDir } from './helpers/static-dir.mjs';
 
 // These assertions describe the references this template SHIPS. A fork that
 // has disabled every reference — the supported way to drop the feature — has
@@ -192,20 +192,25 @@ test('operation links carry their HTTP method as a badge', { skip: unlessDisable
 test('the operation list is reachable from ordinary docs pages', { skip: unlessDisabled }, () => {
 	// The sidebar is global, so a reader on a prose page can jump straight to an
 	// endpoint instead of finding the reference first and searching inside it.
-	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');
+	const page = firstProsePageWithSidebar(STATIC_DIR);
+	const html = readFileSync(page, 'utf-8');
 	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
-	assert.ok(links.length >= 10, `expected operations in the global sidebar, found ${links.length}`);
+	assert.ok(
+		links.length >= 10,
+		`expected operations in the global sidebar of ${relative(STATIC_DIR, page)}, found ${links.length}`
+	);
 });
 
-test('a full-width reference gets a plain sidebar link, not an operation list', () => {
+test('a full-width reference gets a plain sidebar link, not an operation list', { skip: unlessDisabled }, () => {
 	// Scalar's own sidebar lists the operations on a `full` route, so repeating
 	// them in Starlight's would be two navigation trees for one document.
-	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');
+	const page = firstProsePageWithSidebar(STATIC_DIR);
+	const html = readFileSync(page, 'utf-8');
 
 	for (const reference of enabledReferences.filter((r) => !listsOperationsInSidebar(r))) {
 		assert.ok(
 			html.includes(`href="${routeFor(reference)}"`),
-			`${reference.id}: no sidebar link to ${routeFor(reference)}`
+			`${reference.id}: no sidebar link to ${routeFor(reference)} on ${relative(STATIC_DIR, page)}`
 		);
 		const anchors =
 			html.match(new RegExp(`href="${routeFor(reference)}#[^"]+"`, 'g')) ?? [];

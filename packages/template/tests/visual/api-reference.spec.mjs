@@ -23,14 +23,30 @@
  * Run: `npm run test:visual` (add `-- --update-snapshots` to accept changes).
  */
 import { test, expect } from '@playwright/test';
+import { enabledReferences } from '../../src/config/api-reference.mjs';
 
 /**
  * The two references the template ships, as configured in
  * `src/config/api-reference.mjs`. They are different APIs, each demonstrating
  * one layout — a customer keeps whichever they need.
  */
-const PAYMENTS = { route: '/api/', title: 'Example Payments API', layout: 'docs' };
-const ADMIN = { route: '/api/admin/', title: 'Example Admin API', layout: 'full' };
+const PAYMENTS = { id: 'payments', route: '/api/', title: 'Example Payments API', layout: 'docs' };
+const ADMIN = { id: 'admin', route: '/api/admin/', title: 'Example Admin API', layout: 'full' };
+
+/**
+ * Skip unless every named reference is enabled in `src/config/api-reference.mjs`.
+ *
+ * Per reference rather than all-or-nothing, so a site that keeps `payments` and
+ * disables `admin` still runs everything about `payments`. Call it in a test or
+ * describe body.
+ */
+function requireReferences(...targets) {
+	const disabled = targets.filter((target) => !enabledReferences.some((r) => r.id === target.id));
+	test.skip(
+		disabled.length > 0,
+		`Disabled in src/config/api-reference.mjs: ${disabled.map((target) => target.id).join(', ')}.`
+	);
+}
 
 /**
  * The rendered reference.
@@ -92,6 +108,8 @@ function paintedBackground(page, selector) {
 
 test.describe('both references render', () => {
 	test('the docs-layout reference renders its own document', async ({ page }) => {
+		requireReferences(PAYMENTS);
+
 		// Deep-link to an operation rather than trusting the landing state: it
 		// proves the document parsed, the operation rendered, and the anchor
 		// scheme still matches — all in one, and all silently broken otherwise.
@@ -107,6 +125,8 @@ test.describe('both references render', () => {
 	});
 
 	test('the full-layout reference renders its own document', async ({ page }) => {
+		requireReferences(ADMIN);
+
 		await page.goto(ADMIN.route);
 		await waitForReference(page, ADMIN.title);
 
@@ -123,6 +143,7 @@ test.describe('both references render', () => {
 		// describe level, and this describe also holds tests that must run on
 		// mobile.
 		test.skip(isMobile, 'Sidebars collapse behind a menu on mobile.');
+		requireReferences(ADMIN);
 
 		await page.goto(ADMIN.route);
 		await waitForReference(page, ADMIN.title);
@@ -142,6 +163,7 @@ test.describe('both references render', () => {
  */
 test.describe('theme', () => {
 	test.skip(({ isMobile }) => isMobile, 'Theme control is inside the mobile menu.');
+	requireReferences(PAYMENTS);
 
 	for (const theme of ['light', 'dark']) {
 		test(`${theme}: the reference and the page share one background`, async ({ page }) => {
@@ -185,6 +207,13 @@ test.describe('theme', () => {
 test.describe('search', () => {
 	test.skip(({ isMobile }) => isMobile, 'Pagefind assertions are viewport-independent; run once on desktop.');
 
+	/**
+	 * Any page will do — Pagefind is queried directly, not through the page — so
+	 * the home page, which every Starlight site has, rather than an example page
+	 * a site may have deleted.
+	 */
+	const SEARCH_FROM = '/';
+
 	/** Query Pagefind directly — the index Starlight's dialog reads. */
 	const search = (page, term) =>
 		page.evaluate(async (t) => {
@@ -200,7 +229,8 @@ test.describe('search', () => {
 		}, term);
 
 	test('the site search finds operations and links to them', async ({ page }) => {
-		await page.goto('/get-started/quickstart/');
+		requireReferences(PAYMENTS);
+		await page.goto(SEARCH_FROM);
 
 		const results = await search(page, 'Submit dispute evidence');
 		expect(results.length, 'search returned nothing for a known operation').toBeGreaterThan(0);
@@ -211,7 +241,8 @@ test.describe('search', () => {
 	});
 
 	test('each reference is searchable under its own route', async ({ page }) => {
-		await page.goto('/get-started/quickstart/');
+		requireReferences(ADMIN);
+		await page.goto(SEARCH_FROM);
 
 		// An operation unique to the admin document must resolve to the admin
 		// route, not the payments one — the two indexes must not bleed together.
@@ -221,7 +252,8 @@ test.describe('search', () => {
 	});
 
 	test('an operation appears under one route only', async ({ page }) => {
-		await page.goto('/get-started/quickstart/');
+		requireReferences(PAYMENTS);
+		await page.goto(SEARCH_FROM);
 
 		const results = await search(page, 'dispute evidence');
 		const apiRoutes = results.map((r) => r.url).filter((url) => url.startsWith('/api'));
@@ -229,6 +261,8 @@ test.describe('search', () => {
 	});
 
 	test('Scalar does not add a second search field', async ({ page }) => {
+		requireReferences(ADMIN);
+
 		await page.goto(ADMIN.route);
 		await waitForReference(page, ADMIN.title);
 
@@ -243,6 +277,8 @@ test.describe('sidebar navigation', () => {
 	test.skip(({ isMobile }) => isMobile, 'The docs sidebar is behind the mobile menu.');
 
 	test('operations are listed and deep-link into the reference', async ({ page }) => {
+		requireReferences(PAYMENTS);
+
 		await page.goto(PAYMENTS.route);
 		await waitForReference(page, PAYMENTS.title);
 
@@ -253,6 +289,8 @@ test.describe('sidebar navigation', () => {
 	});
 
 	test('a full-layout reference is one sidebar link, not an operation list', async ({ page }) => {
+		requireReferences(PAYMENTS, ADMIN);
+
 		await page.goto(PAYMENTS.route);
 		await waitForReference(page, PAYMENTS.title);
 
@@ -265,6 +303,8 @@ test.describe('sidebar navigation', () => {
 	});
 
 	test('the active operation follows the reader', async ({ page }) => {
+		requireReferences(PAYMENTS);
+
 		await page.goto(PAYMENTS.route);
 		await waitForReference(page, PAYMENTS.title);
 
@@ -297,6 +337,8 @@ test.describe('vendor links', () => {
 	 */
 	for (const target of [PAYMENTS, ADMIN]) {
 		test(`${target.layout} layout links nowhere on scalar.com`, async ({ page }) => {
+			requireReferences(target);
+
 			await page.goto(target.route);
 			await waitForReference(page, target.title);
 
@@ -324,6 +366,7 @@ test.describe('vendor links', () => {
 
 test.describe('API client overlay', () => {
 	test.skip(({ isMobile }) => isMobile, 'Covered on desktop; the overlay is full-screen either way.');
+	requireReferences(PAYMENTS);
 
 	/**
 	 * "Test Request" opens Scalar's full-screen client.
@@ -393,6 +436,7 @@ test.describe('API client overlay', () => {
  */
 test.describe('appearance', { tag: '@screenshot' }, () => {
 	test.skip(({ isMobile }) => isMobile, 'Snapshots are taken at the desktop viewport.');
+	requireReferences(PAYMENTS);
 
 	test('sidebar operation list, expanded', async ({ page }) => {
 		await page.goto(PAYMENTS.route);
@@ -419,6 +463,8 @@ test.describe('mobile', () => {
 
 	for (const target of [PAYMENTS, ADMIN]) {
 		test(`${target.layout} layout fits the viewport`, async ({ page }) => {
+			requireReferences(target);
+
 			await page.goto(target.route);
 			await waitForReference(page, target.title);
 
