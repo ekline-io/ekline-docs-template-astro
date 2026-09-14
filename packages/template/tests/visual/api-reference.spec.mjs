@@ -382,12 +382,14 @@ test.describe('API client overlay', () => {
 });
 
 /**
- * Screenshot comparisons, tagged so CI can skip them.
+ * Screenshot comparisons, tagged so they can be singled out.
  *
  * Baselines are per-platform — font rendering differs between macOS and Linux —
- * and only the platform they were generated on is committed. Everything else in
- * this file asserts behaviour and passes identically anywhere, so CI runs
- * `--grep-invert @screenshot` and these stay a local pre-merge check.
+ * and `tests/visual/__screenshots__/` carries one directory per platform. Both
+ * `darwin` and `linux` are committed, so these run wherever the rest of the
+ * suite does. Regenerating them is `npm run test:visual:update`, on a machine
+ * or container of the platform whose baseline you mean to replace; see
+ * `wiki/api-reference.md`.
  */
 test.describe('appearance', { tag: '@screenshot' }, () => {
 	test.skip(({ isMobile }) => isMobile, 'Snapshots are taken at the desktop viewport.');

@@ -125,14 +125,39 @@ jobs:
         timeout-minutes: 4
         run: npx playwright install --with-deps chromium
 
-      # `--grep-invert @screenshot`, via `test:visual:ci`.
+      # The whole suite, screenshot comparisons included.
       #
-      # Screenshot baselines are per-platform and only macOS ones are committed,
-      # so the tagged comparisons would fail here on missing baselines rather
-      # than on any real regression. Everything else in that suite asserts
-      # behaviour and is platform-independent. To include the screenshots,
-      # generate Linux baselines and commit them, then switch this to
-      # `npm run test:visual`. See `wiki/api-reference.md`.
+      # One test is tagged `@screenshot`: the API reference's sidebar
+      # comparison. Baselines are per-platform — `snapshotPathTemplate` in
+      # `playwright.config.mjs` keys them on `{platform}` — so this runner
+      # reads `tests/visual/__screenshots__/linux/sidebar-operations.png` and
+      # a developer on a Mac reads the `darwin/` one. Both are committed.
+      #
+      # Regenerate the Linux baseline in a container matching this runner,
+      # never on a Mac and never here:
+      #
+      #   docker run --rm --platform linux/amd64 \
+      #     -v "$PWD/packages/template:/work" -v pw-nm:/work/node_modules \
+      #     -w /work mcr.microsoft.com/playwright:v1.63.0-noble \
+      #     bash -lc 'npm ci && npm run test:visual:update'
+      #
+      # The image tag must match the `@playwright/test` version in
+      # `packages/template/package.json`, and `--platform linux/amd64` matters
+      # on an Apple Silicon machine: this runner is x86-64, and a baseline
+      # generated for the wrong architecture is one CI can never match. The
+      # named volume keeps the container's Linux `node_modules` out of the
+      # host's.
+      #
+      # What does *not* work is letting Playwright write the missing baseline
+      # here: the runner's filesystem is thrown away, so every run would
+      # compare against a file it had just produced and pass unconditionally.
+      #
+      # Why this is worth the trouble: while the tag was excluded, 8de16a8
+      # (PR #16) added a second operation tree to that sidebar without
+      # regenerating the baseline. Nothing in CI compared it, so the stale
+      # baseline went through that merge and the next one unnoticed, and was
+      # caught only when someone ran the suite locally (re-baselined in
+      # 40182fc). See `wiki/api-reference.md`.
       - name: Browser tests
         run: npm run test:visual:ci
 

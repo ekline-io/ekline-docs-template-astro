@@ -14,10 +14,10 @@
  * `tests/helpers/test-servers.mjs`; read the note there before hardcoding one
  * back, because they were hardcoded for a real reason until recently.
  *
- * Nothing here is tagged `@screenshot`, so all of it runs in CI
- * (`test:visual:ci` is `--grep-invert @screenshot`). Each test gets a fresh
- * browser context, so a session never bleeds from one test into the next —
- * which is what lets the logged-out tests below mean anything.
+ * Nothing here is tagged `@screenshot`: every assertion is a measurement, so
+ * these need no per-platform baseline. Each test gets a fresh browser context,
+ * so a session never bleeds from one test into the next — which is what lets
+ * the logged-out tests below mean anything.
  */
 import { test, expect } from '@playwright/test';
 

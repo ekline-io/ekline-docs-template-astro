@@ -26,13 +26,15 @@ export default defineConfig({
 	 * Screenshots are compared per-platform: font rendering differs enough
 	 * between macOS and Linux that one baseline cannot serve both.
 	 *
-	 * Only the platform you generate on is committed. The first run on another —
-	 * a Linux CI runner, most likely — has no baseline to compare against and
-	 * fails, because a missing snapshot is a failure rather than something
-	 * Playwright quietly creates. Generate and commit that platform's baselines
-	 * once (`npm run test:visual:update` on a matching machine or container),
-	 * or keep this suite to the platform it was authored on. See
-	 * `wiki/api-reference.md`.
+	 * `{platform}` is Node's `process.platform`, so the committed `darwin/` and
+	 * `linux/` directories cover a developer's Mac and a Linux CI runner. A
+	 * platform with no committed baseline fails on its first run rather than
+	 * quietly gaining one — a missing snapshot is a failure, not something
+	 * Playwright creates for you. Add a platform by running
+	 * `npm run test:visual:update` on a matching machine or container and
+	 * committing what it writes; never let CI generate its own, or every run
+	 * compares against a file it made moments earlier and passes regardless.
+	 * See `wiki/api-reference.md`.
 	 */
 	snapshotPathTemplate: '{testDir}/__screenshots__/{platform}/{arg}{ext}',
 	/*

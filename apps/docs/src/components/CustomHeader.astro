@@ -9,11 +9,17 @@
  * sidebar). Mobile/tablet behaviour is unchanged — title on the left, search
  * icon on the right, primary controls collapsed.
  *
+ * Upstream's `--__sidebar-pad`, `--__toc-width` and `--__main-column-fr` exist
+ * only to feed the sidebar-offset grid formula this override replaces, so their
+ * absence below is deliberate rather than a missed line.
+ *
  * Children are imported via Starlight's virtual modules so any other component
  * overrides (Search, SiteTitle, etc.) configured in `astro.config.mjs` are
  * still respected. If you upgrade Starlight and the upstream Header changes
  * shape, re-sync from:
  *   node_modules/@astrojs/starlight/components/Header.astro
+ *
+ * Last re-synced against Starlight 0.40.0.
  */
 import config from 'virtual:starlight/user-config';
 
@@ -23,6 +29,9 @@ import SiteTitle from 'virtual:starlight/components/SiteTitle';
 import SocialIcons from 'virtual:starlight/components/SocialIcons';
 import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
 
+/**
+ * Render the `Search` component if Pagefind is enabled or the default search component has been overridden.
+ */
 const shouldRenderSearch =
 	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
 ---
@@ -44,60 +53,61 @@ const shouldRenderSearch =
 </div>
 
 <style>
-	.header {
-		display: flex;
-		gap: var(--sl-nav-gap);
-		justify-content: space-between;
-		align-items: center;
-		height: 100%;
-	}
-
-	.title-wrapper {
-		/* Prevent long titles overflowing and covering the search and menu
-		 * buttons on narrow viewports. */
-		overflow: clip;
-		/* Avoid clipping focus ring around link inside title wrapper. */
-		padding: 0.25rem;
-		margin: -0.25rem;
-		min-width: 0;
-	}
-
-	.right-group,
-	.social-icons {
-		gap: 1rem;
-		align-items: center;
-	}
-	.social-icons::after {
-		content: '';
-		height: 2rem;
-		border-inline-end: 1px solid var(--sl-color-gray-5);
-	}
-
-	@media (min-width: 50rem) {
+	@layer starlight.core {
 		.header {
-			display: grid;
-			/* Equal-weight outer columns mean the centre column (search) stays
-			 * locked to the viewport centre regardless of how wide the title or
-			 * right-group end up. */
-			grid-template-columns: 1fr auto 1fr;
-			align-content: center;
+			display: flex;
+			gap: var(--sl-nav-gap);
+			justify-content: space-between;
+			align-items: center;
+			height: 100%;
 		}
 
 		.title-wrapper {
-			justify-self: start;
+			/* Prevent long titles overflowing and covering the search and menu buttons on narrow viewports. */
+			overflow: clip;
+			/* Avoid clipping focus ring around link inside title wrapper. */
+			padding: 0.25rem;
+			margin: -0.25rem;
+			min-width: 0;
 		}
 
-		.search-wrapper {
-			justify-self: center;
-			/* Match Starlight's default search button max-width so the input
-			 * expands to its usual size; otherwise the auto grid cell would
-			 * shrink-wrap to the icon-only state. */
-			width: 22rem;
-			max-width: 100%;
+		.right-group,
+		.social-icons {
+			gap: 1rem;
+			align-items: center;
+		}
+		.social-icons::after {
+			content: '';
+			height: 2rem;
+			border-inline-end: 1px solid var(--sl-color-gray-5);
 		}
 
-		.right-group {
-			justify-self: end;
+		@media (min-width: 50rem) {
+			.header {
+				display: grid;
+				/* Equal-weight outer columns mean the centre column (search) stays
+				 * locked to the viewport centre regardless of how wide the title or
+				 * right-group end up. */
+				grid-template-columns: 1fr auto 1fr;
+				align-content: center;
+			}
+
+			.title-wrapper {
+				justify-self: start;
+			}
+
+			.search-wrapper {
+				justify-self: center;
+				/* Match Starlight's default search button max-width so the input
+				 * expands to its usual size; otherwise the auto grid cell would
+				 * shrink-wrap to the icon-only state. */
+				width: 22rem;
+				max-width: 100%;
+			}
+
+			.right-group {
+				justify-self: end;
+			}
 		}
 	}
 </style>

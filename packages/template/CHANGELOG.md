@@ -37,25 +37,46 @@ Starlight internals and were re-synced against 0.40.0; read the next section
 before taking those two, and if you have customised either, re-sync yours
 rather than copying these.
 
-### The header and hero overrides moved into a cascade layer
+### Theming the header or the hero from your own CSS now works
 
-Re-syncing those two forks picked up an upstream change whose effect reaches
-past this repository: their `<style>` blocks are now wrapped in
+`src/styles/global.css` is the file this template tells you to theme from, and
+a rule in it aimed at the header or the hero used to do nothing at all.
+`CustomHeader.astro` and `CustomHero.astro` are forks of Starlight internals,
+and their `<style>` blocks were unlayered — as is a plain rule of yours, at the
+same specificity — so which one won came down to source order. The components'
+styles land near the end of the built stylesheet and `global.css` near the
+front, so the components always came last and always won. Nothing errored and
+nothing warned; your rule was simply ignored.
+
+Re-syncing those two forks against 0.40.0 wraps their `<style>` blocks in
 `@layer starlight.core`, the layer Starlight's own `Header` and `Hero` use.
+Layered CSS loses to unlayered CSS whatever the specificity and whatever the
+order, so your rule wins now. Measured on the built site: `.copy { gap: 5rem }`
+in `global.css` against the hero's own `gap: 1rem` computed 16px before and
+80px after. That is a plain CSS rule, not a Tailwind utility — though utilities
+win too, as does anything you put in `@layer components`, since `starlight`
+sorts before both in this template's layer order.
 
-That **lowers** them. Unlayered CSS beats layered CSS whatever the specificity,
-so until now these two overrides outranked every layered rule on the site.
-Layered, they lose to any unlayered rule of yours that targets the same
-elements — and that is the upstream intent, since it means your own CSS no
-longer needs `!important` to win. Nothing errors, no test notices, and the
-page simply looks different. Inside this template the change is inert: nothing
-here styles the header or the hero from outside those two files. That tells
-you nothing about your fork.
+**The flip side:** if your fork already has unlayered CSS aimed at the header
+or the hero, a rule that was losing to these overrides now takes effect, and
+the page looks different with nothing failing. Read your own stylesheets for
+anything that touches those two before you take this. Where a rule of yours
+should still lose, put it in a layer rather than reaching for `!important` —
+which is the upstream intent, and the reason `!important` is no longer the only
+way to win.
 
-**What to pull across:** the re-synced files, but read your own stylesheets
-first for anything that touches the header or the hero. A rule of yours that
-was losing to these overrides now wins. If that is wrong for you, put your rule
-in a layer too rather than reaching for `!important`.
+With nothing competing, the change does nothing: inside this template no
+computed value moves, because nothing here styles the header or the hero from
+outside those two files. That tells you nothing about your fork.
+
+**What to pull across:** the two re-synced files and `src/env.d.ts`, after
+reading your own stylesheets as above.
+
+`src/env.d.ts` is not optional here. `CustomHero.astro` now imports
+`virtual:starlight/components/DraftContentNotice`, and the declaration for that
+module lives in `env.d.ts` — take the two `.astro` files on their own and
+`astro check` fails on a missing module, which is the failure that file's own
+header comment exists to explain.
 
 ### Mermaid diagrams
 
@@ -63,9 +84,10 @@ A code fence tagged `mermaid` renders as a diagram, following your site's light
 and dark theme. There is no component to import. One example page ships at
 `/guides/diagrams/`, marked for deletion.
 
-**What to pull across:** `astro-mermaid` and `mermaid`, plus the `mermaid()`
-entry in `integrations` — which must sit **before** `starlight()`, since it
-rewrites the fence before the syntax highlighter claims it.
+**What to pull across:** `astro-mermaid` (**`>=2.0.4`** — see below) and
+`mermaid`, plus the `mermaid({ autoTheme: true })` entry in `integrations`,
+which must sit **before** `starlight()`, since it rewrites the fence before the
+syntax highlighter claims it.
 
 **`astro-mermaid` must be at least `2.0.4`.** From Astro 6.4 an integration has
 to hand its plugins to `config.markdown.processor`; 2.0.2 and 2.0.3 have no
@@ -103,6 +125,36 @@ asking you for a sentinel of your own, not a gap in the skip.
 
 **What to pull across:** nothing, unless you have hit this. It only changes
 test files.
+
+### The screenshot test now runs on Linux CI
+
+`tests/visual/__screenshots__/` ships a `linux/` baseline alongside the
+existing `darwin/` one, and `npm run test:visual:ci` is now an alias for
+`npm run test:visual` rather than the same suite with `--grep-invert
+@screenshot`. The screenshot comparison had been excluded from CI because
+there was no Linux baseline to compare against — and while it was excluded, a
+sidebar change shipped against a stale baseline and survived two merges before
+anyone noticed.
+
+Regenerate a Linux baseline in the Playwright image matching your
+`@playwright/test` version, pinning the architecture your CI runner uses:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/work" -v docs-template-node-modules:/work/node_modules \
+  -w /work mcr.microsoft.com/playwright:v1.63.0-noble \
+  bash -lc 'npm ci && npm run test:visual:update'
+```
+
+The named volume matters on macOS: a `node_modules` installed in the container
+holds Darwin binaries that will not run on Linux, and installing over your host
+copy leaves it unusable.
+
+**What to pull across:** if your CI runs `test:visual:ci` on Linux, take the
+`linux/` baseline and the `package.json` change together — the baseline alone
+does nothing, and the script change alone turns your CI red. Regenerate the
+baseline rather than copying this one if you have customised the API reference
+sidebar at all; it is a picture of *this* template's operations.
 
 ## 2.5.0
 
