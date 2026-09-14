@@ -29,6 +29,12 @@ import {
 } from '../src/config/api-reference.mjs';
 import { staticDir } from './helpers/static-dir.mjs';
 
+// These assertions describe the references this template SHIPS. A fork that
+// has disabled every reference — the supported way to drop the feature — has
+// nothing for them to describe, and should get a green suite rather than a
+// failure telling it to re-enable a feature it deliberately turned off.
+const unlessDisabled = enabledReferences.length === 0 ? 'every API reference is disabled' : false;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = staticDir(join(__dirname, '..'));
 
@@ -53,7 +59,7 @@ const specFor = (reference) => join(STATIC_DIR, specUrlFor(reference).replace(/^
  */
 const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
 
-test('more than one reference is configured', () => {
+test('more than one reference is configured', { skip: unlessDisabled }, () => {
 	// The template ships two so both layouts are visible on real content. If you
 	// deleted one, drop this assertion with it.
 	assert.ok(enabledReferences.length >= 1, 'no API references are enabled');
@@ -153,7 +159,7 @@ const KNOWN_ANCHORS = [
 	'/api/#tag/disputes/POST/disputes/{dispute_id}/evidence',
 ];
 
-test('the sidebar lists operations generated from the OpenAPI document', () => {
+test('the sidebar lists operations generated from the OpenAPI document', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 
@@ -163,7 +169,7 @@ test('the sidebar lists operations generated from the OpenAPI document', () => {
 	);
 });
 
-test('generated sidebar anchors match the hashes Scalar assigns', () => {
+test('generated sidebar anchors match the hashes Scalar assigns', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 
 	for (const anchor of KNOWN_ANCHORS) {
@@ -177,13 +183,13 @@ test('generated sidebar anchors match the hashes Scalar assigns', () => {
 	}
 });
 
-test('operation links carry their HTTP method as a badge', () => {
+test('operation links carry their HTTP method as a badge', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	assert.match(html, /sl-badge[^"]*"[^>]*>GET</, 'no GET badge in the sidebar');
 	assert.match(html, /sl-badge[^"]*"[^>]*>POST</, 'no POST badge in the sidebar');
 });
 
-test('the operation list is reachable from ordinary docs pages', () => {
+test('the operation list is reachable from ordinary docs pages', { skip: unlessDisabled }, () => {
 	// The sidebar is global, so a reader on a prose page can jump straight to an
 	// endpoint instead of finding the reference first and searching inside it.
 	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');

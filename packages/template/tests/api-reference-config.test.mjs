@@ -20,6 +20,12 @@ import {
 	enabledReferences,
 } from '../src/config/api-reference.mjs';
 
+// These assertions describe the references this template SHIPS. A fork that
+// has disabled every reference — the supported way to drop the feature — has
+// nothing for them to describe, and should get a green suite rather than a
+// failure telling it to re-enable a feature it deliberately turned off.
+const unlessDisabled = enabledReferences.length === 0 ? 'every API reference is disabled' : false;
+
 /** A complete, valid reference with the given fields changed. */
 const ref = (overrides = {}) => ({
 	id: 'payments',
@@ -242,7 +248,7 @@ test('a valid list passes', () => {
 
 // --- the shipped config -----------------------------------------------------
 
-test('no shipped reference sets specUrl', () => {
+test('no shipped reference sets specUrl', { skip: unlessDisabled }, () => {
 	// The whole point of the derivation is that one field says where a document
 	// is. A shipped entry carrying the override would teach the opposite.
 	assert.ok(enabledReferences.length >= 1);
@@ -259,7 +265,7 @@ test('the shipped config emits nothing, so a first build serves no document itse
 	assert.deepEqual(emittedReferences, []);
 });
 
-test('the remote example is live, not snapshotted', () => {
+test('the remote example is live, not snapshotted', { skip: unlessDisabled }, () => {
 	// Load-bearing, not incidental. Under `'snapshot'` the build must serve a
 	// copy, so a host it cannot reach fails the build — and this example points
 	// at a third-party host, so that would break the first build of anyone
