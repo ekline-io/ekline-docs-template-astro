@@ -10,17 +10,6 @@ So the goal here is *your* site, not a tidy template: put your product's content
 
 Verified baseline: Astro `^6.4.7`, Starlight `^0.40.0`, Node 22.x.
 
-## A real site tracks this template
-
-EkLine's own documentation site, <https://docs.ekline.io>, is built from this template and is kept at **full code parity with it** — it holds the same files and switches off what it does not use (`enabled: false` in `src/config/api-reference.mjs`; the `DOCS_SSO_*` and `DOCS_UNSAFE_DEMO_LOGIN` variables left unset; components left out of the `components:` map). It does not follow `removing-features.md`.
-
-Two consequences for changes made here:
-
-1. **A breaking change needs a `CHANGELOG.md` entry saying what to pull across.** That file is how a downstream site learns what a release means for it, and it is the only channel — a fork receives no automatic update.
-2. **A test must not assume this template's own demo configuration is live.** A fork that disables a feature or deletes the example content is the normal case, not a broken one. Gate such assertions with `{ skip: ... }` on the feature being enabled, the way `tests/api-reference-config.test.mjs` and `tests/private-leaks.test.mjs` now do.
-
-The reasoning is recorded in EkLine's repository at `docs/superpowers/specs/2026-09-13-ekline-docs-template-parity-design.md` (EK-2518).
-
 ## Hosted documentation
 
 Every setting in this site — what it does, and what happens if you leave it alone — is documented at <https://documentation-ekline-docs-template.vercel.app>. Its Internals section is the same material as `wiki/`, which shipped with your copy.
