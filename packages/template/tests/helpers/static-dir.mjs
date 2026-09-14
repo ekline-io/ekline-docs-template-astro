@@ -37,8 +37,8 @@
  * the suite failing on a missing file, which reads as a broken site rather than
  * as a missing build.
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, sep } from 'node:path';
 
 const CANDIDATES = ['dist/client', '.vercel/output/static', 'dist'];
 
@@ -52,5 +52,48 @@ export function staticDir(projectRoot) {
 			`(checked: ${CANDIDATES.join(', ')}). Run \`npm run build\` first — ` +
 			`or, if it did run, check that it emits an \`index.html\` at the root ` +
 			`(a \`base\` path moves it).`
+	);
+}
+
+/** Starlight's sidebar landmark. Matched on the attribute, not the class list, which carries a build hash. */
+const STARLIGHT_SIDEBAR = /<nav\b[^>]*\baria-label="Main"/;
+
+/**
+ * The element `ScalarApiReference.astro` mounts a reference into — not its CSS or script mentions.
+ * Accepts the attribute bare, with a value (`data-ek-scalar=""`) or before `/>`: a spelling this
+ * missed would silently hand the tests the reference page again.
+ */
+const SCALAR_MOUNT = /<[a-z][^>]*\sdata-ek-scalar(?=[\s>=/])/i;
+
+/**
+ * The first built page, by sorted path, that renders Starlight's sidebar and
+ * is not itself an API reference. Returns its absolute path.
+ *
+ * For tests about the global sidebar, which need a page that has one without
+ * naming a page this template ships: a site that replaced the example content
+ * has no `get-started/quickstart/`. Not every page qualifies, so this reads the
+ * markup rather than trusting a path — the home page is a splash page with no
+ * sidebar, and a `full`-layout reference hands the page to Scalar.
+ *
+ * Reference pages are excluded even when they keep the sidebar. A `docs`-layout
+ * reference sorts first in this template (`api/index.html`), and a test that
+ * means "an ordinary docs page" would silently check the reference instead.
+ */
+export function firstProsePageWithSidebar(dir) {
+	const pages = readdirSync(dir, { recursive: true })
+		.filter((rel) => rel.endsWith('.html'))
+		.map((rel) => rel.split(sep).join('/'))
+		.sort();
+
+	for (const rel of pages) {
+		const path = join(dir, ...rel.split('/'));
+		const html = readFileSync(path, 'utf-8');
+		if (STARLIGHT_SIDEBAR.test(html) && !SCALAR_MOUNT.test(html)) return path;
+	}
+
+	throw new Error(
+		`No page under ${dir} renders Starlight's sidebar outside an API reference ` +
+			`(looked for <nav aria-label="Main"> without a data-ek-scalar mount, ` +
+			`across ${pages.length} .html files).`
 	);
 }

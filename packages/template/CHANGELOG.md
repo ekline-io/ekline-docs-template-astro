@@ -8,6 +8,105 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.6.1
+
+### Replacing the example pages no longer fails `npm test`
+
+Two tests in `npm test` opened this template's example pages — the prose under
+`src/content/docs/` — by name. A site that replaced those pages with its own
+failed its own suite with nothing wrong with the site, and a site that runs
+`npm test` as its build command could not deploy. Measured on a copy of 2.6.0
+set up like a real site — another site's 127 pages and sidebar in place of the
+examples, its API references disabled, and its private and org example pages
+removed: two failures before this change, none after. The same pages with the
+API references left on pass too.
+
+This covers the pages and nothing else. Other changes a real site makes still
+fail tests; they are listed under *What still fails on a site of your own*
+below.
+
+- **`tests/markdown-twins.test.mjs`** checked that `concepts/glossary.md`,
+  `get-started/quickstart.md`, `reference/errors.md` and `changelog.md` were in
+  the build. It now takes its pages from the build: every page that advertises
+  a Markdown twin must have it at `<slug>.md`, with no legacy `<slug>/index.md`
+  beside it. It fails when no page advertises one, so an empty build cannot
+  pass.
+- **`tests/scalar-api-reference.test.mjs`** read
+  `get-started/quickstart/index.html` to check the full-width reference's
+  sidebar link, and failed on the missing file even with every reference
+  disabled. It now reads a page picked from the build — the first, by sorted
+  path, whose markup has Starlight's sidebar and is not an API reference — and
+  skips when every reference is disabled, like the other tests in that file
+  that describe the shipped references.
+
+Two more places had the same problem without failing there. The test that the
+operation list is reachable from ordinary docs pages read the same quickstart
+page, but skips while references are disabled — so it would have failed the
+day such a site turned one on. It uses the same page picker now. And
+`tests/visual/api-reference.spec.mjs`, which is not part of `npm test`, skipped
+nothing when a reference was disabled, and its search tests started from
+`/get-started/quickstart/`. Each of its tests now skips when a reference it
+uses is disabled in `src/config/api-reference.mjs` — per reference, so a site
+that keeps `payments` and drops `admin` still runs the `payments` tests — and
+search starts from `/`.
+
+**What to pull across:** `tests/markdown-twins.test.mjs`,
+`tests/scalar-api-reference.test.mjs`, `tests/visual/api-reference.spec.mjs`,
+and `tests/helpers/static-dir.mjs`, which gains `firstProsePageWithSidebar()`.
+Nothing outside `tests/` changed.
+
+### What still fails on a site of your own
+
+This release does not fix any of these. Each was measured on a copy of 2.6.1
+with only that change made.
+
+In `npm test`:
+
+- **Deleting the `petstore` example**, as its entry in
+  `src/config/api-reference.mjs` tells you to, fails `the remote example is
+  live, not snapshotted` in `tests/api-reference-config.test.mjs`, which expects
+  exactly one remote reference. Disabling it while another reference stays on
+  does the same.
+- **Replacing `public/openapi.yaml` with your own document** fails three tests
+  that look for this template's `payments` operations by name: two in
+  `tests/openapi-sidebar.test.mjs`, and `generated sidebar anchors match the
+  hashes Scalar assigns` in `tests/scalar-api-reference.test.mjs`. A document
+  with fewer than ten operations fails three more, which each expect at least
+  ten: two in `scalar-api-reference.test.mjs`, one in
+  `tests/api-spec-equivalence.test.mjs`.
+- **Removing the `payments` reference and `public/openapi.yaml`** fails eight.
+  `api-spec-equivalence.test.mjs` fails to load and three tests in
+  `openapi-sidebar.test.mjs` fail, because they read that file by path. The
+  other four are in `scalar-api-reference.test.mjs` and expect the `payments`
+  operation list at `/api/`; disabling `payments` instead fails those four too.
+- **Replacing the Acme and Globex examples with private pages of your own**
+  fails two. `the sentinel exists in the private source content` in
+  `tests/private-leaks.test.mjs` reads the four example pages by path and wants
+  its sentinel in each, as described under 2.6.0; and
+  `tests/demo-login.test.mjs` finds the demo personas in
+  `src/lib/demo-login.mjs` still naming `acme` and `globex`.
+- **Setting `DOCS_SMOKE_URL`** runs `tests/deployed-smoke.test.mjs`, which
+  requests `/reference/errors/`, `/concepts/glossary/` and
+  `/get-started/quickstart/`. Those 404 on a site with its own pages, and checks
+  that pass against the template fail against them until you change `PAGES` in
+  that file. Measured against a local server, not a deployment.
+
+In `npm run test:visual`, with another site's pages in place of the examples
+and the Acme and Globex examples kept:
+
+- **`tests/visual/theme-control.spec.mjs`** fails 3 of its 5 desktop tests. It
+  opens `/get-started/introduction/` and clicks through to `Quickstart` and
+  `Authentication` — example pages a site of your own does not have.
+- **`tests/visual/auth.spec.mjs`** fails 2 tests on desktop and 7 on mobile. Its
+  public page is the example `/guides/example/`, so those tests land on the 404
+  page, which has no sidebar or mobile menu; one also clicks a `Quickstart`
+  link.
+- **The `@screenshot` test in `tests/visual/api-reference.spec.mjs`** fails,
+  because its baseline is a picture of this template's sidebar. Your own pages
+  change that picture, and so does deleting just the `admin` reference.
+  Regenerate the baseline, as described under 2.6.0. With your own pages it is
+  the only failure in that spec.
+
 ## 2.6.0
 
 ### Astro 6.4 and Starlight 0.40

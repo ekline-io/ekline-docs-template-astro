@@ -163,19 +163,27 @@ test('home page (/index.md) and 404 page (/404.md) both exist as .md', () => {
 	assert.ok(existsSync(join(STATIC_DIR, '404.md')), '404.md missing');
 });
 
-test('sample of expected /<slug>.md files exist (canonical convention)', () => {
-	const canonical = [
-		'concepts/glossary.md',
-		'get-started/quickstart.md',
-		'reference/errors.md',
-		'changelog.md',
-	];
-	for (const rel of canonical) {
-		assert.ok(
-			existsSync(join(STATIC_DIR, rel)),
-			`expected ${rel} in the build output`
-		);
+test("each docs page's twin is <slug>.md, not <slug>/index.md (canonical convention)", () => {
+	// Derived from what the build emitted, so a site that replaced the example
+	// content checks its own pages. The href tests above read what a page
+	// advertises; this reads the disk from the page's own path, which is the only
+	// way to see a legacy `<slug>/index.md` that no link points at. The root and
+	// 404 twins are the test above's.
+	const pages = htmlFiles
+		.filter((f) => extractAlternateHref(readFileSync(f, 'utf-8')))
+		.map((f) => relative(STATIC_DIR, f).split(sep).join('/'))
+		.filter((rel) => rel.endsWith('/index.html'))
+		.sort();
+	assert.ok(pages.length > 0, 'no docs page below the root emits a Markdown alternate link');
+
+	const problems = [];
+	for (const rel of pages) {
+		const slug = rel.slice(0, -'/index.html'.length);
+		if (!existsSync(join(STATIC_DIR, `${slug}.md`))) problems.push(`${rel}: ${slug}.md missing`);
+		if (existsSync(join(STATIC_DIR, slug, 'index.md')))
+			problems.push(`${rel}: non-canonical ${slug}/index.md emitted`);
 	}
+	assert.deepEqual(problems, [], `checked ${pages.length} pages:\n  ${problems.join('\n  ')}`);
 });
 
 // ---------------------------------------------------------------------------
