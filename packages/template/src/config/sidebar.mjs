@@ -24,6 +24,7 @@ export const docsSidebarGroups = [
 		items: [
 			{ label: 'Example guide', slug: 'guides/example' },
 			{ label: 'Send your first request', slug: 'guides/send-your-first-request' },
+			{ label: 'Diagrams', slug: 'guides/diagrams' },
 		],
 	},
 	{

@@ -1,8 +1,8 @@
 /**
  * Types for the Starlight virtual modules this template imports.
  *
- * `CustomHeader.astro` and `CustomSearch.astro` import from
- * `virtual:starlight/*`. That is deliberate, not a shortcut: resolving the
+ * `CustomHeader.astro`, `CustomHero.astro` and `CustomSearch.astro` import
+ * from `virtual:starlight/*`. That is deliberate, not a shortcut: resolving the
  * children through Starlight's virtual modules means any *other* component
  * override a customer configures in `astro.config.mjs` is still honoured. A
  * direct `@astrojs/starlight/components/Search.astro` import would hard-wire
@@ -19,6 +19,11 @@
  * same shape. Upstream reference:
  *   node_modules/@astrojs/starlight/virtual-internal.d.ts
  */
+
+declare module 'virtual:starlight/components/DraftContentNotice' {
+	const DraftContentNotice: typeof import('@astrojs/starlight/components/DraftContentNotice.astro').default;
+	export default DraftContentNotice;
+}
 
 declare module 'virtual:starlight/components/LanguageSelect' {
 	const LanguageSelect: typeof import('@astrojs/starlight/components/LanguageSelect.astro').default;

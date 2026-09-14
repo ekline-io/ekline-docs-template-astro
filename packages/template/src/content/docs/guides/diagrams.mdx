@@ -1,0 +1,22 @@
+---
+title: Diagrams
+description: Mermaid diagrams render from a fenced code block, with no component to import.
+---
+
+Fence a diagram as `mermaid` and it renders. There is nothing to import, and
+the diagram follows your site's light and dark themes.
+
+```mermaid
+sequenceDiagram
+    participant Reader
+    participant Docs as Docs site
+    participant API
+    Reader->>Docs: opens a guide
+    Docs->>API: fetches the OpenAPI document
+    API-->>Docs: returns the schema
+    Docs-->>Reader: renders the reference
+```
+
+Delete this page once you have seen it work — it documents the template, not
+your product. Removing `astro-mermaid` from `astro.config.mjs` and
+uninstalling `astro-mermaid` and `mermaid` drops the feature entirely.

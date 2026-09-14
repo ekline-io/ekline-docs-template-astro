@@ -8,6 +8,102 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.6.0
+
+### Astro 6.4 and Starlight 0.40
+
+Starlight 0.40 requires Astro `^6.4.5`, so the two move together. Upgrading a
+fork needs two things that are easy to miss, both of which fail the build
+rather than degrading quietly:
+
+- **`overrides` must pin `"vite": "^7.3.6"`.** Astro 6.4.8 resolves Vite 8.3.0,
+  and `@tailwindcss/vite` 4.3.0 fails on it with ``Missing field
+  `tsconfigPaths` on BindingViteResolvePluginConfig.resolveOptions``.
+- **Regenerate `package-lock.json` from scratch** — `rm -rf node_modules
+  package-lock.json && npm install`. Updating it in place hoists
+  `@astrojs/markdown-remark@7.1.1`, and Astro then fails with `does not provide
+  an export named 'unified'`. A clean resolve hoists `7.3.1`.
+
+`@astrojs/node` is no longer pinned to an exact `10.1.1`. That pin existed only
+because the template was below Astro 6.4; it is now `^10.1.4`.
+
+`@astrojs/markdown-satteri` appears as a new Starlight peer. It is optional —
+do not install it.
+
+**What to pull across:** the four dependency bumps — `astro`,
+`@astrojs/starlight`, `@astrojs/node` and `sharp` — the `vite` override, and a
+regenerated lockfile. `CustomHeader.astro` and `CustomHero.astro` are forks of
+Starlight internals and were re-synced against 0.40.0; read the next section
+before taking those two, and if you have customised either, re-sync yours
+rather than copying these.
+
+### The header and hero overrides moved into a cascade layer
+
+Re-syncing those two forks picked up an upstream change whose effect reaches
+past this repository: their `<style>` blocks are now wrapped in
+`@layer starlight.core`, the layer Starlight's own `Header` and `Hero` use.
+
+That **lowers** them. Unlayered CSS beats layered CSS whatever the specificity,
+so until now these two overrides outranked every layered rule on the site.
+Layered, they lose to any unlayered rule of yours that targets the same
+elements — and that is the upstream intent, since it means your own CSS no
+longer needs `!important` to win. Nothing errors, no test notices, and the
+page simply looks different. Inside this template the change is inert: nothing
+here styles the header or the hero from outside those two files. That tells
+you nothing about your fork.
+
+**What to pull across:** the re-synced files, but read your own stylesheets
+first for anything that touches the header or the hero. A rule of yours that
+was losing to these overrides now wins. If that is wrong for you, put your rule
+in a layer too rather than reaching for `!important`.
+
+### Mermaid diagrams
+
+A code fence tagged `mermaid` renders as a diagram, following your site's light
+and dark theme. There is no component to import. One example page ships at
+`/guides/diagrams/`, marked for deletion.
+
+**What to pull across:** `astro-mermaid` and `mermaid`, plus the `mermaid()`
+entry in `integrations` — which must sit **before** `starlight()`, since it
+rewrites the fence before the syntax highlighter claims it.
+
+**`astro-mermaid` must be at least `2.0.4`.** From Astro 6.4 an integration has
+to hand its plugins to `config.markdown.processor`; 2.0.2 and 2.0.3 have no
+code for that field at all and fall back to the legacy plugin arrays, which 6.4
+no longer runs. The build passes, and the page renders a highlighted code block
+where the diagram should be. `package.json` here asks for `^2.1.0`.
+
+**If a diagram ever comes back as a code block, start here.** On Astro 6.4+,
+`astro-mermaid` does not append to a plugin array — it replaces
+`config.markdown.processor` wholesale, rebuilding it with the hoisted
+`@astrojs/markdown-remark` 7.3.1 `unified()` out of options belonging to
+Astro's own bundled 7.2.0 copy. A resolved tree holds four copies of that
+package. It works because the guard is a duck-type check —
+`isUnifiedProcessor` is `p.name === 'unified'`, true of both copies. If
+upstream ever brands that processor or switches to `instanceof`, the check
+fails, the integration falls back to the arrays 6.4 ignores, and the build
+still passes.
+
+### Disabling a feature no longer fails the test suite
+
+Nine tests assumed this template's own demo configuration was live. Setting
+`enabled: false` on all three API references — the supported way to drop that
+feature — turned seven of them red, and deleting the Acme and Globex example
+pages turned the other two red. A fork was being told to re-enable things it
+had deliberately switched off.
+
+Those nine now skip when the thing they describe is absent, and run unchanged
+when it is present. **Absent means gone, not replaced.** Each skip condition
+tests for an empty set — no enabled reference, no `org-docs` folder, no private
+content at all. So a fork that swaps the Acme and Globex examples for private
+pages of its own still fails `private-leaks`, and that is deliberate: those
+tests hunt for a sentinel string that proves private content never reaches the
+static output, and your pages will not contain it. The failure is the test
+asking you for a sentinel of your own, not a gap in the skip.
+
+**What to pull across:** nothing, unless you have hit this. It only changes
+test files.
+
 ## 2.5.0
 
 ### Markdown content negotiation is back, on Vercel

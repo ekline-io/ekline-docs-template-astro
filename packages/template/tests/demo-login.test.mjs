@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,13 +56,20 @@ test('unknown, empty and non-string ids resolve to null', () => {
 	}
 });
 
-test('persona orgs name real folders under src/content/org-docs/', () => {
+// The personas point at the shipped example org folders. A fork that deleted
+// them has no orgs to name, and the demo login it would drive is off anyway
+// (DOCS_UNSAFE_DEMO_LOGIN). A fork that kept SOME folders still gets checked.
+const ORG_DOCS = join(ROOT, 'src/content/org-docs');
+const orgFolders = existsSync(ORG_DOCS)
+	? readdirSync(ORG_DOCS, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+	: [];
+const unlessNoOrgs = orgFolders.length === 0 ? 'no org-docs folders are present' : false;
+
+test('persona orgs name real folders under src/content/org-docs/', { skip: unlessNoOrgs }, () => {
 	// The demo signs `orgs` claims; the guard compares them byte-verbatim to
 	// folder names (wiki/private-docs.md). A persona pointing at a folder that
 	// does not exist demos an empty section and looks like a broken feature.
-	const folders = readdirSync(join(ROOT, 'src/content/org-docs'), { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => entry.name);
+	const folders = orgFolders.map((entry) => entry.name);
 	for (const persona of personas) {
 		for (const org of persona.orgs) {
 			assert.ok(folders.includes(org), `persona "${persona.id}" names missing org "${org}"`);

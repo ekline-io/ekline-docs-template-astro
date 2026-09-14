@@ -29,6 +29,12 @@ import {
 } from '../src/config/api-reference.mjs';
 import { staticDir } from './helpers/static-dir.mjs';
 
+// These assertions describe the references this template SHIPS. A fork that
+// has disabled every reference — the supported way to drop the feature — has
+// nothing for them to describe, and should get a green suite rather than a
+// failure telling it to re-enable a feature it deliberately turned off.
+const unlessDisabled = enabledReferences.length === 0 ? 'every API reference is disabled' : false;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = staticDir(join(__dirname, '..'));
 
@@ -43,7 +49,17 @@ const htmlFor = (reference) =>
  */
 const specFor = (reference) => join(STATIC_DIR, specUrlFor(reference).replace(/^\//, ''));
 
-test('more than one reference is configured', () => {
+/**
+ * Both entity spellings of `"` turned back into the character.
+ *
+ * Island props ride in an HTML attribute, so their quotes are entity-encoded.
+ * Normalise rather than matching one particular encoding — which form the
+ * escaper picks (`&#34;` vs `&quot;`) is an Astro implementation detail, and
+ * Astro changed it from the former to the latter in 6.4.
+ */
+const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
+
+test('more than one reference is configured', { skip: unlessDisabled }, () => {
 	// The template ships two so both layouts are visible on real content. If you
 	// deleted one, drop this assertion with it.
 	assert.ok(enabledReferences.length >= 1, 'no API references are enabled');
@@ -75,7 +91,7 @@ test('every reference points at its own document', () => {
 	// easy to introduce when copying an entry in the config, and invisible until
 	// someone reads the page.
 	for (const reference of enabledReferences) {
-		const html = readFileSync(htmlFor(reference), 'utf-8');
+		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		const url = specUrlFor(reference);
 		// Read the value Scalar was actually configured with, rather than asking
 		// whether the page contains that string anywhere. A bare
@@ -90,9 +106,7 @@ test('every reference points at its own document', () => {
 		// for what this test is for — catching a reference wired to another
 		// reference's document — because the derived paths differ in their last
 		// segment.
-		const configured = [...html.matchAll(/&#34;url&#34;:&#34;([^&]*?)&#34;/g)].map(
-			(match) => match[1]
-		);
+		const configured = [...html.matchAll(/"url":"([^"]*?)"/g)].map((match) => match[1]);
 		assert.equal(
 			configured.length,
 			1,
@@ -145,7 +159,7 @@ const KNOWN_ANCHORS = [
 	'/api/#tag/disputes/POST/disputes/{dispute_id}/evidence',
 ];
 
-test('the sidebar lists operations generated from the OpenAPI document', () => {
+test('the sidebar lists operations generated from the OpenAPI document', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	const links = html.match(/href="\/api\/#[^"]+"/g) ?? [];
 
@@ -155,7 +169,7 @@ test('the sidebar lists operations generated from the OpenAPI document', () => {
 	);
 });
 
-test('generated sidebar anchors match the hashes Scalar assigns', () => {
+test('generated sidebar anchors match the hashes Scalar assigns', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 
 	for (const anchor of KNOWN_ANCHORS) {
@@ -169,13 +183,13 @@ test('generated sidebar anchors match the hashes Scalar assigns', () => {
 	}
 });
 
-test('operation links carry their HTTP method as a badge', () => {
+test('operation links carry their HTTP method as a badge', { skip: unlessDisabled }, () => {
 	const html = readFileSync(join(STATIC_DIR, 'api/index.html'), 'utf-8');
 	assert.match(html, /sl-badge[^"]*"[^>]*>GET</, 'no GET badge in the sidebar');
 	assert.match(html, /sl-badge[^"]*"[^>]*>POST</, 'no POST badge in the sidebar');
 });
 
-test('the operation list is reachable from ordinary docs pages', () => {
+test('the operation list is reachable from ordinary docs pages', { skip: unlessDisabled }, () => {
 	// The sidebar is global, so a reader on a prose page can jump straight to an
 	// endpoint instead of finding the reference first and searching inside it.
 	const html = readFileSync(join(STATIC_DIR, 'get-started/quickstart/index.html'), 'utf-8');
@@ -208,8 +222,6 @@ test("Scalar's link out to its hosted client is disabled", () => {
 	// tab, with `utm_source` / `utm_medium` / `utm_campaign` on the URL. It is an
 	// attribution link into Scalar's product, not a feature of the customer's
 	// docs; see the comment in `src/components/ScalarApiReference.astro`.
-	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
-
 	for (const reference of enabledReferences) {
 		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		assert.ok(
@@ -223,12 +235,6 @@ test("Scalar's spec-uploading AI assistant is disabled", () => {
 	// Opening it uploads the customer's OpenAPI document to Scalar's servers and
 	// asks the reader to accept Scalar's terms. A template must not default to
 	// that; see the comment in `src/components/ScalarApiReference.astro`.
-	//
-	// The config rides in an HTML attribute, so its quotes are entity-encoded.
-	// Normalise rather than matching one particular encoding — which form the
-	// escaper picks (`&#34;` vs `&quot;`) is an Astro implementation detail.
-	const unescapeQuotes = (s) => s.replace(/&#34;|&quot;/g, '"');
-
 	for (const reference of enabledReferences) {
 		const html = unescapeQuotes(readFileSync(htmlFor(reference), 'utf-8'));
 		assert.ok(

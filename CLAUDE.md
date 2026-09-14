@@ -20,6 +20,17 @@ Everything under that directory is copied verbatim into a customer's repository,
 - **The hosted docs at <https://documentation-ekline-docs-template.vercel.app> are built from `apps/docs/`**, which renders `packages/template/wiki/` in place. Configuration material belongs there rather than in the template's `README.md`, so it has one home.
 - **CI is `.github/workflows/ci.yml`** and runs `check`, `test`, `test:visual:ci`, and `check:shipped` on every PR. It lives at this root and so is not part of a customer's copy — which is exactly why shipped docs must not describe it as present.
 
+## docs.ekline.io tracks `packages/template`
+
+EkLine's own documentation site, <https://docs.ekline.io>, is built from `packages/template/` and is kept at **full code parity with it** — it holds the same files and switches off what it does not use: `enabled: false` in `src/config/api-reference.mjs`, `DOCS_SSO_*` and `DOCS_UNSAFE_DEMO_LOGIN` left unset, components left out of the `components:` map. It deliberately does not follow *Removing what you don't need* (`apps/docs/src/content/docs/removing-features.md`), which has a customer delete the files behind a feature they don't want — deleting them would end the parity, and with it the ability to take a release across file by file.
+
+Two obligations follow, and both land on changes made here rather than there:
+
+- **A breaking change needs a `packages/template/CHANGELOG.md` entry saying what to pull across.** That file is how a site built from the template learns what a release means for it, and it is the only channel — a copy of the directory receives no automatic update, docs.ekline.io included.
+- **A test must not assume the template's own demo configuration is live.** A site that has disabled a feature or replaced the example content is the normal case, not a broken one; a test that fails there is telling its owner to switch back on something they deliberately switched off. Gate such assertions with `{ skip: ... }` on the feature being present, the way `packages/template/tests/api-reference-config.test.mjs` and `packages/template/tests/private-leaks.test.mjs` do.
+
+Both were recorded for the 2.6.0 release (EK-2518) — see `docs/superpowers/plans/2026-09-13-docs-template-2.6.0.md`.
+
 ## Why `packages/` and `apps/` are separate
 
 `packages/` holds what EkLine **ships** — a customer receives a copy of the

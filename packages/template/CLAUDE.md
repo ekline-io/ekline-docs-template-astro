@@ -8,7 +8,7 @@ This is **your documentation site**, generated from EkLine's Starlight (Astro) t
 
 So the goal here is *your* site, not a tidy template: put your product's content in, delete the parts you don't use, and let it stop looking like a template as fast as possible. `README.md` has a table mapping "what you want to change" to the file that changes it.
 
-Verified baseline: Astro `^6.2.2`, Starlight `^0.39.2`, Node 22.x.
+Verified baseline: Astro `^6.4.7`, Starlight `^0.40.0`, Node 22.x.
 
 ## Hosted documentation
 
