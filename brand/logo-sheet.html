@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Potluck Docs logos</title>
+<link rel="icon" href="favicon/favicon.ico">
+<style>
+  :root{
+    --coral:#FF5656;--coral-text:#D03025;--ink:#231F20;--ink-dim:#615B59;
+    --paper:#FFFFFF;--ground:#F2F1F0;--rule:#DEDAD8;--rule-soft:#EAE7E5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding-inline:20px;padding-block:56px 90px}
+  header{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+  header img{width:76px;height:76px}
+  h1{font-size:clamp(32px,5vw,46px);line-height:1.05;letter-spacing:-.028em;font-weight:700;margin:0}
+  .lede{font-size:17px;color:var(--ink-dim);max-width:60ch;margin:16px 0 0}
+  h2{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-dim);margin:0 0 20px;padding-bottom:11px;border-bottom:1px solid var(--rule)}
+  section{margin-top:54px}
+  .grid{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule)}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(224px,1fr))}
+  .cell{background:var(--paper);padding:24px 18px;text-align:center}
+  .cell.dk{background:var(--ink)}
+  .cell img{max-width:100%;height:auto}
+  .cell .m{width:72px;height:72px}
+  .cell b{display:block;font-size:12.5px;font-weight:600;margin-top:14px}
+  .cell.dk b{color:var(--paper)}
+  .cell code{display:block;font-size:10.5px;color:var(--ink-dim);margin-top:3px;
+    font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+  .cell.dk code{color:#9B938F}
+  .sw{padding:0;text-align:left}
+  .sw .chip{height:74px;border-bottom:1px solid var(--rule)}
+  .sw .meta{padding:13px 15px 15px}
+  .sw .meta b{margin:0;font-size:13.5px}
+  .sw .meta code{margin-top:4px;font-size:11.5px}
+  .sw .meta span{display:block;font-size:12px;color:var(--ink-dim);margin-top:6px;line-height:1.45}
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;align-items:flex-end;background:var(--rule-soft);
+    padding:10px 10px 0;border:1px solid var(--rule);overflow-x:auto}
+  .tab{display:flex;align-items:center;gap:7px;background:var(--paper);border:1px solid var(--rule);
+    border-bottom:none;border-radius:7px 7px 0 0;padding:9px 12px;font-size:12.5px;
+    white-space:nowrap;color:var(--ink-dim);flex:0 0 auto}
+  .tab b{font-weight:500;color:var(--ink);font-size:12.5px}
+  .specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--rule);border:1px solid var(--rule)}
+  .spec{background:var(--paper);padding:16px 18px}
+  .spec b{display:block;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--ink-dim);font-weight:600;margin-bottom:5px}
+  .spec span{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:1px;
+    background:var(--rule);border:1px solid var(--rule)}
+  .rule{background:var(--paper);padding:20px}
+  .rule b{display:block;font-size:14px;font-weight:700;margin-bottom:7px}
+  .rule p{margin:0;font-size:13.5px;color:var(--ink-dim);line-height:1.55}
+  .rule.no b{color:var(--coral-text)}
+  .cap{margin:12px 0 0;font-size:13.5px;color:var(--ink-dim);max-width:74ch}
+  .pending{background:var(--paper);border:1px dashed var(--rule);padding:20px 22px;margin-top:20px}
+  .pending b{display:block;font-size:14px;font-weight:700;margin-bottom:7px}
+  .pending p{margin:0;font-size:13.5px;color:var(--ink-dim)}
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--rule);
+    font-size:13.5px;color:var(--ink-dim)}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="mark/svg/potluck-mark-light.svg" alt="Potluck Docs mark">
+    <h1>Potluck Docs</h1>
+  </header>
+  <p class="lede">A coral plate rim, a white well, three lines of text in it. A plate and a page are the
+  same shape problem, and the rim is what settles which one you are looking at.</p>
+
+  <section>
+    <h2>The mark</h2>
+    <div class="grid g4">
+      <div class="cell"><img class="m" src="mark/svg/potluck-mark-light.svg" alt="Light mark, transparent">
+        <b>Light</b><code>potluck-mark-light.svg</code></div>
+      <div class="cell dk"><img class="m" src="mark/svg/potluck-mark-dark.svg" alt="Dark mark, transparent">
+        <b>Dark</b><code>potluck-mark-dark.svg</code></div>
+      <div class="cell"><img class="m" src="mark/svg/potluck-mark-light-bg.svg" alt="Light mark, filled">
+        <b>Light, filled</b><code>potluck-mark-light-bg.svg</code></div>
+      <div class="cell dk"><img class="m" src="mark/svg/potluck-mark-dark-bg.svg" alt="Dark mark, filled">
+        <b>Dark, filled</b><code>potluck-mark-dark-bg.svg</code></div>
+    </div>
+    <p class="cap">Transparent is the default. The filled pair is only for platforms that will not honor
+    transparency or composite it onto black, which is why the Apple touch icon is one of them.</p>
+  </section>
+
+  <section>
+    <h2>At size</h2>
+    <div class="tabs">
+      <div class="tab"><img src="mark/png/light/potluck-mark-light-16.png" alt="" width="16" height="16"><b>16</b></div>
+      <div class="tab"><img src="mark/png/light/potluck-mark-light-32.png" alt="" width="32" height="32"><b>32</b></div>
+      <div class="tab"><img src="mark/png/light/potluck-mark-light-64.png" alt="" width="64" height="64"><b>64</b></div>
+      <div class="tab"><img src="mark/png/light/potluck-mark-light-128.png" alt="" width="128" height="128"><b>128</b></div>
+    </div>
+    <p class="cap">PNGs run 16 to 1024 for all four renderings. 16px is the floor, below that the three
+    lines start closing up.</p>
+  </section>
+
+  <section>
+    <h2>Alternate line colorings</h2>
+    <div class="grid g3">
+      <div class="cell"><img class="m" src="mark/svg/potluck-mark-light.svg" alt="Ink lines">
+        <b>Ink lines</b><code>the default</code></div>
+      <div class="cell"><img class="m" src="variants/potluck-mark-coral-lead-light.svg" alt="Coral lead line">
+        <b>Coral lead</b><code>display sizes</code></div>
+      <div class="cell"><img class="m" src="variants/potluck-mark-all-coral-light.svg" alt="All coral">
+        <b>All coral</b><code>one-ink print</code></div>
+    </div>
+    <p class="cap">One geometry, three line colorings. Ink lines ship as the default because at favicon
+    size contrast beats hierarchy. All coral is the one to use beside the EkLine mark, since EkLine is
+    a single color too.</p>
+  </section>
+
+  <section>
+    <h2>Color</h2>
+    <div class="grid g3">
+      <div class="cell sw"><div class="chip" style="background:#FF5656"></div><div class="meta">
+        <b>Coral</b><code>#FF5656</code><span>The rim band. Mark only, never text.</span></div></div>
+      <div class="cell sw"><div class="chip" style="background:#D03025"></div><div class="meta">
+        <b>Coral text</b><code>#D03025</code><span>Links and accent copy. 5.1:1 on white.</span></div></div>
+      <div class="cell sw"><div class="chip" style="background:#231F20"></div><div class="meta">
+        <b>Ink</b><code>#231F20</code><span>Text on light, well and ground on dark.</span></div></div>
+      <div class="cell sw"><div class="chip" style="background:#615B59"></div><div class="meta">
+        <b>Ink dim</b><code>#615B59</code><span>Secondary text. 6.7:1 on white.</span></div></div>
+      <div class="cell sw"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid #DEDAD8"></div><div class="meta">
+        <b>Paper</b><code>#FFFFFF</code><span>The well on light, text on dark.</span></div></div>
+      <div class="cell sw"><div class="chip" style="background:#F2F1F0"></div><div class="meta">
+        <b>Ground</b><code>#F2F1F0</code><span>Page background on light.</span></div></div>
+    </div>
+    <p class="cap">Two corals on purpose. <code>#FF5656</code> reaches only 3.13:1 against white, so it
+    is a mark color, not a text color. Anything carrying words uses <code>#D03025</code>. Tokens are in
+    <code>color/tokens.css</code> and <code>color/tokens.json</code>.</p>
+  </section>
+
+  <section>
+    <h2>Construction</h2>
+    <div class="specs">
+      <div class="spec"><b>Grid</b><span>64 units</span></div>
+      <div class="spec"><b>Outer radius</b><span>30</span></div>
+      <div class="spec"><b>Well radius</b><span>22</span></div>
+      <div class="spec"><b>Band</b><span>8</span></div>
+      <div class="spec"><b>Bar height</b><span>4.4</span></div>
+      <div class="spec"><b>Corner radius</b><span>2.2</span></div>
+      <div class="spec"><b>Bar widths</b><span>30 / 25 / 17</span></div>
+      <div class="spec"><b>Bar origin x</b><span>17</span></div>
+    </div>
+    <p class="cap">The corner radius is exactly half the bar height, so the ends are true half circles.
+    Change the height and the radius moves with it. Bars are left aligned and ragged right, which is
+    what makes them read as text rather than as an icon.</p>
+  </section>
+
+  <section>
+    <h2>Rules</h2>
+    <div class="rules">
+      <div class="rule"><b>Clear space</b><p>One quarter of the mark's diameter on all four sides. At 64
+        units that is 16. Nothing enters it, including the page edge.</p></div>
+      <div class="rule"><b>Minimum size</b><p>16px on screen, 6mm in print. Below that the three lines
+        close up into a block.</p></div>
+      <div class="rule no"><b>Never set #FF5656 as text</b><p>It fails contrast against white. Any coral
+        carrying words is #D03025.</p></div>
+      <div class="rule no"><b>Never recolor the band</b><p>The coral is the brand. No gradients, shadows,
+        glows, strokes or outlines on any part of the mark.</p></div>
+      <div class="rule no"><b>Never mix light and dark</b><p>Light versions go on light grounds, dark on
+        dark. Over a photograph, use a filled version instead.</p></div>
+      <div class="rule no"><b>Never distort it</b><p>No rotating, skewing, stretching or squashing, and
+        do not move the bar radius independently of the bar height.</p></div>
+    </div>
+  </section>
+
+  <div class="pending">
+    <b>Still open: typography</b>
+    <p>No wordmark yet, and nothing in this package sets type. Once a typeface is chosen, the lockups,
+    social cards and a type scale follow from it.</p>
+  </div>
+
+  <footer>
+    Potluck Docs is EkLine's open source project. Shared with the parent mark: the coral, the ink, and
+    the concentric circle construction. Not shared: EkLine's pencil, which is the parent's own object.
+    Deliberately different: EkLine cuts every terminal flat, and Potluck's bar ends are rounded.
+  </footer>
+
+</div>
+</body>
+</html>

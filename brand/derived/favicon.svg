@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Potluck Docs">
+	<!-- Potluck Docs mark, theme-adaptive.
+	     Light: coral rim, paper well, ink bars. Dark: the well and bars swap,
+	     so the mark reads as a coral ring with floating text — see brand/README.md.
+	     The rim never changes color. Geometry is the 64-unit grid from the
+	     brand package; do not alter the bar radius independently of bar height. -->
+	<style>
+		.well { fill: #FFFFFF }
+		.bar  { fill: #231F20 }
+		@media (prefers-color-scheme: dark) {
+			.well { fill: #231F20 }
+			.bar  { fill: #FFFFFF }
+		}
+	</style>
+	<circle cx="32" cy="32" r="30" fill="#FF5656"/>
+	<circle class="well" cx="32" cy="32" r="22"/>
+	<rect class="bar" x="17" y="22.8" width="30" height="4.4" rx="2.2"/>
+	<rect class="bar" x="17" y="29.8" width="25" height="4.4" rx="2.2"/>
+	<rect class="bar" x="17" y="36.8" width="17" height="4.4" rx="2.2"/>
+</svg>
