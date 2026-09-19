@@ -17,20 +17,27 @@
  * #D03025" is satisfied by construction, with the 3.13:1 mark coral kept off
  * text and parked at 400 where non-text accents can still reach it.
  *
- * Measured against white and against Starlight's dark ground
- * (hsl(224 10% 10%) = #17181C):
+ * Measured in Chromium against the built template, not computed. The dark
+ * ground is #0F172B, not Starlight's stock #17181C: both sites replace
+ * Starlight's gray ramp with Tailwind's slate scale, so dark surfaces are
+ * slate-derived.
  *
  *   5.08:1   light link text   accent-600 on page bg      PASS
- *   12.44:1  dark  link text   accent-200 on page bg      PASS
- *   7.83:1   dark  active pill accent-200 on 12% tint     PASS
- *   4.23:1   light active pill accent-600 on 12% tint     UNDER AA
+ *   12.50:1  dark  link text   accent-200 on page bg      PASS
+ *   7.65:1   dark  active pill accent-200 on 12% tint     PASS
+ *   4.23:1   light active pill accent-600 on 12% tint     UNDER AA  <- fixed below
  *
  * The last row is the one thing this ramp does not fix on its own. The
  * template's sidebar rule in `global.css` draws the current page as
- * `--sl-color-text-accent` over a 12% tint of itself; violet cleared AA there
- * at 4.75:1 and coral does not. Pair this file with the accent-700 override
- * below, which measures 5.55:1 and keeps the pill's visual weight. Thinning
+ * `--sl-color-text-accent` over a 12% tint of itself; the violet these sites
+ * shipped measures 4.83:1 there and coral measures 4.23:1. The accent-700
+ * override below measures 5.55:1 and keeps the pill's visual weight. Thinning
  * the tint instead needs 7% to clear AA, which washes the pill out.
+ *
+ * Note: Tailwind v4 only emits a theme token that something references, so
+ * `--color-accent-400` resolves to nothing until CSS uses it. That is fine —
+ * the mark coral lives in the SVG marks, and the point of reserving 400 is
+ * that no *text* rule can reach it.
  */
 
 @theme {
@@ -49,7 +56,7 @@
 
 /*
  * Light-mode sidebar pill: one stop darker than the link color it sits on.
- * 4.23:1 -> 5.55:1. Dark mode is already at 7.83:1 and keeps text-accent.
+ * 4.23:1 -> 5.55:1. Dark mode is already at 7.65:1 and keeps text-accent.
  */
 :root[data-theme='light'] .sidebar-content a[aria-current='page'],
 :root[data-theme='light'] .sidebar-content a[aria-current='page']:hover {

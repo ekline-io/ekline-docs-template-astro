@@ -31,7 +31,7 @@ In practice: the site title, the logo, the favicon, the colors and all the prose
   - `@astrojs/starlight-tailwind@5.0.0` (`tailwind.css` lines 66–82) maps `--sl-color-accent: var(--color-accent-600)` and `--sl-color-accent-high: var(--color-accent-200)`, in both themes.
   - `@astrojs/starlight@0.40.0` (`style/props.css` lines 40, 156) resolves `--sl-color-text-accent` to `--sl-color-accent` in **light** mode and to `--sl-color-accent-high` in **dark**.
   - So light-mode link text is `accent-600` and dark-mode link text is `accent-200`. Pinning `accent-600` to `#D03025` satisfies the brand rule "anything carrying words uses `#D03025`" by construction, and parks the 3.13:1 mark coral at `accent-400`, where no text can reach it.
-- **One measured contrast regression, and it has a fix.** The template's own sidebar rule in `global.css` draws the current page as `--sl-color-text-accent` over a 12% tint of itself. Violet clears WCAG AA there at 4.75:1; coral lands at **4.23:1**, under the 4.5:1 minimum. The fix in `brand/derived/accent-ramp.css` moves that one rule to `accent-700` in light mode: **5.55:1**, with the pill's weight unchanged. Thinning the tint instead needs 7% to clear AA, which washes the pill out. Do not skip this override.
+- **One measured contrast regression, and it has a fix.** The template's own sidebar rule in `global.css` draws the current page as `--sl-color-text-accent` over a 12% tint of itself. Violet measures 4.83:1 there; coral lands at **4.23:1**, under the 4.5:1 minimum. The fix in `brand/derived/accent-ramp.css` moves that one rule to `accent-700` in light mode: **5.55:1** measured, with the pill's weight unchanged. Thinning the tint instead needs 7% to clear AA, which washes the pill out. Do not skip this override.
 - **`npm run check:shipped` after any edit under `packages/template/*.md` or `packages/template/wiki/`.** It catches monorepo paths leaking into a customer's copy. It cannot see framing problems — "this is EkLine's template, which we ship to customers" is wrong in a customer's repo and passes the check — so Phase 4 stays a review question as well as a script run.
 - **`brand/` is monorepo-only.** It must never be referenced from shipped prose or from `packages/template/` code. Files travel *into* the template by copy, the way `LICENSE` already does.
 - Node 22.x. Every command runs from the repo root unless it says otherwise.
@@ -50,12 +50,45 @@ Committed in this PR.
 
 ---
 
+## Verification of Phases 1–2
+
+Phases 1 and 2 were applied to a working copy, built, and measured in Chromium
+before being written up here. Nothing from that run is committed — the code
+changes were reverted — but the screenshots are, under
+[`brand/preview/`](../../../brand/preview), and the numbers in this plan come
+from it rather than from a spreadsheet.
+
+What the run established:
+
+- Both sites build clean with the ramp and the marks applied.
+- `node --test tests/*.test.mjs` in `packages/template`: **190 tests, 0 failures**
+  (183 pass, 13 skipped).
+- All four contrast measurements pass WCAG AA, including the sidebar pill once
+  the `accent-700` override is in. The table in Phase 2 Step 4 is that run.
+- The favicon's media query fires: coral rim both ways, well and bars inverted,
+  legible down to 16px.
+
+What it corrected:
+
+- **The logo needs two files.** A single `src:` put the light mark on the dark
+  header. Phase 1 Step 2 now uses Starlight's `light`/`dark` pair.
+- **The dark ground is `#0F172B`, not Starlight's stock `#17181C`.** Both sites
+  replace Starlight's gray ramp with Tailwind slate, so the dark numbers
+  computed against stock Starlight were slightly off (12.44 → 12.50,
+  7.83 → 7.65). Both still pass comfortably.
+- **The violet baseline is 4.83:1, not 4.75:1.** Tailwind v4's violet is
+  `oklch(54.1% .281 293.009)` (`#7F22FE`), not the `#7C3AED` of v3. The coral
+  regression this plan fixes is real either way.
+
+What it could **not** establish: the visual-baseline invalidation in Phase 5.
+See the note there.
+
 ## Phase 1 — The mark and the favicon
 
 Visual, self-contained, and the phase that makes the rebrand visible.
 
 **Files:**
-- Add: `packages/template/src/assets/potluck-mark.svg`, `apps/docs/src/assets/potluck-mark.svg` (from `brand/mark/svg/potluck-mark-light.svg`)
+- Add, in **both** projects: `src/assets/potluck-mark-light.svg` and `src/assets/potluck-mark-dark.svg` (from `brand/mark/svg/`)
 - Modify: `packages/template/public/favicon.svg`, `apps/docs/public/favicon.svg`
 - Modify: `packages/template/astro.config.mjs`, `apps/docs/astro.config.mjs`
 - Keep untouched: `src/assets/ekline-mark.svg` in both projects, and both `CustomFooter.astro`
@@ -71,16 +104,19 @@ Nothing else changes. Starlight defaults `favicon` to `/favicon.svg` when the ke
 
 - [ ] **Step 2: Add the mark as a header logo**
 
-Copy `brand/mark/svg/potluck-mark-light.svg` to `src/assets/potluck-mark.svg` in both projects, then add to the `starlight()` config in each:
+Copy **both** marks into `src/assets/` in each project, then add to the `starlight()` config:
 
 ```js
 logo: {
-  src: './src/assets/potluck-mark.svg',
+  light: './src/assets/potluck-mark-light.svg',
+  dark: './src/assets/potluck-mark-dark.svg',
   alt: 'Potluck Docs',
 },
 ```
 
-Use the `light` variant, not `light-bg`. The transparent one is the default per the brand README; the filled variants exist only for platforms that will not honor transparency.
+**Two files, not one — measured.** A single `src:` was tried first and put the light mark, whose well is paper, on the dark header, where it reads as a white disc. That is the brand README's own first "Do not". Starlight's `light`/`dark` pair emits both images and toggles them on `data-theme`; verified on a built site, which serves `potluck-mark-light.svg` under `data-theme="light"` and `potluck-mark-dark.svg` under `dark`.
+
+Use the transparent variants, not `*-bg`. The filled ones exist only for platforms that will not honor transparency.
 
 Leave `replacesTitle` unset, so the mark sits next to the title text. The site title becomes "Potluck Docs" in Phase 3, and mark-plus-wordmark is the lockup the brand package assumes — it has no wordmark of its own, so the title text *is* the wordmark for now.
 
@@ -123,11 +159,16 @@ The brand's ink (`#231F20`) and ground (`#F2F1F0`) are warm; Starlight's grays a
 
 - [ ] **Step 4: Verify the measured numbers on the built site**
 
-Build, open a page in light mode, and check with the browser's contrast inspector:
-- a body link: expect ≥ 5.08:1
-- the current sidebar item: expect ≥ 5.55:1, **not** 4.23:1 — 4.23 means Step 2 did not take
+These are measured on a built site in Chromium, not computed — match them:
 
-Repeat in dark mode; both should be comfortable (12.44:1 and 7.83:1 measured).
+| | expect |
+| --- | --- |
+| light, body link | 5.08:1 |
+| light, current sidebar item | **5.55:1** — 4.23:1 means Step 2 did not take |
+| dark, body link | 12.50:1 |
+| dark, current sidebar item | 7.65:1 |
+
+Read the colors through a canvas (`fillStyle` + `getImageData`), not by parsing `getComputedStyle().backgroundColor` as text. Tailwind v4 emits `oklch()` and `color-mix()`, whose computed values are `color(srgb …)` with 0–1 channels; a naive `rgb()` parser silently produces garbage. That mistake was made here first, and it reported the pill at the wrong number.
 
 ---
 
@@ -281,7 +322,9 @@ One baseline exists: `packages/template/tests/visual/__screenshots__/darwin/side
 cd packages/template && npm run test:visual:update
 ```
 
-The committed baseline is `darwin` only, and CI runs Linux. Check how `playwright.config.mjs` and the CI job handle the platform split before assuming a macOS regeneration is enough — `packages/template/README.md` line 184 claims baselines ship for both.
+Baselines are committed for **both** platforms — `__screenshots__/darwin/` and `__screenshots__/linux/` — and `playwright.config.mjs` selects by `{platform}`. Both need regenerating, each on its own platform; a macOS run alone leaves CI (Linux) comparing against a stale baseline.
+
+**Unverified.** Whether the rebrand actually invalidates this baseline could not be established here: the `@screenshot` test fails in this container against the *untouched* baseline too, because the sandbox carries Chromium build 1194 where the pinned Playwright wants 1243. The failure is `toBeVisible()`, not a pixel diff. Treat the invalidation as expected but unconfirmed, and check it on a machine with the pinned browser.
 
 - [ ] **Step 2: Leave the CI deployment matcher alone**
 

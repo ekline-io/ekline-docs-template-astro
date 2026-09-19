@@ -124,3 +124,11 @@ by color and the mark; Instrument Sans and Newsreader are not being adopted.
 maintainer. The footer credit, the LICENSE copyright and the `@ekline` npm scope
 are unchanged. That matches "Relationship to EkLine" above: this is the child
 brand, not a replacement.
+
+## `preview/`
+
+Screenshots from the verification run described in
+`docs/superpowers/plans/2026-09-19-potluck-docs-rebrand.md`. Phases 1–2 were
+applied to a working copy, built and measured, then reverted; these are what
+that build looked like. They are review evidence, not assets — delete them once
+the rebrand has actually landed.
