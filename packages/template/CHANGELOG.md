@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to the EkLine docs template. This file is for people adopting
+Notable changes to Potluck Docs. This file is for people adopting
 or upgrading the template — it describes what changed for *your* docs site, not
 every commit.
 

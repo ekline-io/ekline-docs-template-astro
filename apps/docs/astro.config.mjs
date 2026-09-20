@@ -38,7 +38,15 @@ export default defineConfig({
 	integrations: [
 		sitemap(),
 		starlight({
-			title: 'EkLine docs template',
+			title: 'Potluck Docs',
+			// Two files, not one. The mark's well is paper on light and ink on
+			// dark, so a single image would put a white disc on the dark header —
+			// the brand package's first "Do not". Starlight swaps these itself.
+			logo: {
+				light: './src/assets/potluck-mark-light.svg',
+				dark: './src/assets/potluck-mark-dark.svg',
+				alt: 'Potluck Docs',
+			},
 			// TODO: point this at your own repository. It ships aimed at the
 			// template so the live preview links somewhere useful — it was the
 			// Starlight starter's own repo until now, which is not what a reader
@@ -82,9 +90,9 @@ export default defineConfig({
 					injectMarkdownRoutes: true,
 				}),
 				starlightLlmsTxt({
-					projectName: 'EkLine docs template',
+					projectName: 'Potluck Docs',
 					description:
-						'Documentation for the EkLine docs template — an Astro Starlight documentation site with a logged-in experience and interactive API references pre-wired, ready to fork and customize.',
+						'Documentation for Potluck Docs — an Astro Starlight documentation template with a logged-in experience and interactive API references pre-wired, ready to fork and customize.',
 				}),
 			],
 			// The nav groups are declared in `src/config/sidebar.mjs`. Edit that,
