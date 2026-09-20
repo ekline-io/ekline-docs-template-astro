@@ -8,6 +8,22 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.6.2
+
+### The template is now called Potluck Docs
+
+A rename, and nothing else. No code, configuration, dependency or default
+changed between 2.6.1 and 2.6.2, so there is nothing to pull across.
+
+What changed is the name you read: this file, `README.md` and `CLAUDE.md` say
+Potluck Docs where they said "the EkLine docs template". EkLine still maintains
+it, so the footer credit and the LICENSE are unchanged.
+
+The hosted documentation is branded to match. **Your site is not.** The template
+still ships the same neutral placeholders — the `My Docs` title, the same
+favicon, the same accent palette — because those are there for you to replace
+with your own brand.
+
 ## 2.6.1
 
 ### Replacing the example pages no longer fails `npm test`
