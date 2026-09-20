@@ -1,6 +1,6 @@
-# EkLine docs template — monorepo
+# Potluck Docs — monorepo
 
-The home of EkLine's recommended [Astro](https://astro.build/) +
+The home of Potluck Docs, EkLine's recommended [Astro](https://astro.build/) +
 [Starlight](https://starlight.astro.build/) documentation template.
 
 ## Are you here to build a docs site?

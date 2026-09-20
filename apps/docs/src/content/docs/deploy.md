@@ -1,6 +1,6 @@
 ---
 title: Deploy
-description: Deploying the EkLine docs template to Vercel, a Node host, Netlify or Cloudflare, or a static-only host — what each supports and the one setting that matters.
+description: Deploying Potluck Docs to Vercel, a Node host, Netlify or Cloudflare, or a static-only host — what each supports and the one setting that matters.
 ---
 
 **Deploy to Vercel unless you're already committed to self-hosting.** It's

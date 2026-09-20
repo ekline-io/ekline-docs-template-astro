@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This is a monorepo. It holds EkLine's docs-site template and, starting in Phase 2b, the sites EkLine hosts on top of it — each as an independent, standalone project rather than an npm workspace.
+This is a monorepo. It holds Potluck Docs — EkLine's docs-site template — and, starting in Phase 2b, the sites EkLine hosts on top of it — each as an independent, standalone project rather than an npm workspace.
 
 ## Layout
 

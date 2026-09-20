@@ -1,0 +1,16 @@
+:root {
+  /* Mark only. #FF5656 reaches 3.13:1 on white, so it can never carry text. */
+  --potluck-coral: #FF5656;
+
+  /* Text-safe accent. 5.1:1 on white, passes WCAG AA. Use for links. */
+  --potluck-coral-text: #D03025;
+
+  --potluck-ink: #231F20;
+  --potluck-ink-dim: #615B59;
+  --potluck-paper: #FFFFFF;
+  --potluck-ground: #F2F1F0;
+
+  --potluck-font-display: "Instrument Sans", system-ui, sans-serif;
+  --potluck-font-body: "Instrument Sans", system-ui, sans-serif;
+  --potluck-font-accent: "Newsreader", Georgia, serif;
+}

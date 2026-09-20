@@ -1,4 +1,4 @@
-# EkLine docs template
+# Potluck Docs
 
 A documentation site template built on [Astro](https://astro.build/) + [Starlight](https://starlight.astro.build/). Create your site with one command, replace the placeholder content, and ship.
 

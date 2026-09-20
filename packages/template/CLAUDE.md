@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-This is **your documentation site**, generated from EkLine's Starlight (Astro) template. The example pages, sidebar entries, and OpenAPI documents that came with it are placeholders — they exist so every feature is visible on real content, and they are meant to be replaced with yours.
+This is **your documentation site**, generated from the Potluck Docs template. The example pages, sidebar entries, and OpenAPI documents that came with it are placeholders — they exist so every feature is visible on real content, and they are meant to be replaced with yours.
 
 So the goal here is *your* site, not a tidy template: put your product's content in, delete the parts you don't use, and let it stop looking like a template as fast as possible. `README.md` has a table mapping "what you want to change" to the file that changes it.
 

@@ -1,4 +1,4 @@
-# EkLine docs template — documentation site
+# Potluck Docs — documentation site
 
 The source of the hosted documentation for
 [`packages/template/`](../../packages/template): how to configure the template,
