@@ -4,6 +4,8 @@
 
 **Scope, decided after the first draft of this plan:** the rebrand applies to `apps/docs/` (what EkLine hosts). `packages/template/` (what EkLine ships) changes in **prose only** — its README and CLAUDE.md name the product, nothing else moves. See [Why the template is out of scope](#why-the-template-is-out-of-scope).
 
+**The repository itself is renamed in a separate, later task.** Phase 5 is its inventory.
+
 **Brand package:** [`brand/`](../../../brand) — marks, favicons, color tokens, and two derived files built for this repo (`brand/derived/`). Read [`brand/README.md`](../../../brand/README.md) first; it carries the usage rules, including what the coral may not be used for.
 
 ---
@@ -27,7 +29,7 @@ The one exception is prose. The template's README and CLAUDE.md tell a customer 
 | Renaming the `ekline-theme-select` custom element | Breaking for anyone who had already forked and written CSS against the tag. |
 | Renaming `--ek-*` CSS variables and the `EkTheme` globals | Churn across six files for no reader-visible gain. |
 | Regenerating the Playwright screenshot baseline | `tests/visual/` is template-side and now untouched, so `sidebar-operations.png` stays valid on both platforms. This was also the one item the earlier verification run could not confirm. |
-| Renaming `packages/template/package.json` | The template is fetched as a directory, so the name is near-invisible; changing it churns the lockfile for nothing. |
+| Renaming the three `package.json` names | Not dropped — **moved to Phase 5**. They carry the repository's name, so they should move when it does, in one change rather than two. |
 
 ---
 
@@ -210,19 +212,68 @@ Then re-read both files as if you had just run `npm create astro` and received t
 
 ---
 
-## Phase 5 — URLs, repository, deployments (deferred)
+## Phase 5 — The repository rename (confirmed, a later task)
 
-Out of scope for now, by request. Recorded so the deferral is a decision rather than an oversight. Each item changes a published address.
+Not deferred indefinitely: the repository will be renamed to Potluck Docs in a
+separate task. This phase is its inventory, gathered now while the surface is
+fresh.
+
+**Scope:** 62 occurrences across 23 tracked files. `git grep` is authoritative —
+`dist/` carries hundreds more and is untracked, so a plain `grep -r` overcounts
+by an order of magnitude and sends you editing build output:
+
+```bash
+git grep -c -e "ekline-docs-template-astro" -e "ekline-docs-template-monorepo" \
+             -e "documentation-ekline-docs-template" -e "@ekline/docs-site" \
+          -- . ':!docs/superpowers' ':!brand'
+```
+
+`docs/superpowers/` is excluded on purpose: those are dated records of how this
+repo was built, and rewriting them to match a later rename makes them less
+accurate, not more.
+
+### What changes, and what each one breaks
 
 | What | Where | What breaks |
 | --- | --- | --- |
-| The adoption command's path | root `README.md`, `packages/template/README.md` ×2, `apps/docs` quickstart and README | `npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template` is published. A repo rename leaves a GitHub redirect for the web UI; verify `create-astro` follows it before relying on that. |
-| The GitHub repo URL | both `astro.config.mjs` social links, `apps/docs/src/loaders/wiki.mjs` (`REPO_BLOB`), `packages/template/README.md`, `apps/docs/tests/wiki-collection.test.mjs` | `wiki-collection.test.mjs` line 174 asserts on the URL with a regex, so it fails loudly — the right behavior. |
-| `documentation-ekline-docs-template.vercel.app` | ~20 links across `packages/template/` and `apps/docs/` | Every "see the hosted docs" link. |
-| `ekline-docs-template-astro.vercel.app` | live-preview links | Same. |
-| The two Vercel project slugs | `.github/workflows/ci.yml` lines 280–284 | The deployment smoke test picks a project by matching the environment name. Rename the projects and the job hits its `*)` branch and fails, deliberately. Update in the same change. |
+| The adoption command's path | root `README.md`, `packages/template/README.md` ×2, `apps/docs` quickstart and README | `npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template` is published. A repo rename leaves a GitHub redirect for the web UI; **verify `create-astro` follows it** before relying on that — this is the one item that breaks for people who are not us. |
+| The GitHub repo URL | both `astro.config.mjs` social links, `apps/docs/src/loaders/wiki.mjs` (`REPO_BLOB`), `packages/template/README.md`, `.github/workflows/ci.yml` | `apps/docs/tests/wiki-collection.test.mjs` line 174 asserts on this URL with a regex, so a half-rename fails loudly — the right behavior. |
+| `documentation-ekline-docs-template.vercel.app` | ~20 links in `packages/template/README.md`, plus `CLAUDE.md`, `wiki/` ×3, and `apps/docs` content | Every "see the hosted docs" link. |
+| `ekline-docs-template-astro.vercel.app` | live-preview links in both READMEs | Same. |
+| The two Vercel project slugs | `.github/workflows/ci.yml` lines 280–284 | The deployment smoke test picks a project by matching the environment name. Rename the projects and the job hits its `*)` branch and fails, deliberately. Update in the same commit. |
+| Three `package.json` names | root `ekline-docs-template-monorepo`, `packages/template` `ekline-docs-template-astro`, `apps/docs` `@ekline/docs-site` | Nothing published — the template is fetched as a directory and the other two are private. Cosmetic, but they are the repo's name in three places. |
+| Two `package-lock.json` root names | `packages/template/`, `apps/docs/` | See the warning below. |
+| `packages/template/CHANGELOG.md` | 4 references | History entries. Change the forward-looking prose; leave past entries describing what was true then. |
 
-**Sequence:** rename the GitHub repo first and confirm `create-astro` follows the redirect; then the Vercel projects together with the CI matcher in one commit; then the prose links, once the new domains are live. Prose first leaves the docs pointing at 404s for the length of the migration.
+### Regenerating the lockfiles: `--package-lock-only`, nothing more
+
+A lockfile's root `"name"` tracks its `package.json`, so both need updating. Do
+it with:
+
+```bash
+npm --prefix packages/template install --package-lock-only
+npm --prefix apps/docs install --package-lock-only
+```
+
+**Do not take the opportunity to re-resolve dependencies.** The root
+`CLAUDE.md` records that a from-scratch resolve here has produced an
+Astro/Vite combination that breaks `@tailwindcss/vite`, and `packages/template`'s
+lockfile is the one every customer receives — an unlocked or badly resolved
+install is their first experience of the product. A name change should move one
+line per file; check `git diff --stat` and be suspicious of anything larger.
+
+Hand-editing the name instead is also fine and arguably safer, since it cannot
+re-resolve anything. What is not fine is `npm install` without the flag.
+
+### Sequence
+
+1. Rename the GitHub repo. Confirm `create-astro` follows the redirect before
+   anything depends on it.
+2. Rename the two Vercel projects **together with** the CI matcher, in one
+   commit — they fail as a pair otherwise.
+3. Then the prose links, once the new domains are live.
+
+Prose first leaves the docs pointing at 404s for the length of the migration.
 
 ---
 
