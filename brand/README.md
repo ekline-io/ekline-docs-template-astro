@@ -117,8 +117,13 @@ by color and the mark; Instrument Sans and Newsreader are not being adopted.
 
 | File | Where it goes |
 |---|---|
-| `derived/favicon.svg` | `public/favicon.svg` in each site — one file that swaps the well and bars on `prefers-color-scheme`, so a single favicon covers both themes |
-| `derived/accent-ramp.css` | the `@theme` block of each site's `src/styles/global.css` |
+| `derived/favicon.svg` | `apps/docs/public/favicon.svg` — one file that swaps the well and bars on `prefers-color-scheme`, so a single favicon covers both themes |
+| `derived/accent-ramp.css` | the `@theme` block of `apps/docs/src/styles/global.css` |
+
+**The hosted docs site only.** The template a customer receives keeps its
+neutral placeholders — its own favicon, the violet accent ramp, no logo. Putting
+this brand in there would make it every customer's default, which is what
+`packages/template/CLAUDE.md` forbids.
 
 **EkLine stays.** Potluck Docs is the product name; EkLine remains the
 maintainer. The footer credit, the LICENSE copyright and the `@ekline` npm scope
@@ -128,7 +133,7 @@ brand, not a replacement.
 ## `preview/`
 
 Screenshots from the verification run described in
-`docs/superpowers/plans/2026-09-19-potluck-docs-rebrand.md`. Phases 1–2 were
-applied to a working copy, built and measured, then reverted; these are what
-that build looked like. They are review evidence, not assets — delete them once
+`docs/superpowers/plans/2026-09-19-potluck-docs-rebrand.md`. The rebrand was
+applied to a working copy of the hosted docs site, built and measured, then
+reverted; these are what that build looked like. They are review evidence, not assets — delete them once
 the rebrand has actually landed.
