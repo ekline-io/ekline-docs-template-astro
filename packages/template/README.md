@@ -4,17 +4,17 @@ A documentation site template built on [Astro](https://astro.build/) + [Starligh
 
 [![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
 
-**Full documentation:** <https://potluck-docs.vercel.app>
+**Full documentation:** <https://potluck.ekline.io>
 — every setting in this template, what it does, and what happens if you leave
 it alone. This README covers what you need before you have a browser open;
 that site covers everything else.
 
-**Live preview:** <https://potluck-docs-demo.vercel.app/>
+**Live preview:** <https://potluck-demo.ekline.io/>
 
 The preview has the **demo login** enabled — click **Log in**, pick a persona,
 and see private and per-org docs work (try Acme's reader on Globex's section
 for the 404). It is the same template with `DOCS_UNSAFE_DEMO_LOGIN=1` set —
-see [Trying it without SSO](https://potluck-docs.vercel.app/demo-login/).
+see [Trying it without SSO](https://potluck.ekline.io/demo-login/).
 To run the logged-in experience locally: copy `.env.example` to `.env`,
 `npm run dev:sso` in one terminal, `npm run dev` in another, then click
 **Log in**.
@@ -23,12 +23,12 @@ To run the logged-in experience locally: copy `.env.example` to `.env`,
 
 So you don't have to set these up yourself:
 
-- **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [Branding and theming](https://potluck-docs.vercel.app/branding/).
-- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Three example APIs ship — two bundled files, one per layout, plus one fetched from a remote URL so you can see that case working too. Delete the ones you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [API reference](https://potluck-docs.vercel.app/api-reference/).
-- **Private and per-org docs** behind your own SSO — server-enforced, so private pages never reach an anonymous browser. See [How it works](https://potluck-docs.vercel.app/how-it-works/) and [Private and per-org docs](#private-and-per-org-docs) below.
+- **Tailwind v4** styling, with a single-file global theme — change colors, fonts, and tokens in `src/styles/global.css`. See [Branding and theming](https://potluck.ekline.io/branding/).
+- **Interactive API references** rendered by [Scalar](https://scalar.com/) — schemas, examples, and a built-in client for sending real requests. Three example APIs ship — two bundled files, one per layout, plus one fetched from a remote URL so you can see that case working too. Delete the ones you don't need; operations are listed in the docs sidebar, generated from your spec on each build. See [API reference](https://potluck.ekline.io/api-reference/).
+- **Private and per-org docs** behind your own SSO — server-enforced, so private pages never reach an anonymous browser. See [How it works](https://potluck.ekline.io/how-it-works/) and [Private and per-org docs](#private-and-per-org-docs) below.
 - **Sitemap** auto-generated on build (`sitemap-index.xml` + `sitemap-0.xml`).
 - **`llms.txt`** for AI assistants — `/llms.txt`, `/llms-full.txt`, and `/llms-small.txt`.
-- **Markdown for AI agents** — every page has a `.md` twin (`/guides/example.md`), advertised with `<link rel="alternate" type="text/markdown">`, and on Vercel a request with `Accept: text/markdown` gets it at the page's own URL. See [Search and AI](https://potluck-docs.vercel.app/search-and-ai/).
+- **Markdown for AI agents** — every page has a `.md` twin (`/guides/example.md`), advertised with `<link rel="alternate" type="text/markdown">`, and on Vercel a request with `Accept: text/markdown` gets it at the page's own URL. See [Search and AI](https://potluck.ekline.io/search-and-ai/).
 - **Full-text search** out of the box (Starlight ships [Pagefind](https://pagefind.app/)).
 - **Dark / light mode** with system preference detection.
 - **Footer credit** rendered on every page via a Starlight `Footer` component override.
@@ -81,17 +81,17 @@ npm create astro@latest -- \
 
 | What you want to change | Where to do it |
 | --- | --- |
-| Site title, sidebar, social links | `astro.config.mjs` — see [Site basics](https://potluck-docs.vercel.app/site-basics/) |
+| Site title, sidebar, social links | `astro.config.mjs` — see [Site basics](https://potluck.ekline.io/site-basics/) |
 | **Site URL** (required for sitemap + llms.txt) | `site` field in `astro.config.mjs`, or the `DOCS_SITE_URL` env var |
-| Theme colors, fonts | `src/styles/global.css` — see [Branding and theming](https://potluck-docs.vercel.app/branding/) |
+| Theme colors, fonts | `src/styles/global.css` — see [Branding and theming](https://potluck.ekline.io/branding/) |
 | Homepage content | `src/content/docs/index.mdx` |
-| **API reference** | Replace `public/openapi.yaml`, and edit `src/config/api-reference.mjs` — see [API reference](https://potluck-docs.vercel.app/api-reference/) |
-| Add a new page | Create a `.md` or `.mdx` file under `src/content/docs/` — see [Writing content](https://potluck-docs.vercel.app/writing-content/) |
-| **Private / per-org pages** | `src/content/private-docs/`, `src/content/org-docs/<org>/` — see [Writing private and per-org content](https://potluck-docs.vercel.app/private-content/) |
+| **API reference** | Replace `public/openapi.yaml`, and edit `src/config/api-reference.mjs` — see [API reference](https://potluck.ekline.io/api-reference/) |
+| Add a new page | Create a `.md` or `.mdx` file under `src/content/docs/` — see [Writing content](https://potluck.ekline.io/writing-content/) |
+| **Private / per-org pages** | `src/content/private-docs/`, `src/content/org-docs/<org>/` — see [Writing private and per-org content](https://potluck.ekline.io/private-content/) |
 | Logo, favicon | `public/favicon.svg`, plus the `logo` field in `astro.config.mjs` |
 | Footer credit | `src/components/CustomFooter.astro` |
 
-For a walkthrough of each setting, see the [hosted docs](https://potluck-docs.vercel.app). For anything not covered there, check the [Starlight docs](https://starlight.astro.build/) — the source of truth for sidebar groups, component overrides, content collection schema, i18n, and more.
+For a walkthrough of each setting, see the [hosted docs](https://potluck.ekline.io). For anything not covered there, check the [Starlight docs](https://starlight.astro.build/) — the source of truth for sidebar groups, component overrides, content collection schema, i18n, and more.
 
 ## Private and per-org docs
 
@@ -110,11 +110,11 @@ working reference implementation, and doubles as the local dev login (copy
 The full contract — the endpoint's code, the three things that make it work,
 and the one branch (a reader who isn't signed in yet) that a signed-in
 developer never exercises and so never tests — is on the hosted docs:
-[How it works](https://potluck-docs.vercel.app/how-it-works/),
-[Setting it up](https://potluck-docs.vercel.app/sso-setup/),
-[Trying it without SSO](https://potluck-docs.vercel.app/demo-login/)
+[How it works](https://potluck.ekline.io/how-it-works/),
+[Setting it up](https://potluck.ekline.io/sso-setup/),
+[Trying it without SSO](https://potluck.ekline.io/demo-login/)
 (the `DOCS_UNSAFE_DEMO_LOGIN` persona picker the live preview above uses), and
-[Writing private and per-org content](https://potluck-docs.vercel.app/private-content/).
+[Writing private and per-org content](https://potluck.ekline.io/private-content/).
 
 Before relying on any of this, read [`wiki/private-docs.md`](./wiki/private-docs.md)
 — the security constraints there (prerender flags, 404-not-403, fail-closed env
@@ -126,7 +126,7 @@ fork that hasn't wired SSO yet? Nothing to do. With the `DOCS_*` variables
 unset, the **Log in** control and the sidebar's **Private docs** entry are
 absent from the build, and the guard fails closed: `/private/**` answers a
 bare 404 rather than becoming reachable. See
-[Environment variables](https://potluck-docs.vercel.app/environment-variables/).
+[Environment variables](https://potluck.ekline.io/environment-variables/).
 
 ### Don't need private docs?
 
@@ -146,7 +146,7 @@ Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/p
 
 **If you are also removing the API reference**, the Playwright suite has nothing left to test: delete `playwright.config.mjs`, `tests/visual/`, `tests/helpers/test-servers.mjs`, and the three `test:visual*` scripts, then uninstall `@playwright/test`.
 
-*These instructions were executed end to end when EkLine built its own documentation site from this template, and corrected from what that run actually hit.* The hosted docs' [Removing what you don't need](https://potluck-docs.vercel.app/removing-features/) page covers the same ground alongside removing the API reference.
+*These instructions were executed end to end when EkLine built its own documentation site from this template, and corrected from what that run actually hit.* The hosted docs' [Removing what you don't need](https://potluck.ekline.io/removing-features/) page covers the same ground alongside removing the API reference.
 
 ## Deploy
 
@@ -161,7 +161,7 @@ Delete the feature: `src/content/private-docs/`, `src/content/org-docs/`, `src/p
 
 There is no longer a flat `dist/` folder you can host anywhere: on Netlify, Cloudflare Pages and GitHub Pages, `VERCEL` is unset, so an unmodified template hands them the **Node** adapter — a server bundle none of them runs.
 
-See the hosted docs' [Deploy](https://potluck-docs.vercel.app/deploy/) page for target-by-target notes (including a Vercel ISR setting to leave alone if sign-in is on), Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform, and [`wiki/private-docs.md`](./wiki/private-docs.md) for the adapter and output-path details.
+See the hosted docs' [Deploy](https://potluck.ekline.io/deploy/) page for target-by-target notes (including a Vercel ISR setting to leave alone if sign-in is on), Astro's [deploy guides](https://docs.astro.build/en/guides/deploy/) for step-by-step instructions per platform, and [`wiki/private-docs.md`](./wiki/private-docs.md) for the adapter and output-path details.
 
 > **Before deploying, set the `site` URL** in `astro.config.mjs` to your real domain, or set `DOCS_SITE_URL` in the build environment. The sitemap and `llms.txt` files use it to emit absolute URLs.
 
@@ -191,7 +191,7 @@ It is linked rather than local on purpose: `npm create astro` strips `CHANGELOG.
 
 ## Learn more
 
-- [Hosted docs](https://potluck-docs.vercel.app) — every setting in this template, explained.
+- [Hosted docs](https://potluck.ekline.io) — every setting in this template, explained.
 - [Starlight docs](https://starlight.astro.build/) — sidebar, components, content schema, theming.
 - [Astro docs](https://docs.astro.build/) — routing, integrations, deployment.
 - [Starlight plugin showcase](https://starlight.astro.build/resources/plugins/) — search, i18n, OG images, redirects, and more.

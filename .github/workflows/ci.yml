@@ -242,21 +242,13 @@ jobs:
       # the project name as a substring. One project name has always contained
       # another, which makes the ARM ORDER load-bearing rather than cosmetic:
       #
-      #   `potluck-docs-demo`                  contains `potluck-docs`
-      #   `documentation-ekline-docs-template` contains `ekline-docs-template`
+      #   `potluck-docs-demo` contains `potluck-docs`
       #
-      # so the longer name has to be tested first in each pair, or the looser
-      # pattern swallows both projects. Note the containment runs OPPOSITE ways
-      # for the two naming schemes — under `ekline-*` the docs slug was the
-      # longer one, under `potluck-*` the demo slug is. Re-derive it; do not
-      # assume it carries over.
-      #
-      # TRANSITIONAL: both schemes are accepted while the Vercel projects are
-      # renamed (`documentation-ekline-docs-template` -> `potluck-docs`,
-      # `ekline-docs-template-astro` -> `potluck-docs-demo`). Accepting both
-      # means this job does not care whether the rename lands before or after
-      # this file merges. Delete the two `ekline-*` arms once the Vercel
-      # projects carry the new names — they then match nothing.
+      # so the demo arm has to be tested first, or the looser `potluck-docs`
+      # pattern swallows both projects. The previous `ekline-*` names nested
+      # the OPPOSITE way — the docs slug was the longer one and went first — so
+      # if these are ever renamed again, re-derive the order rather than
+      # assuming it carries over.
       #
       # An environment matching none of them fails loudly rather than guessing,
       # because guessing would mean running one site's assertions against the
@@ -295,11 +287,11 @@ jobs:
           }
 
           case "$ENVIRONMENT" in
-            *potluck-docs-demo*|*ekline-docs-template-astro*)
+            *potluck-docs-demo*)
               PROJECT=packages/template
               export DOCS_SMOKE_BYPASS="$BYPASS_TEMPLATE"
               ;;
-            *documentation-ekline-docs-template*|*potluck-docs*)
+            *potluck-docs*)
               PROJECT=apps/docs
               export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
               ;;

@@ -1,6 +1,6 @@
 # Theming
 
-> This is the maintainer-facing deep end: how the theming plumbing is wired, for whoever edits it next. For day-to-day guidance on reskinning your site, see the hosted docs' [Branding and theming](https://potluck-docs.vercel.app/branding/) page.
+> This is the maintainer-facing deep end: how the theming plumbing is wired, for whoever edits it next. For day-to-day guidance on reskinning your site, see the hosted docs' [Branding and theming](https://potluck.ekline.io/branding/) page.
 
 This template uses Tailwind CSS v4 with Starlight. The whole theme lives in one file: `src/styles/global.css`. To retheme the site, edit that file. No other files need to change.
 

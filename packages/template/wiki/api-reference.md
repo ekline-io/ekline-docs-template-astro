@@ -1,6 +1,6 @@
 # API reference
 
-> This is the maintainer-facing deep end: constraints for whoever edits the API-reference code next. For how to configure and customize the API reference as a customer, see the hosted docs' [API reference](https://potluck-docs.vercel.app/api-reference/) and [Customizing the API reference](https://potluck-docs.vercel.app/api-reference-appearance/) pages.
+> This is the maintainer-facing deep end: constraints for whoever edits the API-reference code next. For how to configure and customize the API reference as a customer, see the hosted docs' [API reference](https://potluck.ekline.io/api-reference/) and [Customizing the API reference](https://potluck.ekline.io/api-reference-appearance/) pages.
 
 API references are rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro).
 

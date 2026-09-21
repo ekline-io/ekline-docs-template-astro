@@ -22,12 +22,13 @@ GitHub redirects the old path, so the previous command still works — but it
 redirects, and redirects are not forever. Update any copy of it you keep in
 your own runbooks or CI.
 
-The hosted documentation moved with it, from
-`documentation-ekline-docs-template.vercel.app` to
-<https://potluck-docs.vercel.app>. **The old address does not redirect** —
-Vercel releases a renamed project's domain rather than forwarding it — so any
-link you saved to a specific page needs repointing. The live preview of this
-template is now at <https://potluck-docs-demo.vercel.app>.
+The hosted documentation is now at <https://potluck.ekline.io>, and the live
+preview of this template at <https://potluck-demo.ekline.io>.
+
+The previous addresses — `documentation-ekline-docs-template.vercel.app` and
+`ekline-docs-template-astro.vercel.app` — still resolve, so a link you saved
+earlier is not broken. They name the old product, though, and nothing
+guarantees they stay assigned, so prefer the addresses above.
 
 Nothing in the template itself changed: same code, same dependencies, same
 defaults. `package.json`'s `name` is now `potluck-docs`, which matters only if
@@ -379,7 +380,7 @@ serves its documents from under that prefix like everything else.
 
 **Upgrading:** an entry that still sets `specUrl` keeps working unchanged; the
 value is used as-is. See
-[API reference](https://potluck-docs.vercel.app/api-reference/)
+[API reference](https://potluck.ekline.io/api-reference/)
 for the three cases.
 
 ### A third example reference, fetched over the network
@@ -462,14 +463,14 @@ are unchanged.
   being true once `themeControl` is `'none'`.
 
 Configuration guidance is on the hosted docs under
-[Branding and theming](https://potluck-docs.vercel.app/branding/);
+[Branding and theming](https://potluck.ekline.io/branding/);
 the mechanics are in `wiki/theming.md`.
 
 ## 2.2.0
 
 ### There is now hosted documentation
 
-<https://potluck-docs.vercel.app>
+<https://potluck.ekline.io>
 
 Configuration guides for everything the template does — branding, navigation,
 API references and their two layout modes, the logged-in experience, and a
