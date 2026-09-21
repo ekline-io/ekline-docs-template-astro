@@ -1,6 +1,6 @@
 # Private and per-org docs
 
-> This is the maintainer-facing deep end: the security constraints behind the logged-in experience, for whoever edits this code next. For how to configure and use private and per-org docs as a customer, see the hosted docs' [logged-in experience section](https://documentation-ekline-docs-template.vercel.app/how-it-works/).
+> This is the maintainer-facing deep end: the security constraints behind the logged-in experience, for whoever edits this code next. For how to configure and use private and per-org docs as a customer, see the hosted docs' [logged-in experience section](https://potluck.ekline.io/how-it-works/).
 
 The logged-in experience: pages any signed-in reader can see, and pages written for one customer. Read this before touching `src/middleware.ts`, `src/pages/private/`, `src/pages/auth/`, `src/lib/auth/`, or the `privateDocs` / `orgDocs` collections in [`src/content.config.ts`](../src/content.config.ts).
 

@@ -75,7 +75,7 @@ working.
 
 GitHub Pages, S3, or anywhere that just serves files can't run a server, so
 the logged-in tier has to go first — see [*Don't need private
-docs?*](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/packages/template/README.md#dont-need-private-docs)
+docs?*](https://github.com/ekline-io/potluck-docs/blob/main/packages/template/README.md#dont-need-private-docs)
 in the template's README. Skip that and `astro.config.mjs` still picks an
 adapter the same way it always does: `dist/` exists, but as the parent of
 `dist/client/` and `dist/server/`, with no `dist/index.html` at the root for

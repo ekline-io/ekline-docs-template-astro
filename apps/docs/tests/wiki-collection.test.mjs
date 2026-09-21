@@ -171,7 +171,7 @@ test('the rewrite points at the file it named, not just somewhere', () => {
 	const html = readFileSync(join(STATIC_DIR, 'internals', 'api-reference', 'index.html'), 'utf8');
 	assert.match(
 		html,
-		/github\.com\/ekline-io\/ekline-docs-template-astro\/blob\/main\/packages\/template\/src\/config\/api-reference\.mjs/,
+		/github\.com\/ekline-io\/potluck-docs\/blob\/main\/packages\/template\/src\/config\/api-reference\.mjs/,
 		'the ../src/config/api-reference.mjs link did not resolve to the template root'
 	);
 });

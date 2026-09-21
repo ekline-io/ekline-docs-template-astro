@@ -8,7 +8,7 @@ The home of Potluck Docs, EkLine's recommended [Astro](https://astro.build/) +
 Then you want the template, not this repository:
 
 ```bash
-npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
+npm create astro@latest -- --template ekline-io/potluck-docs/packages/template --no-ai
 ```
 
 That fetches [`packages/template/`](./packages/template) — the whole product,
@@ -19,11 +19,11 @@ lockfile included — and leaves you a plain directory to make your own. Its
 the button copies whole repositories, so it would hand you the build tooling and
 EkLine's own sites along with it.
 
-**Live preview:** <https://ekline-docs-template-astro.vercel.app/> — with the
+**Live preview:** <https://potluck-demo.ekline.io/> — with the
 demo login enabled, so you can sign in as a fake reader and see the private and
 per-org docs work.
 
-**Documentation:** <https://documentation-ekline-docs-template.vercel.app> —
+**Documentation:** <https://potluck.ekline.io> —
 every setting in the template, what it does, and what happens if you leave it
 alone.
 
@@ -32,7 +32,7 @@ alone.
 | Path | What it is |
 | --- | --- |
 | [`packages/template/`](./packages/template) | The template EkLine ships. Self-contained: its own `package.json`, its own committed lockfile, its own `CLAUDE.md`. This is what the command above copies. |
-| [`apps/docs/`](./apps/docs) | The hosted documentation for the template — how to configure it, what every setting does. Built with the template itself. Live at <https://documentation-ekline-docs-template.vercel.app>. |
+| [`apps/docs/`](./apps/docs) | The hosted documentation for the template — how to configure it, what every setting does. Built with the template itself. Live at <https://potluck.ekline.io>. |
 | `docs/superpowers/` | Design specs and implementation plans. Development history; never part of what a customer receives. |
 
 ## Working in this repo
