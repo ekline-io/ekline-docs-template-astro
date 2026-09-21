@@ -27,7 +27,7 @@ export default defineConfig({
 	// In the repo it is reviewed and cannot be forgotten at deploy time. Preview
 	// deployments emit production canonicals, which is fine here: previews should
 	// not be indexed anyway.
-	site: 'https://documentation-ekline-docs-template.vercel.app',
+	site: 'https://potluck-docs.vercel.app',
 	// Vercel builds set VERCEL=1. Nothing here renders on demand, so the adapter
 	// changes only where the static output lands (`.vercel/output/static/`) and
 	// the routing config that serves it — which is what markdown negotiation
@@ -55,7 +55,7 @@ export default defineConfig({
 				{
 					icon: 'github',
 					label: 'GitHub',
-					href: 'https://github.com/ekline-io/ekline-docs-template-astro',
+					href: 'https://github.com/ekline-io/potluck-docs',
 				},
 			],
 			customCss: ['./src/styles/global.css'],

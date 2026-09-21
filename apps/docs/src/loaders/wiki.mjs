@@ -154,7 +154,7 @@ export function listWikiEntries() {
  * Only `./` and `../` links are touched. Absolute URLs, anchors, and
  * site-relative links are left alone.
  */
-const REPO_BLOB = 'https://github.com/ekline-io/ekline-docs-template-astro/blob/main/packages/template';
+const REPO_BLOB = 'https://github.com/ekline-io/potluck-docs/blob/main/packages/template';
 
 /**
  * @param {string} markdown Raw wiki markdown, before rendering.

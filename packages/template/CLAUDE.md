@@ -12,7 +12,7 @@ Verified baseline: Astro `^6.4.7`, Starlight `^0.40.0`, Node 22.x.
 
 ## Hosted documentation
 
-Every setting in this site — what it does, and what happens if you leave it alone — is documented at <https://documentation-ekline-docs-template.vercel.app>. Its Internals section is the same material as `wiki/`, which shipped with your copy.
+Every setting in this site — what it does, and what happens if you leave it alone — is documented at <https://potluck-docs.vercel.app>. Its Internals section is the same material as `wiki/`, which shipped with your copy.
 
 Check there before writing new prose into `README.md` or the wiki; that site is where the configuration material lives.
 

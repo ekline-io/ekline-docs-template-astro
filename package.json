@@ -1,5 +1,5 @@
 {
-  "name": "ekline-docs-template-monorepo",
+  "name": "potluck-docs-monorepo",
   "private": true,
   "type": "module",
   "description": "Task runner for the repo. Each project under packages/ and apps/ is independent, with its own package.json and its own committed lockfile — see docs/superpowers/plans/2026-08-21-monorepo-move.md for why this is not an npm workspace.",

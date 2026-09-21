@@ -1,6 +1,6 @@
 # API reference
 
-> This is the maintainer-facing deep end: constraints for whoever edits the API-reference code next. For how to configure and customize the API reference as a customer, see the hosted docs' [API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/) and [Customizing the API reference](https://documentation-ekline-docs-template.vercel.app/api-reference-appearance/) pages.
+> This is the maintainer-facing deep end: constraints for whoever edits the API-reference code next. For how to configure and customize the API reference as a customer, see the hosted docs' [API reference](https://potluck-docs.vercel.app/api-reference/) and [Customizing the API reference](https://potluck-docs.vercel.app/api-reference-appearance/) pages.
 
 API references are rendered by [Scalar](https://scalar.com/) through its official Astro integration, [`@scalar/astro`](https://scalar.com/products/api-references/integrations/astro).
 
@@ -164,7 +164,7 @@ Scalar is MIT licensed. That requires the copyright notice to travel with the so
 
 ### What runs automatically
 
-Nothing, until you wire it up — no CI configuration ships with your copy. The template's own [CI workflow](https://github.com/ekline-io/ekline-docs-template-astro/blob/main/.github/workflows/ci.yml) runs `npm run check`, `npm test`, and `npm run test:visual:ci` — the whole browser suite, screenshots included — on every pull request and on pushes to `main`; that file lives at the template repository's root, so it did not travel with the directory. It is a reasonable set to copy. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so once you deploy there, a failure blocks the deploy.
+Nothing, until you wire it up — no CI configuration ships with your copy. The template's own [CI workflow](https://github.com/ekline-io/potluck-docs/blob/main/.github/workflows/ci.yml) runs `npm run check`, `npm test`, and `npm run test:visual:ci` — the whole browser suite, screenshots included — on every pull request and on pushes to `main`; that file lives at the template repository's root, so it did not travel with the directory. It is a reasonable set to copy. Separately, the Vercel build runs `npm test` (`buildCommand` in `vercel.json`), so once you deploy there, a failure blocks the deploy.
 
 The browser tests matter most. Every integration bug this reference has had — a blank reference after client-side navigation, white seams in dark mode, the API client rendering underneath the sidebar, method badges coming out white-on-white — produced a page that **built perfectly**. `npm test` reads build output and cannot see paint order, theme classes, or scroll behaviour. Only the browser suite can.
 

@@ -238,11 +238,14 @@ jobs:
       # this job exists to catch. Picking the project inside the step keeps the
       # log honest: one step, one outcome, always green or red.
       #
-      # `documentation-ekline-docs-template` contains `ekline-docs-template` as
-      # a substring, so the docs slug is matched first — a looser template
-      # pattern first would fire on both projects. An environment matching
-      # neither fails loudly rather than guessing, because guessing would mean
-      # running one site's assertions against the other's URL.
+      # `potluck-docs-demo` contains `potluck-docs` as a substring, so the
+      # demo slug is matched first — the looser `potluck-docs` pattern first
+      # would fire on both projects. Note the containment runs the opposite way
+      # from the old `ekline-*` names, where the docs slug was the longer one
+      # and had to go first; the order here is not arbitrary and flips with the
+      # names. An environment matching neither fails loudly rather than
+      # guessing, because guessing would mean running one site's assertions
+      # against the other's URL.
       #
       # There is one bypass secret per Vercel project, not one per team.
       # Vercel's docs: "You can use each available secret to bypass Deployment
@@ -277,13 +280,13 @@ jobs:
           }
 
           case "$ENVIRONMENT" in
-            *documentation-ekline-docs-template*)
-              PROJECT=apps/docs
-              export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
-              ;;
-            *ekline-docs-template-astro*)
+            *potluck-docs-demo*)
               PROJECT=packages/template
               export DOCS_SMOKE_BYPASS="$BYPASS_TEMPLATE"
+              ;;
+            *potluck-docs*)
+              PROJECT=apps/docs
+              export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
               ;;
             *)
               echo "::error::Unrecognized deployment environment '$ENVIRONMENT' — the project split in this job needs updating for this environment name."

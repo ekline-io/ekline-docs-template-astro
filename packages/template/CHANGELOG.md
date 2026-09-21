@@ -8,6 +8,31 @@ The template is something you fork rather than install, so a new version is not
 something you upgrade into. Use these notes to decide whether a change is worth
 pulling across into a site you have already customised.
 
+## 2.6.3
+
+### The repository moved to `ekline-io/potluck-docs`
+
+The command that creates a site from this template changed:
+
+```bash
+npm create astro@latest -- --template ekline-io/potluck-docs/packages/template --no-ai
+```
+
+GitHub redirects the old path, so the previous command still works — but it
+redirects, and redirects are not forever. Update any copy of it you keep in
+your own runbooks or CI.
+
+The hosted documentation moved with it, from
+`documentation-ekline-docs-template.vercel.app` to
+<https://potluck-docs.vercel.app>. **The old address does not redirect** —
+Vercel releases a renamed project's domain rather than forwarding it — so any
+link you saved to a specific page needs repointing. The live preview of this
+template is now at <https://potluck-docs-demo.vercel.app>.
+
+Nothing in the template itself changed: same code, same dependencies, same
+defaults. `package.json`'s `name` is now `potluck-docs`, which matters only if
+you never renamed it after adopting.
+
 ## 2.6.2
 
 ### The template is now called Potluck Docs
@@ -354,7 +379,7 @@ serves its documents from under that prefix like everything else.
 
 **Upgrading:** an entry that still sets `specUrl` keeps working unchanged; the
 value is used as-is. See
-[API reference](https://documentation-ekline-docs-template.vercel.app/api-reference/)
+[API reference](https://potluck-docs.vercel.app/api-reference/)
 for the three cases.
 
 ### A third example reference, fetched over the network
@@ -437,14 +462,14 @@ are unchanged.
   being true once `themeControl` is `'none'`.
 
 Configuration guidance is on the hosted docs under
-[Branding and theming](https://documentation-ekline-docs-template.vercel.app/branding/);
+[Branding and theming](https://potluck-docs.vercel.app/branding/);
 the mechanics are in `wiki/theming.md`.
 
 ## 2.2.0
 
 ### There is now hosted documentation
 
-<https://documentation-ekline-docs-template.vercel.app>
+<https://potluck-docs.vercel.app>
 
 Configuration guides for everything the template does — branding, navigation,
 API references and their two layout modes, the logged-in experience, and a
@@ -477,7 +502,7 @@ if you would rather write your own.
 ### How you create a site from this template has changed
 
 ```bash
-npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template
+npm create astro@latest -- --template ekline-io/potluck-docs/packages/template
 ```
 
 The GitHub **"Use this template"** button no longer works for this, and the

@@ -7,7 +7,7 @@ what every setting does, and how the pieces fit together.
 This is not the template. If you are here to build a docs site, run:
 
 ```bash
-npm create astro@latest -- --template ekline-io/ekline-docs-template-astro/packages/template --no-ai
+npm create astro@latest -- --template ekline-io/potluck-docs/packages/template --no-ai
 ```
 
 ## Running it
@@ -37,7 +37,7 @@ have exactly one copy — the one that sits beside the code it describes. See
 
 ## Deployment
 
-Its own Vercel project (`documentation-ekline-docs-template`), Root Directory
+Its own Vercel project (`potluck-docs`), Root Directory
 `apps/docs`. No environment variables — `site` is hardcoded in
 `astro.config.mjs`, unlike the template's, which is an env var because one
 build serves many customers' environments. Here it is one domain we own, so

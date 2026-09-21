@@ -31,7 +31,7 @@ social: [
   {
     icon: 'github',
     label: 'GitHub',
-    href: 'https://github.com/ekline-io/ekline-docs-template-astro',
+    href: 'https://github.com/ekline-io/potluck-docs',
   },
 ],
 ```
