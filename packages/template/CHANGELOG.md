@@ -26,9 +26,9 @@ The hosted documentation is now at <https://potluck.ekline.io>, and the live
 preview of this template at <https://potluck-demo.ekline.io>.
 
 The previous addresses — `documentation-ekline-docs-template.vercel.app` and
-`ekline-docs-template-astro.vercel.app` — still resolve, so a link you saved
-earlier is not broken. They name the old product, though, and nothing
-guarantees they stay assigned, so prefer the addresses above.
+`ekline-docs-template-astro.vercel.app` — still point at these two sites, so a
+link you saved earlier is not broken. They name the old product, though, and
+nothing guarantees they stay, so prefer the addresses above.
 
 Nothing in the template itself changed: same code, same dependencies, same
 defaults. `package.json`'s `name` is now `potluck-docs`, which matters only if
