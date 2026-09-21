@@ -238,14 +238,29 @@ jobs:
       # this job exists to catch. Picking the project inside the step keeps the
       # log honest: one step, one outcome, always green or red.
       #
-      # `potluck-docs-demo` contains `potluck-docs` as a substring, so the
-      # demo slug is matched first — the looser `potluck-docs` pattern first
-      # would fire on both projects. Note the containment runs the opposite way
-      # from the old `ekline-*` names, where the docs slug was the longer one
-      # and had to go first; the order here is not arbitrary and flips with the
-      # names. An environment matching neither fails loudly rather than
-      # guessing, because guessing would mean running one site's assertions
-      # against the other's URL.
+      # `$ENVIRONMENT` is `Preview – <vercel project name>`, so these match on
+      # the project name as a substring. One project name has always contained
+      # another, which makes the ARM ORDER load-bearing rather than cosmetic:
+      #
+      #   `potluck-docs-demo`                  contains `potluck-docs`
+      #   `documentation-ekline-docs-template` contains `ekline-docs-template`
+      #
+      # so the longer name has to be tested first in each pair, or the looser
+      # pattern swallows both projects. Note the containment runs OPPOSITE ways
+      # for the two naming schemes — under `ekline-*` the docs slug was the
+      # longer one, under `potluck-*` the demo slug is. Re-derive it; do not
+      # assume it carries over.
+      #
+      # TRANSITIONAL: both schemes are accepted while the Vercel projects are
+      # renamed (`documentation-ekline-docs-template` -> `potluck-docs`,
+      # `ekline-docs-template-astro` -> `potluck-docs-demo`). Accepting both
+      # means this job does not care whether the rename lands before or after
+      # this file merges. Delete the two `ekline-*` arms once the Vercel
+      # projects carry the new names — they then match nothing.
+      #
+      # An environment matching none of them fails loudly rather than guessing,
+      # because guessing would mean running one site's assertions against the
+      # other's URL.
       #
       # There is one bypass secret per Vercel project, not one per team.
       # Vercel's docs: "You can use each available secret to bypass Deployment
@@ -280,11 +295,11 @@ jobs:
           }
 
           case "$ENVIRONMENT" in
-            *potluck-docs-demo*)
+            *potluck-docs-demo*|*ekline-docs-template-astro*)
               PROJECT=packages/template
               export DOCS_SMOKE_BYPASS="$BYPASS_TEMPLATE"
               ;;
-            *potluck-docs*)
+            *documentation-ekline-docs-template*|*potluck-docs*)
               PROJECT=apps/docs
               export DOCS_SMOKE_BYPASS="$BYPASS_DOCS"
               ;;
