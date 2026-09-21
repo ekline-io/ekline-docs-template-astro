@@ -1,9 +1,27 @@
 ---
-title: Potluck Docs
-description: An Astro + Starlight documentation site template with theming, interactive API references, and an optional logged-in tier, pre-wired so you can focus on writing.
+# Starlight builds `<title>` as `${title} | ${site title}` with no special case
+# for the two being equal (utils/head.ts), and this site's title is already
+# "Potluck Docs" — so naming this page "Potluck Docs" spent the strongest
+# on-page signal saying one opaque word twice. Naming it for the category
+# instead yields "Astro + Starlight documentation template | Potluck Docs".
+# This is not the visible heading: `hero.title` below is, and it still reads
+# "Potluck Docs".
+title: Astro + Starlight documentation template
+description: Potluck Docs is an open-source Astro + Starlight documentation template — interactive OpenAPI references, private docs behind your SSO, llms.txt built in.
 template: splash
+# `og:title` is the page title with no site title appended, so the change above
+# would have taken the product name off every social card. Starlight's
+# `mergeHead` drops its own default when a page supplies a meta tag matching on
+# `property`, so this puts it back.
+head:
+  - tag: meta
+    attrs:
+      property: og:title
+      content: Potluck Docs
 hero:
-  tagline: An Astro + Starlight docs site with theming, interactive API references, and an optional logged-in tier already wired up. Fork it, write your content, ship.
+  # Without this, the heading would inherit the SEO title above.
+  title: Potluck Docs
+  tagline: An open-source Astro + Starlight docs site with interactive OpenAPI references, private and per-org docs behind your SSO, and llms.txt already wired up. Fork it, write your content, ship.
   actions:
     - text: Get started
       link: /quickstart/

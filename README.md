@@ -1,7 +1,12 @@
-# Potluck Docs — monorepo
+# Potluck Docs
 
-The home of Potluck Docs, EkLine's recommended [Astro](https://astro.build/) +
-[Starlight](https://starlight.astro.build/) documentation template.
+Potluck Docs is an open-source [Astro](https://astro.build/) +
+[Starlight](https://starlight.astro.build/) documentation template — interactive
+OpenAPI references, private docs behind your SSO, and `llms.txt` built in.
+Maintained by EkLine.
+
+This repository is the monorepo that holds it, alongside the sites EkLine hosts
+on top of it.
 
 ## Are you here to build a docs site?
 
